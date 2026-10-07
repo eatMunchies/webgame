@@ -1,0 +1,5 @@
+.DS_Store
+
+# Godot editor cache and export output
+front/.godot/
+front/build/
