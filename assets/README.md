@@ -76,7 +76,7 @@ Items that share a name prefix belong to one costume and group together in picke
 | `pilgrim_` | Town of Salem pilgrim: buckled hat, black coat with white collar (with an apron on female bodies), white cuffs, breeches with buckle shoes, a rolled-up last will, blunderbuss. |
 | `bieber_` | Justin Bieber, "Baby" era: swoop haircut, purple hoodie, wristbands, jeans with white high-tops, dog tags, microphone. |
 | `kanye_` | Kanye West, Yeezus-era crystal mask: full-head crystal mask, black leather jacket, gloves, baggy pants with tan boots, Jesus piece chain, gold Grammy. |
-| `kanye_alex_jones_` | Kanye West on the Alex Jones show: black knit ski mask and black bomber jacket with orange lining. Wear with `kanye_baggy_pants` and `kanye_gloves`. |
+| `kanye_alex_jones_` | Kanye West on the Alex Jones show: plain black ski mask with an eye slit, black racer jacket (flame-lined hood, VTM TURBO logo, mesh sleeve panels), orange fly swatter. Wear with `kanye_baggy_pants` and `kanye_gloves`. |
 
 All of this art is generated placeholder pixel art meant to be redrawn. Every set except `template_` is fan art of characters or real people owned by, or belonging to, others. That's fine for a personal project, but replace those sets before publishing the game.
 
