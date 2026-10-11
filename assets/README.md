@@ -34,6 +34,8 @@ sprites/characters/
 
 **Bodies** are drawn in **grayscale** (light gray skin, near-black outline). The game tints them with the player's chosen skin color, so don't color the skin in a body sheet.
 
+The female bodies have a dark bob haircut that hangs beside the head down to the jaw. Hats sit over it, so hair shows under a cap or brim. A full-head mask hides it by painting the erase color over those columns (see `kanye_crystal_mask`), and a hairstyle can add a `<type>_female.png` that covers it in its own color (see `bieber_swoop`).
+
 **Parts**, layered back to front in this order:
 
 | Slot | Folder | Shifted to |
