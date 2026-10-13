@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://dn0wdkwa44tg4"]
+
+[ext_resource type="Script" uid="uid://hnqhyph0ru2f" path="res://scripts/house.gd" id="1_3p1ij"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_base"]
+size = Vector2(48, 8)
+
+[node name="House" type="StaticBody2D" unique_id=1351117179]
+script = ExtResource("1_3p1ij")
+
+[node name="Walls" type="ColorRect" parent="." unique_id=1152304957]
+offset_left = -24.0
+offset_top = -32.0
+offset_right = 24.0
+color = Color(0.85, 0.75, 0.6, 1)
+
+[node name="Roof" type="ColorRect" parent="." unique_id=526204785]
+offset_left = -28.0
+offset_top = -48.0
+offset_right = 28.0
+offset_bottom = -30.0
+color = Color(0.65, 0.25, 0.2, 1)
+
+[node name="Door" type="ColorRect" parent="." unique_id=625975773]
+offset_left = -5.0
+offset_top = -14.0
+offset_right = 5.0
+color = Color(0.4, 0.26, 0.15, 1)
+
+[node name="Window" type="ColorRect" parent="." unique_id=2101937814]
+offset_left = 9.0
+offset_top = -24.0
+offset_right = 17.0
+offset_bottom = -16.0
+color = Color(0.55, 0.75, 0.9, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=803307761]
+position = Vector2(0, -4)
+shape = SubResource("RectangleShape2D_base")

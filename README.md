@@ -30,13 +30,23 @@ Machine-specific settings go in a `.env` file at the repo root, which is gitigno
 
 ### Running
 
-To work in the editor, open Godot's Project Manager, choose Import, and select `front/project.godot`. Press F5 to run. The game opens on the wardrobe (character creator preview). To walk around in a test scene, open `scenes/main.tscn` and press F6, then move with WASD or the arrow keys.
+To work in the editor, open Godot's Project Manager, choose Import, and select `front/project.godot`. Press F5 to run.
+
+The game starts in the lobby, where you can open the character customizer, create a lobby, or type a code to join one. Creating or joining takes you to the town, where you walk with WASD or the arrow keys. Lobbies are local placeholders for now: creating one makes up a code, and joining accepts any well-formed code, until the game server exists.
+
+| Path | What it is |
+|------|------------|
+| `scenes/main/` | The game's scenes: `lobby`, `customizer`, `town`, plus `player` and `house`, which the town places |
+| `scenes/test/` | Standalone test scenes: `main` (walk around a field) and `wardrobe` (character preview with no save) |
+| `scripts/autoload/` | Globals available in every scene: `PlayerProfile` (the saved character, kept in Godot's `user://` folder) and `Session` (the current lobby) |
+
+To run one scene by itself, open it and press F6.
 
 From a terminal, the commands below use `godot` to mean the Godot executable. Either add it to your PATH or replace `godot` with its full path.
 
 - Open in the editor: `godot -e --path front`
 - Run the game: `godot --path front`
-- Run the walking test scene: `godot --path front res://scenes/main.tscn`
+- Run the walking test scene: `godot --path front res://scenes/test/main.tscn`
 
 `front/assets` is a symlink to the top-level `assets/` folder, so sprites appear in Godot as `res://assets/...`. On Windows, Git checks symlinks out as plain text files unless symlink support is on. Enable Developer Mode, then clone with `git clone -c core.symlinks=true ...`. Godot writes a `.import` file next to each image; commit those.
 

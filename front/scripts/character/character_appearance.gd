@@ -14,3 +14,13 @@ extends Resource
 
 func item_for(slot: String) -> String:
 	return items.get(slot, "")
+
+
+## Returns an independent copy, so edits to it don't change this one.
+func copy() -> CharacterAppearance:
+	var other := CharacterAppearance.new()
+	other.body_type = body_type
+	other.gender = gender
+	other.skin_color = skin_color
+	other.items = items.duplicate()
+	return other

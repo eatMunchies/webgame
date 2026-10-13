@@ -1,0 +1,102 @@
+[gd_scene format=3 uid="uid://dncaevbgj5814"]
+
+[ext_resource type="Script" path="res://scripts/lobby.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/character/character.gd" id="2_character"]
+
+[node name="Lobby" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.13, 0.15, 0.2, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="Rows" type="VBoxContainer" parent="Center/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Center/Panel/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "webgame"
+horizontal_alignment = 1
+
+[node name="PreviewArea" type="Control" parent="Center/Panel/Margin/Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+
+[node name="Preview" type="Node2D" parent="Center/Panel/Margin/Rows/PreviewArea"]
+unique_name_in_owner = true
+script = ExtResource("2_character")
+
+[node name="CustomizeButton" type="Button" parent="Center/Panel/Margin/Rows"]
+layout_mode = 2
+text = "Customize character"
+
+[node name="Separator" type="HSeparator" parent="Center/Panel/Margin/Rows"]
+layout_mode = 2
+
+[node name="CreateButton" type="Button" parent="Center/Panel/Margin/Rows"]
+layout_mode = 2
+text = "Create lobby"
+
+[node name="JoinRow" type="HBoxContainer" parent="Center/Panel/Margin/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CodeInput" type="LineEdit" parent="Center/Panel/Margin/Rows/JoinRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Lobby code"
+alignment = 1
+max_length = 8
+
+[node name="JoinButton" type="Button" parent="Center/Panel/Margin/Rows/JoinRow"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Join"
+
+[node name="StatusLabel" type="Label" parent="Center/Panel/Margin/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[connection signal="pressed" from="Center/Panel/Margin/Rows/CustomizeButton" to="." method="_on_customize_button_pressed"]
+[connection signal="pressed" from="Center/Panel/Margin/Rows/CreateButton" to="." method="_on_create_button_pressed"]
+[connection signal="text_changed" from="Center/Panel/Margin/Rows/JoinRow/CodeInput" to="." method="_on_code_input_text_changed"]
+[connection signal="text_submitted" from="Center/Panel/Margin/Rows/JoinRow/CodeInput" to="." method="_on_code_input_text_submitted"]
+[connection signal="pressed" from="Center/Panel/Margin/Rows/JoinRow/JoinButton" to="." method="_on_join_button_pressed"]
