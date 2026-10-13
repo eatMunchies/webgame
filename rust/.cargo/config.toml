@@ -1,0 +1,15 @@
+# Flags for the Web build, from https://godot-rust.github.io/book/toolchain/export-web.html
+# (single-threaded variant, so no -pthread or +atomics).
+[target.wasm32-unknown-emscripten]
+rustflags = [
+    "-C", "link-args=-sSIDE_MODULE=2",
+    "-C", "llvm-args=-enable-emscripten-cxx-exceptions=0",
+    "-Z", "default-visibility=hidden",
+    "-Z", "link-native-libraries=no",
+    # Godot's web templates are built without Wasm exceptions, so an extension that unwinds fails to
+    # load ("__cpp_exception: tag import requires a WebAssembly.Tag"). The book's fix,
+    # -Zemscripten-wasm-eh=false, was removed in Rust 1.98, so compile out unwinding entirely.
+    # godot-rust can't catch panics on Wasm anyway, so a panic aborts the game either way.
+    "-Z", "unstable-options",
+    "-C", "panic=immediate-abort",
+]
