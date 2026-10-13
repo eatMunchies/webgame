@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
+
+[node name="Main" type="Node2D"]
+
+[node name="Ground" type="ColorRect" parent="."]
+offset_left = -320.0
+offset_top = -180.0
+offset_right = 640.0
+offset_bottom = 360.0
+color = Color(0.32, 0.55, 0.3, 1)
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+position = Vector2(160, 90)
