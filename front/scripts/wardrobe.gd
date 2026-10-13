@@ -1,7 +1,10 @@
+class_name Wardrobe
 extends Control
 
 ## Character creator preview. Pick a body, skin and parts on the left and see
-## the combined sprite walking in all four directions on the right.
+## the combined sprite walking in all four directions on the right. The
+## pickers start on whatever `appearance` holds when the screen opens, so a
+## subclass can set it first to edit an existing character (see customizer.gd).
 ##
 ## The project renders at 320x180 for crisp pixel art, which is too small for
 ## a form, so this screen turns that scaling off and zooms the characters
@@ -15,7 +18,8 @@ const SKIN_PRESETS: Array[Color] = [
 	Color(0.68, 0.48, 0.34), Color(0.5, 0.33, 0.22), Color(0.33, 0.21, 0.14),
 	Color(0.6, 0.85, 0.6), Color(0.65, 0.75, 1.0),
 ]
-## Slots that start filled so a fresh character has a face.
+## Slots that start filled when the appearance has no choice for them yet,
+## so a fresh character has a face.
 const DEFAULT_FIRST_ITEM: Array[String] = ["eyes", "mouth"]
 
 var appearance := CharacterAppearance.new()
@@ -72,8 +76,8 @@ func _build_controls() -> void:
 	grid.size_flags_horizontal = SIZE_EXPAND_FILL
 	scroll.add_child(grid)
 
-	_add_row(grid, "Body", _choice(PartCatalog.BODY_TYPES, func(v): appearance.body_type = v))
-	_add_row(grid, "Gender", _choice(PartCatalog.GENDERS, func(v): appearance.gender = v))
+	_add_row(grid, "Body", _choice(PartCatalog.BODY_TYPES, appearance.body_type, func(v): appearance.body_type = v))
+	_add_row(grid, "Gender", _choice(PartCatalog.GENDERS, appearance.gender, func(v): appearance.gender = v))
 
 	var skin := ColorPickerButton.new()
 	skin.color = appearance.skin_color
@@ -107,11 +111,13 @@ func _add_row(grid: GridContainer, label_text: String, control: Control) -> void
 	grid.add_child(control)
 
 
-## A dropdown over fixed values that calls on_pick with the chosen value.
-func _choice(values: Array[String], on_pick: Callable) -> OptionButton:
+## A dropdown over fixed values, starting on current, that calls on_pick
+## with the chosen value.
+func _choice(values: Array[String], current: String, on_pick: Callable) -> OptionButton:
 	var button := OptionButton.new()
 	for value in values:
 		button.add_item(value.capitalize())
+	button.select(maxi(0, values.find(current)))
 	button.item_selected.connect(func(i): on_pick.call(values[i]); _apply())
 	return button
 
@@ -124,7 +130,10 @@ func _item_picker(slot: String) -> OptionButton:
 	for item in items:
 		button.add_item(item.capitalize())
 	button.set_meta("items", items)
-	if slot in DEFAULT_FIRST_ITEM and not items.is_empty():
+	if appearance.items.has(slot):
+		# Index 0 is "None", so an item's index is its position plus one.
+		button.select(items.find(appearance.items[slot]) + 1)
+	elif slot in DEFAULT_FIRST_ITEM and not items.is_empty():
 		button.select(1)
 		appearance.items[slot] = items[0]
 	button.item_selected.connect(func(i): _set_item(slot, i))

@@ -11,8 +11,13 @@ config_version=5
 [application]
 
 config/name="webgame"
-run/main_scene="res://scenes/wardrobe.tscn"
+run/main_scene="res://scenes/main/lobby.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[autoload]
+
+PlayerProfile="*res://scripts/autoload/player_profile.gd"
+Session="*res://scripts/autoload/session.gd"
 
 [display]
 

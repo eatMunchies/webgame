@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://dn0wdkwa44tg4"]
+
+[ext_resource type="Script" uid="uid://hnqhyph0ru2f" path="res://scripts/house/house.gd" id="1_script"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_walls"]
+size = Vector2(40, 10)
+
+[node name="House" type="StaticBody2D" unique_id=1351117179]
+script = ExtResource("1_script")
+
+[node name="Yard" type="Sprite2D" parent="."]
+z_index = -1
+centered = false
+offset = Vector2(-32, -72)
+
+[node name="Facade" type="Sprite2D" parent="."]
+centered = false
+offset = Vector2(-32, -72)
+
+[node name="Roof" type="Sprite2D" parent="."]
+centered = false
+offset = Vector2(-32, -72)
+
+[node name="NameLabel" type="Label" parent="."]
+z_index = 1
+offset_left = -40.0
+offset_top = -86.0
+offset_right = 40.0
+offset_bottom = -74.0
+mouse_filter = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -5)
+shape = SubResource("RectangleShape2D_walls")

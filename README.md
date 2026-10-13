@@ -30,13 +30,28 @@ Machine-specific settings go in a `.env` file at the repo root, which is gitigno
 
 ### Running
 
-To work in the editor, open Godot's Project Manager, choose Import, and select `front/project.godot`. Press F5 to run. The game opens on the wardrobe (character creator preview). To walk around in a test scene, open `scenes/main.tscn` and press F6, then move with WASD or the arrow keys.
+To work in the editor, open Godot's Project Manager, choose Import, and select `front/project.godot`. Press F5 to run.
+
+The game starts in the lobby, where you can open the character customizer, create a lobby, or type a code to join one. Creating or joining takes you to the town, where you walk with WASD or the arrow keys.
+
+The town is a cul-de-sac with a podium in the middle and 15 lots around it, one per player, since a lobby holds 15. Lots fill in join order, clockwise from the road in, and each player gets a house mixed from random yard, facade and roof styles. Players can't pick their house yet. Empty lots show a For Sale sign.
+
+Lobbies are local placeholders until the game server exists: creating one makes up a code, joining accepts any well-formed code, and the lobby pretends 14 other players are already in it so the town has houses to show. Set `STUB_OTHER_PLAYERS` in `scripts/autoload/session.gd` to 0 to see an empty town.
+
+| Path | What it is |
+|------|------------|
+| `scenes/main/` | The game's scenes: `lobby`, `customizer`, `town`, plus `player` and `house`, which the town places |
+| `scenes/test/` | Standalone test scenes: `main` (walk around a field) and `wardrobe` (character preview with no save) |
+| `scripts/house/` | House drawing: `HouseCatalog` finds house art on disk, `HouseAppearance` holds one house's styles |
+| `scripts/autoload/` | Globals available in every scene: `PlayerProfile` (the saved character, kept in Godot's `user://` folder) and `Session` (the current lobby) |
+
+To run one scene by itself, open it and press F6.
 
 From a terminal, the commands below use `godot` to mean the Godot executable. Either add it to your PATH or replace `godot` with its full path.
 
 - Open in the editor: `godot -e --path front`
 - Run the game: `godot --path front`
-- Run the walking test scene: `godot --path front res://scenes/main.tscn`
+- Run the walking test scene: `godot --path front res://scenes/test/main.tscn`
 
 `front/assets` is a symlink to the top-level `assets/` folder, so sprites appear in Godot as `res://assets/...`. On Windows, Git checks symlinks out as plain text files unless symlink support is on. Enable Developer Mode, then clone with `git clone -c core.symlinks=true ...`. Godot writes a `.import` file next to each image; commit those.
 

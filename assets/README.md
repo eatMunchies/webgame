@@ -7,8 +7,9 @@ Art for the webgame. Everything here is drawn in [Pixelorama](https://github.com
 | `sprites/` | Exported, game-ready PNG spritesheets. The game loads only from here. |
 | `source/` | Editable Pixelorama projects (`.pxo`), mirroring the `sprites/` layout. Open these to change a sprite. |
 | `source/characters/starters/` | Blank projects for drawing a new character part or pet. |
+| `source/houses/starters/` | Blank projects for drawing a new yard, facade or roof style. |
 
-Categories: `characters`, `tiles`, `items`, `ui`. Only `characters` has art so far.
+Categories: `characters`, `houses`, `props`, `tiles`, `items`, `ui`. `tiles`, `items` and `ui` are still empty.
 
 Draw at native size, since the game scales up with nearest-neighbor filtering. Name files and folders in lowercase with underscores.
 
@@ -82,11 +83,37 @@ Items that share a name prefix belong to one costume and group together in picke
 
 All of this art is generated placeholder pixel art meant to be redrawn. Every set except `template_` is fan art of characters or real people owned by, or belonging to, others. That's fine for a personal project, but replace those sets before publishing the game.
 
+## Houses
+
+Every player gets a house on their lot in the town. A house is three layers drawn on top of each other, back to front:
+
+```
+sprites/houses/
+  yard/<style>.png      the lot: ground, fences, plants, props
+  facade/<style>.png    the walls, windows and door
+  roof/<style>.png      the roof, chimneys, steeples, antennas
+  empty_lot.png         shown on lots nobody owns
+```
+
+Each layer picks its style on its own, so any roof can sit on any facade. The styles so far are `victorian`, `gothic_church`, `plantation`, `farm`, `mansion`, `fancy_condo` and `trailer_park`, in all three layers. Dropping a new PNG into a layer folder adds a style for that layer.
+
+That mixing works because every layer is **64x80** and follows one layout:
+
+- The **facade** fills exactly x 12 to 51, y 44 to 71. The door sits at x 28 to 35.
+- The **roof** covers the top of the facade, with its eaves ending at y 48. It can rise all the way to the top edge.
+- The house meets the ground at **y 72**. Below that, y 72 to 79, is the yard's front strip, where the path and fence go.
+- The **yard** fills the lot around the house. The sides (x 0 to 11 and 52 to 63) and the front strip show; the part under the house is hidden.
+
+Players walk over the yard, so draw its props flat. Anything players should be able to stand behind belongs in the facade or roof.
+
+`sprites/props/podium.png` (48x48) stands in the middle of the town, its base at the bottom center.
+
 ## Editing a sprite in Pixelorama
 
 Every sprite has a matching project under `source/`, at the same path with `.pxo` instead of `.png`.
 
 - **Part projects** have two layers: a locked, half-transparent **guide** showing the body the part was drawn on, and the **item** layer above it.
+- **House projects** work the same way, but the guide marks the layout instead of a body: the facade box and door in blue, the eave line in orange, the ground line in red and the front strip in green. House projects are a single frame, so they export as one image rather than a spritesheet.
 - **Export settings** are saved in each project: a spritesheet of 4 rows, named after the target PNG, exporting **only the item layer**. The guide never ends up in the PNG.
 
 To change a sprite:
@@ -103,3 +130,5 @@ To change a sprite:
 4. Export as `sprites/characters/parts/<folder>/<item_name>/<file>.png`, where `<file>` is `all` or a body-specific name from the lookup list above.
 
 The item shows up as an option the next time the game runs. A new folder is all it takes.
+
+For a new house style, copy `new_yard.pxo`, `new_facade.pxo` or `new_roof.pxo` from `source/houses/starters/`, draw inside the guide's boxes, save it as `source/houses/<layer>/<style>.pxo`, and export it as `sprites/houses/<layer>/<style>.png`. Use the same style name in all three layers if it's meant as a set.

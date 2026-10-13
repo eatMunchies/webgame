@@ -1,0 +1,110 @@
+[gd_scene format=3 uid="uid://co85yxx8fv8xl"]
+
+[ext_resource type="Script" uid="uid://djqxu8ogsmfsv" path="res://scripts/town.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/cul_de_sac.gd" id="2_ground"]
+[ext_resource type="PackedScene" path="res://scenes/main/player.tscn" id="3_player"]
+[ext_resource type="Script" uid="uid://glytgh7x3l34" path="res://scripts/copy_lobby_label_button.gd" id="4_dmb82"]
+[ext_resource type="Texture2D" path="res://assets/sprites/props/podium.png" id="5_podium"]
+
+[sub_resource type="WorldBoundaryShape2D" id="Boundary_top"]
+normal = Vector2(0, 1)
+
+[sub_resource type="WorldBoundaryShape2D" id="Boundary_bottom"]
+
+[sub_resource type="WorldBoundaryShape2D" id="Boundary_left"]
+normal = Vector2(1, 0)
+
+[sub_resource type="WorldBoundaryShape2D" id="Boundary_right"]
+normal = Vector2(-1, 0)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_podium"]
+size = Vector2(40, 10)
+
+[node name="Town" type="Node2D" unique_id=1412731115]
+script = ExtResource("1_script")
+
+[node name="CulDeSac" type="Sprite2D" parent="."]
+z_index = -2
+script = ExtResource("2_ground")
+
+[node name="Bounds" type="StaticBody2D" parent="." unique_id=2089901589]
+
+[node name="Top" type="CollisionShape2D" parent="Bounds" unique_id=1407618935]
+shape = SubResource("Boundary_top")
+
+[node name="Bottom" type="CollisionShape2D" parent="Bounds" unique_id=425569312]
+position = Vector2(0, 480)
+shape = SubResource("Boundary_bottom")
+
+[node name="Left" type="CollisionShape2D" parent="Bounds" unique_id=1130603199]
+shape = SubResource("Boundary_left")
+
+[node name="Right" type="CollisionShape2D" parent="Bounds" unique_id=2074012702]
+position = Vector2(640, 0)
+shape = SubResource("Boundary_right")
+
+[node name="World" type="Node2D" parent="." unique_id=647481292]
+y_sort_enabled = true
+
+[node name="Podium" type="StaticBody2D" parent="World"]
+position = Vector2(320, 259)
+
+[node name="Sprite2D" type="Sprite2D" parent="World/Podium"]
+texture = ExtResource("5_podium")
+centered = false
+offset = Vector2(-24, -46)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/Podium"]
+position = Vector2(0, -6)
+shape = SubResource("RectangleShape2D_podium")
+
+[node name="Houses" type="Node2D" parent="World"]
+unique_name_in_owner = true
+y_sort_enabled = true
+
+[node name="Player" parent="World" unique_id=1238959919 instance=ExtResource("3_player")]
+position = Vector2(320, 460)
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1148319304]
+
+[node name="Bar" type="HBoxContainer" parent="HUD" unique_id=647767147]
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = 18.0
+grow_horizontal = 2
+
+[node name="LobbyLabel" type="Label" parent="HUD/Bar" unique_id=883569687]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 8
+text = "Lobby"
+
+[node name="CopyButton" type="Button" parent="HUD/Bar" unique_id=1645745979]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "Copy"
+script = ExtResource("4_dmb82")
+
+[node name="CopyResetTimer" type="Timer" parent="HUD/Bar/CopyButton" unique_id=823318463]
+unique_name_in_owner = true
+wait_time = 2.0
+one_shot = true
+
+[node name="Control" type="Control" parent="HUD/Bar" unique_id=989453903]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LeaveButton" type="Button" parent="HUD/Bar" unique_id=277533632]
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "Leave"
+
+[connection signal="pressed" from="HUD/Bar/CopyButton" to="." method="_on_copy_button_pressed"]
+[connection signal="timeout" from="HUD/Bar/CopyButton/CopyResetTimer" to="." method="_on_copy_reset_timer_timeout"]
+[connection signal="pressed" from="HUD/Bar/LeaveButton" to="." method="_on_leave_button_pressed"]
