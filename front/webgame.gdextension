@@ -12,3 +12,5 @@ macos.debug =            "res://../rust/target/debug/libwebgame_godot_rust.dylib
 macos.release =          "res://../rust/target/release/libwebgame_godot_rust.dylib"
 macos.debug.arm64 =      "res://../rust/target/debug/libwebgame_godot_rust.dylib"
 macos.release.arm64 =    "res://../rust/target/release/libwebgame_godot_rust.dylib"
+web.debug.wasm32 =       "res://../rust/target/wasm32-unknown-emscripten/debug/webgame_godot_rust.wasm"
+web.release.wasm32 =     "res://../rust/target/wasm32-unknown-emscripten/release/webgame_godot_rust.wasm"

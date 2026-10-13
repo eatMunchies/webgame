@@ -3,3 +3,6 @@
 # Godot editor cache and export output
 front/.godot/
 front/build/
+
+# Machine-specific environment files (.env.local, .env.development.local, ...)
+.env*.local
