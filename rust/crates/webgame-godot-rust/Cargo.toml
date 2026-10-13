@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 godot = "0.5.5"
 
-# Web build (see rust/build-web.sh). The Web export preset has thread support off, so the
+# Web build (`just build-web`). The Web export preset has thread support off, so the
 # extension is built single-threaded to match.
 [target.'cfg(target_family = "wasm")'.dependencies]
 godot = { version = "0.5.5", features = ["experimental-wasm", "experimental-wasm-nothreads", "lazy-function-tables"] }
