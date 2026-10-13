@@ -1,9 +1,10 @@
 [gd_scene format=3 uid="uid://co85yxx8fv8xl"]
 
 [ext_resource type="Script" uid="uid://djqxu8ogsmfsv" path="res://scripts/town.gd" id="1_script"]
-[ext_resource type="PackedScene" uid="uid://dn0wdkwa44tg4" path="res://scenes/main/house.tscn" id="2_house"]
+[ext_resource type="Script" path="res://scripts/cul_de_sac.gd" id="2_ground"]
 [ext_resource type="PackedScene" path="res://scenes/main/player.tscn" id="3_player"]
 [ext_resource type="Script" uid="uid://glytgh7x3l34" path="res://scripts/copy_lobby_label_button.gd" id="4_dmb82"]
+[ext_resource type="Texture2D" path="res://assets/sprites/props/podium.png" id="5_podium"]
 
 [sub_resource type="WorldBoundaryShape2D" id="Boundary_top"]
 normal = Vector2(0, 1)
@@ -16,26 +17,15 @@ normal = Vector2(1, 0)
 [sub_resource type="WorldBoundaryShape2D" id="Boundary_right"]
 normal = Vector2(-1, 0)
 
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_podium"]
+size = Vector2(40, 10)
+
 [node name="Town" type="Node2D" unique_id=1412731115]
 script = ExtResource("1_script")
 
-[node name="Ground" type="ColorRect" parent="." unique_id=2103557661]
-offset_right = 480.0
-offset_bottom = 320.0
-color = Color(0.45175302, 0.5215445, 0.17628813, 1)
-
-[node name="Plaza" type="ColorRect" parent="." unique_id=438562188]
-offset_left = 176.0
-offset_top = 120.0
-offset_right = 304.0
-offset_bottom = 216.0
-color = Color(0.3764706, 0.70980394, 0.60784316, 1)
-
-[node name="Road" type="ColorRect" parent="." unique_id=1940919323]
-offset_left = 224.0
-offset_right = 256.0
-offset_bottom = 320.0
-color = Color(0.3751187, 0.7097252, 0.60838354, 1)
+[node name="CulDeSac" type="Sprite2D" parent="."]
+z_index = -2
+script = ExtResource("2_ground")
 
 [node name="Bounds" type="StaticBody2D" parent="." unique_id=2089901589]
 
@@ -43,37 +33,37 @@ color = Color(0.3751187, 0.7097252, 0.60838354, 1)
 shape = SubResource("Boundary_top")
 
 [node name="Bottom" type="CollisionShape2D" parent="Bounds" unique_id=425569312]
-position = Vector2(0, 320)
+position = Vector2(0, 480)
 shape = SubResource("Boundary_bottom")
 
 [node name="Left" type="CollisionShape2D" parent="Bounds" unique_id=1130603199]
 shape = SubResource("Boundary_left")
 
 [node name="Right" type="CollisionShape2D" parent="Bounds" unique_id=2074012702]
-position = Vector2(480, 0)
+position = Vector2(640, 0)
 shape = SubResource("Boundary_right")
 
 [node name="World" type="Node2D" parent="." unique_id=647481292]
 y_sort_enabled = true
 
-[node name="HouseNorthWest" parent="World" unique_id=1412497536 instance=ExtResource("2_house")]
-position = Vector2(112, 104)
-roof_color = Color(0.435756, 0.17808995, 0.17768446, 1)
+[node name="Podium" type="StaticBody2D" parent="World"]
+position = Vector2(320, 259)
 
-[node name="HouseNorthEast" parent="World" unique_id=621791995 instance=ExtResource("2_house")]
-position = Vector2(368, 104)
-roof_color = Color(0.10227654, 0.29826868, 0.36479425, 1)
+[node name="Sprite2D" type="Sprite2D" parent="World/Podium"]
+texture = ExtResource("5_podium")
+centered = false
+offset = Vector2(-24, -46)
 
-[node name="HouseSouthWest" parent="World" unique_id=1489721381 instance=ExtResource("2_house")]
-position = Vector2(112, 272)
-roof_color = Color(0.4366939, 0.17710954, 0.17754382, 1)
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/Podium"]
+position = Vector2(0, -6)
+shape = SubResource("RectangleShape2D_podium")
 
-[node name="HouseSouthEast" parent="World" unique_id=839661462 instance=ExtResource("2_house")]
-position = Vector2(368, 272)
-roof_color = Color(0.22380847, 0.2548042, 0.4374045, 1)
+[node name="Houses" type="Node2D" parent="World"]
+unique_name_in_owner = true
+y_sort_enabled = true
 
 [node name="Player" parent="World" unique_id=1238959919 instance=ExtResource("3_player")]
-position = Vector2(240, 176)
+position = Vector2(320, 460)
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=1148319304]
 

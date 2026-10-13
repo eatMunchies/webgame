@@ -1,39 +1,38 @@
 [gd_scene format=3 uid="uid://dn0wdkwa44tg4"]
 
-[ext_resource type="Script" uid="uid://hnqhyph0ru2f" path="res://scripts/house.gd" id="1_3p1ij"]
+[ext_resource type="Script" uid="uid://hnqhyph0ru2f" path="res://scripts/house/house.gd" id="1_script"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_base"]
-size = Vector2(48, 8)
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_walls"]
+size = Vector2(40, 10)
 
 [node name="House" type="StaticBody2D" unique_id=1351117179]
-script = ExtResource("1_3p1ij")
+script = ExtResource("1_script")
 
-[node name="Walls" type="ColorRect" parent="." unique_id=1152304957]
-offset_left = -24.0
-offset_top = -32.0
-offset_right = 24.0
-color = Color(0.85, 0.75, 0.6, 1)
+[node name="Yard" type="Sprite2D" parent="."]
+z_index = -1
+centered = false
+offset = Vector2(-32, -72)
 
-[node name="Roof" type="ColorRect" parent="." unique_id=526204785]
-offset_left = -28.0
-offset_top = -48.0
-offset_right = 28.0
-offset_bottom = -30.0
-color = Color(0.65, 0.25, 0.2, 1)
+[node name="Facade" type="Sprite2D" parent="."]
+centered = false
+offset = Vector2(-32, -72)
 
-[node name="Door" type="ColorRect" parent="." unique_id=625975773]
-offset_left = -5.0
-offset_top = -14.0
-offset_right = 5.0
-color = Color(0.4, 0.26, 0.15, 1)
+[node name="Roof" type="Sprite2D" parent="."]
+centered = false
+offset = Vector2(-32, -72)
 
-[node name="Window" type="ColorRect" parent="." unique_id=2101937814]
-offset_left = 9.0
-offset_top = -24.0
-offset_right = 17.0
-offset_bottom = -16.0
-color = Color(0.55, 0.75, 0.9, 1)
+[node name="NameLabel" type="Label" parent="."]
+z_index = 1
+offset_left = -40.0
+offset_top = -86.0
+offset_right = 40.0
+offset_bottom = -74.0
+mouse_filter = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=803307761]
-position = Vector2(0, -4)
-shape = SubResource("RectangleShape2D_base")
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -5)
+shape = SubResource("RectangleShape2D_walls")
