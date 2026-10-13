@@ -32,6 +32,11 @@ window/stretch/scale_mode="integer"
 
 enabled=PackedStringArray("res://addons/gdUnit4/plugin.cfg")
 
+[gdunit4]
+
+settings/test/test_timeout_seconds=30
+report/godot/push_error=true
+
 [input]
 
 move_left={
