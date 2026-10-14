@@ -73,6 +73,14 @@ The web build compiles the Rust extension to WebAssembly, which needs extra tool
    Exporting from the editor (Project > Export) or testing with Remote Debug > Run in Browser also works, but neither rebuilds the extension; they copy whatever `.wasm` is already built. Run `just build-web release` before an editor export, or `just build-web` before Run in Browser, which uses the debug build.
 3. Browsers won't run the export from a `file://` URL, so serve `front/build/web` with any static file server and open it over `http://`. The preset turns thread support off, so the server doesn't need special COOP/COEP headers. Any static host (itch.io, GitHub Pages, Netlify) works the same way. The Rust extension is built single-threaded to match; turning thread support on in the preset would also need a threaded build of the extension.
 
+## Tests
+
+`just test` runs everything. `just test unit` runs only the Rust unit tests (`cargo test`, so extra arguments go to cargo), and `just test godot` runs only the Godot integration tests.
+
+Integration tests live in `front/tests/` and use [GdUnit4](https://github.com/godot-gdunit-labs/gdUnit4), which is vendored in `front/addons/gdUnit4`. They run in headless Godot with `--fixed-fps 60`, so every frame advances by exactly 1/60 s no matter how long it takes. To run one suite, pass GdUnit4's options: `just test godot -a res://tests/state_machine_test.gd`. You can also run them from the GdUnit4 panel in the editor. Reports are written to `front/reports/` (gitignored).
+
+`front/project.godot` sets `gdunit4/report/godot/push_error=true`. Rust panics are reported as engine errors, and without this setting GdUnit4 doesn't count them as failures, so keep it on.
+
 ## Art assets
 
 See [`assets/README.md`](assets/README.md) for the sprite format, how characters are layered, the costume sets, and the Pixelorama workflow.

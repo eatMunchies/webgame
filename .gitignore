@@ -3,5 +3,7 @@
 # Godot editor cache and export output
 front/.godot/
 front/build/
+front/reports/*
+!front/reports/.gdignore
 
 .env

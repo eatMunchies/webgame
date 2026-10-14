@@ -1,5 +1,7 @@
 use godot::prelude::*;
 
+mod state_machine;
+
 struct WebgameExtension;
 
 #[gdextension]
