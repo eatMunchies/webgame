@@ -1,14 +1,31 @@
 extends Node
 
-## The lobby the player is in, available everywhere as the Session autoload.
+## The connection to the game server and the lobby the player is in,
+## available everywhere as the Session autoload.
 ##
-## This is a local stand-in until the game server exists: creating a lobby
-## just makes up a code, and joining accepts any well-formed code without
-## checking that the lobby exists. The functions are shaped like the real
-## thing (a request that can fail with a message) so the lobby screen won't
-## need to change when they start talking to the server.
+## The talking is done by `client`, a GameClient from the Rust extension,
+## which uses the same protocol types as the server. This script turns what it
+## reports into things scenes can use directly: the lobby code, the players as
+## LobbyPlayer objects, and a log of game text.
+##
+## Requests go to the server, so their results arrive later: after
+## create_lobby() or join_lobby(), wait for lobby_changed (with in_lobby()
+## true) or request_failed.
 
+## The lobby's players, the host, or the code changed.
 signal lobby_changed
+## The game moved to a new phase.
+signal phase_changed
+## A request was refused or the server couldn't be reached. `message` is
+## written for the player.
+signal request_failed(message: String)
+## A new line in the game log. Every line so far is in log_lines.
+signal log_line(text: String)
+## Someone else's character moved in the town. `facing` is a
+## Character.Facing value.
+signal player_moved(lot: int, position: Vector2, facing: int, walking: bool)
+## What the player can do changed. Read client.actions().
+signal actions_changed
 
 const CODE_LENGTH := 6
 ## Letters and digits that are hard to confuse when read aloud or typed
@@ -16,63 +33,85 @@ const CODE_LENGTH := 6
 const CODE_ALPHABET := "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 ## A lobby holds this many players, one per lot in the town.
 const MAX_PLAYERS := 15
-## The stand-in lobby pretends this many other people are already in it, so
-## the town has houses to look at. Set it to 0 to see empty lots.
-const STUB_OTHER_PLAYERS := 14
-const STUB_NAMES: Array[String] = [
-	"Ada", "Bram", "Cleo", "Dev", "Edie", "Finn", "Gus",
-	"Hana", "Ivo", "Juno", "Kit", "Lou", "Mo", "Nell",
-]
+## The port `just server` and `just play` listen on.
+const DEFAULT_PORT := 9090
+## The log keeps this many lines, dropping the oldest.
+const MAX_LOG_LINES := 300
 
+var client: GameClient
 ## The current lobby's code, or "" when not in a lobby.
 var code := ""
 var is_host := false
-## Everyone in the lobby, in join order.
+## Everyone in the lobby, in lot order.
 var players: Array[LobbyPlayer] = []
 ## This player's entry in players, or null when not in a lobby.
 var me: LobbyPlayer
+## Game text so far, oldest first, so a log that opens later can catch up.
+var log_lines: Array[String] = []
+## Why the player was last dropped from a lobby, for the lobby screen to
+## show. Cleared once shown.
+var last_error := ""
 
-var _next_player_id := 0
+## The name the connection was opened with, to reconnect if it changes.
+var _connected_as := ""
+
+
+func _ready() -> void:
+	client = GameClient.new()
+	client.name = "GameClient"
+	add_child(client)
+	client.members_changed.connect(_refresh_players)
+	client.phase_changed.connect(phase_changed.emit)
+	client.log_line.connect(_add_log_line)
+	client.server_error.connect(request_failed.emit)
+	client.disconnected.connect(_on_disconnected)
+	client.player_moved.connect(player_moved.emit)
+	client.actions_changed.connect(actions_changed.emit)
 
 
 func in_lobby() -> bool:
 	return code != ""
 
 
-## Hosts a new lobby and joins it. The host gets the first lot.
+## Whether a game is being played (not in the lobby, not over).
+func in_game() -> bool:
+	return client.in_game()
+
+
+## Hosts a new lobby on the server and joins it.
 func create_lobby() -> void:
-	var new_code := ""
-	for i in CODE_LENGTH:
-		new_code += CODE_ALPHABET[randi() % CODE_ALPHABET.length()]
-	_start(new_code, true)
-	me = _add_player("You")
-	_add_stub_players()
-	lobby_changed.emit()
+	if _connect_if_needed():
+		client.create_lobby()
 
 
-## Joins the lobby with the given code. Returns "" on success, or a message
-## to show the player.
+## Asks to join the lobby with the given code. Returns "" when the request
+## was sent, or a message if the code itself is wrong.
 func join_lobby(raw_code: String) -> String:
 	var clean := normalize_code(raw_code)
 	if clean.length() != CODE_LENGTH:
 		return "Lobby codes are %d characters." % CODE_LENGTH
-	for character in clean:
-		if not CODE_ALPHABET.contains(character):
-			return "\"%s\" can't be in a lobby code." % character
-	_start(clean, false)
-	# The stand-in players were "already there", so they hold the first lots.
-	_add_stub_players()
-	me = _add_player("You")
-	if me == null:
-		_start("", false)
-		return "That lobby is full."
-	lobby_changed.emit()
-	return ""
+	if not _connect_if_needed():
+		return ""
+	return client.join_lobby(clean)
 
 
 func leave_lobby() -> void:
-	_start("", false)
-	lobby_changed.emit()
+	client.leave_lobby()
+	_clear()
+
+
+## Sends a line typed into the game chat: plain text is chat, and lines like
+## `/vote 3` are commands (see client.help_text()). Returns "" when sent, or
+## a message saying what was wrong.
+func submit(line: String) -> String:
+	return client.submit(line)
+
+
+## Tells everyone in the lobby how this player's character looks, from
+## PlayerProfile. Sent on joining a lobby.
+func send_appearance() -> void:
+	var look := PlayerProfile.appearance
+	client.set_appearance(look.body_type, look.gender, look.skin_color, look.items)
 
 
 ## Returns the player who owns a lot, or null if it's empty.
@@ -88,34 +127,100 @@ func normalize_code(raw_code: String) -> String:
 	return raw_code.to_upper().replace(" ", "").replace("-", "")
 
 
-func _start(new_code: String, host: bool) -> void:
+## Where the game server is. Run with `-- --server=ws://host:port/ws` to
+## choose one. In a browser it is the host that served the page, on
+## DEFAULT_PORT; otherwise this machine.
+func server_url() -> String:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--server="):
+			return arg.trim_prefix("--server=")
+	if OS.has_feature("web"):
+		var host: String = JavaScriptBridge.eval("window.location.hostname")
+		var secure: bool = JavaScriptBridge.eval("window.location.protocol") == "https:"
+		return "%s://%s:%d/ws" % ["wss" if secure else "ws", host, DEFAULT_PORT]
+	return "ws://127.0.0.1:%d/ws" % DEFAULT_PORT
+
+
+## Opens a connection as the profile's username, unless one is already open
+## under that name. Returns false, after emitting request_failed, when it
+## couldn't start.
+func _connect_if_needed() -> bool:
+	var username := PlayerProfile.username
+	if client.is_online() and _connected_as == username:
+		return true
+	_connected_as = username
+	var error := client.connect_to_server(server_url(), username)
+	if error != "":
+		_connected_as = ""
+		request_failed.emit(error)
+		return false
+	return true
+
+
+## Rebuilds `players` from the client's member list.
+func _refresh_players() -> void:
+	var new_code := client.lobby_code()
+	# The log belongs to one lobby, but its first lines arrive just before
+	# the lobby does, so it is only cleared on the way out.
+	if new_code == "":
+		log_lines.clear()
+	var joined := new_code != "" and new_code != code
 	code = new_code
-	is_host = host
+	is_host = client.is_host()
 	players.clear()
 	me = null
-	_next_player_id = 0
+	for member in client.members():
+		var player := LobbyPlayer.new()
+		player.user_id = member["user_id"]
+		player.display_name = member["name"]
+		player.number = member["number"]
+		player.lot = member["lot"]
+		player.alive = member["alive"]
+		player.connected = member["connected"]
+		player.is_host = member["is_host"]
+		if member["appearance"] != null:
+			player.appearance = _appearance_from(member["appearance"])
+		# Seeded from the lobby code and user id, so every client in the
+		# lobby builds the same house for this player.
+		player.house = HouseAppearance.random(hash("%s/%s" % [code, player.user_id]))
+		players.append(player)
+		if member["is_me"]:
+			me = player
+	if joined:
+		send_appearance()
+	lobby_changed.emit()
 
 
-## Adds a player on the lowest free lot, so lots fill in join order and a
-## lot freed by someone leaving goes to the next person in. Returns null
-## when the lobby is full.
-func _add_player(display_name: String) -> LobbyPlayer:
-	if players.size() >= MAX_PLAYERS:
-		return null
-	var player := LobbyPlayer.new()
-	player.id = _next_player_id
-	_next_player_id += 1
-	player.display_name = display_name
-	player.lot = 0
-	while player_on_lot(player.lot) != null:
-		player.lot += 1
-	# Seeded from the lobby code and player id, so every client in the lobby
-	# would build the same house for this player.
-	player.house = HouseAppearance.random(hash("%s/%d" % [code, player.id]))
-	players.append(player)
-	return player
+func _appearance_from(fields: Dictionary) -> CharacterAppearance:
+	var look := CharacterAppearance.new()
+	look.body_type = fields["body_type"]
+	look.gender = fields["gender"]
+	look.skin_color = fields["skin_color"]
+	var items: Dictionary = fields["items"]
+	for slot in items:
+		look.items[str(slot)] = str(items[slot])
+	return look
 
 
-func _add_stub_players() -> void:
-	for i in STUB_OTHER_PLAYERS:
-		_add_player(STUB_NAMES[i % STUB_NAMES.size()])
+func _add_log_line(text: String) -> void:
+	log_lines.append(text)
+	if log_lines.size() > MAX_LOG_LINES:
+		log_lines.pop_front()
+	log_line.emit(text)
+
+
+func _on_disconnected(reason: String) -> void:
+	_connected_as = ""
+	if in_lobby():
+		last_error = reason
+	_clear()
+	request_failed.emit(reason)
+
+
+func _clear() -> void:
+	code = ""
+	is_host = false
+	players.clear()
+	me = null
+	log_lines.clear()
+	lobby_changed.emit()

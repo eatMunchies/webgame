@@ -14,6 +14,10 @@ var walk_time := 0.0
 
 func _physics_process(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	# Typing in a text box (like the game chat) shouldn't also walk.
+	var focus := get_viewport().gui_get_focus_owner()
+	if focus is LineEdit or focus is TextEdit:
+		input = Vector2.ZERO
 	velocity = input * SPEED
 	move_and_slide()
 

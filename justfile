@@ -71,3 +71,17 @@ editor: build
 # Build the native extension, then run the game
 run: build
     {{ godot }} --path front
+
+# Run the game server. Options go to it: --fast (short phases), --seed N (repeatable roles),
+# --port, --db. Its SQLite file defaults to rust/webgame.db.
+[working-directory("rust")]
+server *args:
+    cargo run -p webgame-server -- {{ args }}
+
+# Run the game server with short phases, for playing a test game from terminals
+play: (server "--fast")
+
+# Play from a terminal: `just cli --name Ada --create`, then `just cli --name Bram --join CODE`
+[working-directory("rust")]
+cli *args:
+    cargo run -p webgame-cli -- {{ args }}
