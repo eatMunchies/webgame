@@ -1,0 +1,10 @@
+[package]
+name = "webgame-game"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rand = "0.10.3"
+rand_chacha = "0.10.0"
+serde = { version = "1.0.229", features = ["derive"] }
+webgame-protocol = { version = "0.1.0", path = "../webgame-protocol" }

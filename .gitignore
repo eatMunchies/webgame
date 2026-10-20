@@ -7,3 +7,7 @@ front/reports/*
 !front/reports/.gdignore
 
 .env
+
+# Game server database (just server / just play), with its SQLite side files
+*.db
+*.db-journal
