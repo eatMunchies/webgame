@@ -8,9 +8,6 @@
 //! cargo run -p webgame-cli -- --name Bram --join ABC234
 //! ```
 
-mod commands;
-mod state;
-
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
@@ -22,8 +19,7 @@ use webgame_protocol::{
     ClientMessage, GameAction, LobbyCode, PROTOCOL_VERSION, ServerMessage, decode, encode,
 };
 
-use commands::{Command, HELP};
-use state::State;
+use webgame_client::{Command, HELP, State};
 
 #[derive(Parser)]
 #[command(about = "Play webgame from a terminal")]
@@ -98,7 +94,7 @@ async fn run(args: Args) -> Result<(), String> {
                 let Some(line) = line.map_err(|err| err.to_string())? else {
                     return Ok(());
                 };
-                match commands::parse(&line, &state) {
+                match webgame_client::parse(&line, &state) {
                     Ok(Command::Send(message)) => {
                         if let ClientMessage::Game(GameAction::SetLastWill(will)) = &message {
                             state.will = will.clone();
@@ -108,6 +104,7 @@ async fn run(args: Args) -> Result<(), String> {
                     Ok(Command::Players) => println!("{}", state.players_text()),
                     Ok(Command::Role) => println!("{}", state.role_text()),
                     Ok(Command::Roles) => println!("{}", state.roles_text()),
+                    Ok(Command::CopyFrom(slot)) => println!("{}", state.copy_from(slot)),
                     Ok(Command::Help) => println!("{HELP}"),
                     Ok(Command::Quit) => return Ok(()),
                     Err(err) if err.is_empty() => {}

@@ -10,9 +10,9 @@ use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use webgame_game::{Game, Input, Outgoing, Seat};
 use webgame_protocol::{
-    ChatChannel, ChatMessage, ChatSender, ClientMessage, ErrorCode, LobbyCode, LobbyInfo,
-    LobbyMember, MAX_CHAT_LEN, MAX_PLAYERS, MIN_PLAYERS, PlayerSlot, ServerError, ServerMessage,
-    UserId,
+    Appearance, ChatChannel, ChatMessage, ChatSender, ClientMessage, ErrorCode, LobbyCode,
+    LobbyInfo, LobbyMember, MAX_CHAT_LEN, MAX_PLAYERS, MIN_PLAYERS, Movement, PlayerSlot,
+    ServerError, ServerMessage, UserId,
 };
 
 use crate::db::Db;
@@ -50,6 +50,10 @@ struct Member {
     slot: PlayerSlot,
     /// None while a player in a running game is disconnected; their seat waits for them.
     connection: Option<Connection>,
+    appearance: Option<Appearance>,
+    /// Where their character last was in the town, for players who join later. Movement is
+    /// only relayed, never written to the database.
+    movement: Option<Movement>,
 }
 
 /// A game and the bookkeeping for its database record.
@@ -87,6 +91,8 @@ impl Lobby {
                 name,
                 slot: PlayerSlot(0),
                 connection: Some(connection),
+                appearance: None,
+                movement: None,
             }],
             running: None,
             db,
@@ -168,6 +174,7 @@ impl Lobby {
             }
             let slot = member.slot;
             self.broadcast_lobby();
+            self.send_positions(slot);
             if let Some(running) = &self.running {
                 for message in running.game.snapshot(slot) {
                     self.send_to_slot(slot, message);
@@ -197,9 +204,12 @@ impl Lobby {
             name,
             slot,
             connection: Some(connection),
+            appearance: None,
+            movement: None,
         });
         self.members.sort_by_key(|m| m.slot);
         self.broadcast_lobby();
+        self.send_positions(slot);
         Ok(())
     }
 
@@ -264,6 +274,8 @@ impl Lobby {
                 self.game_input(slot, Input::Chat { channel, text })
             }
             ClientMessage::Game(action) => self.game_input(slot, Input::Action(action)),
+            ClientMessage::Move(movement) => self.moved(slot, movement),
+            ClientMessage::SetAppearance(appearance) => self.set_appearance(slot, appearance),
             ClientMessage::Hello { .. }
             | ClientMessage::CreateLobby
             | ClientMessage::JoinLobby { .. }
@@ -272,6 +284,64 @@ impl Lobby {
                 "That message is handled by the session.",
             )),
         }
+    }
+
+    /// Remembers where a player's character is and tells everyone else.
+    fn moved(&mut self, slot: PlayerSlot, movement: Movement) -> Result<(), ServerError> {
+        if !movement.is_valid() {
+            return Err(ServerError::new(
+                ErrorCode::BadMessage,
+                "That position is outside the town.",
+            ));
+        }
+        let member = self.member_mut(slot);
+        if member.movement == Some(movement) {
+            return Ok(());
+        }
+        member.movement = Some(movement);
+        let moved = ServerMessage::Moved { slot, movement };
+        for other in self.members.iter().filter(|m| m.slot != slot) {
+            send(other, moved.clone());
+        }
+        Ok(())
+    }
+
+    fn set_appearance(
+        &mut self,
+        slot: PlayerSlot,
+        appearance: Appearance,
+    ) -> Result<(), ServerError> {
+        appearance
+            .validate()
+            .map_err(|message| ServerError::new(ErrorCode::TooLong, message))?;
+        let member = self.member_mut(slot);
+        if member.appearance.as_ref() != Some(&appearance) {
+            member.appearance = Some(appearance);
+            self.broadcast_lobby();
+        }
+        Ok(())
+    }
+
+    /// Tells a player who just joined or reconnected where everyone else's character is.
+    fn send_positions(&self, slot: PlayerSlot) {
+        for other in self.members.iter().filter(|m| m.slot != slot) {
+            if let Some(movement) = other.movement {
+                self.send_to_slot(
+                    slot,
+                    ServerMessage::Moved {
+                        slot: other.slot,
+                        movement,
+                    },
+                );
+            }
+        }
+    }
+
+    fn member_mut(&mut self, slot: PlayerSlot) -> &mut Member {
+        self.members
+            .iter_mut()
+            .find(|m| m.slot == slot)
+            .expect("the slot was looked up from a member")
     }
 
     fn start_game(&mut self, user: UserId) -> Result<(), ServerError> {
@@ -370,6 +440,7 @@ impl Lobby {
                     name: m.name.clone(),
                     slot: m.slot,
                     connected: m.connection.is_some(),
+                    appearance: m.appearance.clone(),
                 })
                 .collect(),
             in_game: self.in_game(),

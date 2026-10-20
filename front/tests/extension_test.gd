@@ -2,7 +2,7 @@ extends GdUnitTestSuite
 
 
 func test_rust_classes_are_registered() -> void:
-	for class_name_ in [&"StateMachine", &"State"]:
+	for class_name_ in [&"StateMachine", &"State", &"GameClient"]:
 		assert_bool(ClassDB.class_exists(class_name_)) \
 				.override_failure_message("%s isn't registered; is the extension built?" % class_name_) \
 				.is_true()

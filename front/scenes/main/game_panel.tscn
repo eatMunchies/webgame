@@ -1,0 +1,155 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/game_panel.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_panel"]
+content_margin_left = 3.0
+content_margin_top = 3.0
+content_margin_right = 3.0
+content_margin_bottom = 3.0
+bg_color = Color(0.08, 0.09, 0.13, 0.82)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[node name="GamePanel" type="PanelContainer"]
+anchor_left = 0.56
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 22.0
+offset_right = -4.0
+offset_bottom = -4.0
+grow_horizontal = 0
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_panel")
+script = ExtResource("1_script")
+
+[node name="Rows" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="PhaseLabel" type="Label" parent="Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.86, 0.5, 1)
+theme_override_font_sizes/font_size = 7
+text = "Lobby"
+autowrap_mode = 3
+
+[node name="RoleLabel" type="Label" parent="Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 6
+autowrap_mode = 3
+
+[node name="Log" type="RichTextLabel" parent="Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 2.0
+focus_mode = 0
+theme_override_font_sizes/normal_font_size = 6
+scroll_following = true
+
+[node name="Actions" type="ScrollContainer" parent="Rows"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ActionList" type="VBoxContainer" parent="Rows/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 1
+
+[node name="ChoiceRow" type="HFlowContainer" parent="Rows"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/h_separation = 2
+theme_override_constants/v_separation = 1
+
+[node name="StartButton" type="Button" parent="Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 7
+text = "Start game"
+
+[node name="InputRow" type="HBoxContainer" parent="Rows"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Input" type="LineEdit" parent="Rows/InputRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 6
+placeholder_text = "Enter to chat, /help for commands"
+max_length = 1600
+
+[node name="SendButton" type="Button" parent="Rows/InputRow"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 6
+text = "Send"
+
+[node name="WillButton" type="Button" parent="Rows/InputRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 6
+text = "Will"
+
+[node name="WillEditor" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="WillEditor"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.86, 0.5, 1)
+theme_override_font_sizes/font_size = 7
+text = "Last will"
+
+[node name="Hint" type="Label" parent="WillEditor"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 6
+text = "Everyone reads this when you die. Keep notes on what you learned."
+autowrap_mode = 3
+
+[node name="WillText" type="TextEdit" parent="WillEditor"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 6
+placeholder_text = "N1: checked 3, not suspicious"
+wrap_mode = 1
+
+[node name="Buttons" type="HBoxContainer" parent="WillEditor"]
+layout_mode = 2
+alignment = 2
+
+[node name="CloseWillButton" type="Button" parent="WillEditor/Buttons"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 6
+text = "Cancel"
+
+[node name="SaveWillButton" type="Button" parent="WillEditor/Buttons"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 6
+text = "Save"
+
+[connection signal="pressed" from="Rows/StartButton" to="." method="_on_start_button_pressed"]
+[connection signal="text_submitted" from="Rows/InputRow/Input" to="." method="_on_input_text_submitted"]
+[connection signal="pressed" from="Rows/InputRow/SendButton" to="." method="_on_send_button_pressed"]
+[connection signal="pressed" from="Rows/InputRow/WillButton" to="." method="_on_will_button_pressed"]
+[connection signal="pressed" from="WillEditor/Buttons/CloseWillButton" to="." method="_close_will"]
+[connection signal="pressed" from="WillEditor/Buttons/SaveWillButton" to="." method="_on_save_will_button_pressed"]

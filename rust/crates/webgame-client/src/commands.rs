@@ -5,7 +5,7 @@ use webgame_protocol::{
     ChatChannel, ClientMessage, GameAction, LobbyCode, NightAction, PlayerSlot, Verdict,
 };
 
-use crate::state::State;
+use crate::State;
 
 /// What a typed line asks for.
 #[derive(Debug, PartialEq)]
@@ -18,6 +18,8 @@ pub enum Command {
     Role,
     /// Print the role list for this game.
     Roles,
+    /// Copycat: pick whose ability to copy tonight, before picking who to use it on.
+    CopyFrom(PlayerSlot),
     Help,
     Quit,
 }
@@ -29,7 +31,7 @@ Chat:    type a line to talk (town square by day; jail, Mafia or dead chat by ni
 Day:     /vote N   /unvote   /guilty   /inno   /abstain
          /jail N          (Jailer) pick tonight's prisoner, /jail to clear
 Night:   /target N        use your ability on player N (Lookout, Doctor, Mafioso, haunt ...)
-         /target N M      Copycat: use N's ability on M. Disguiser: swap with N (M is ignored)
+         /target N M      Copycat: use N's ability on M (or /copy N, then /target M)
          /alert /vest /ignite /execute   abilities with no target
          /cancel          take back tonight's action
 Notes:   /will text       set your last will (shown when you die), /will to see it
@@ -74,11 +76,14 @@ pub fn parse(line: &str, state: &State) -> Result<Command, String> {
         "target" | "t" => {
             let mut numbers = args.split_whitespace();
             let first = slot(numbers.next().ok_or("Usage: /target N [M]")?)?;
-            match numbers.next() {
-                Some(second) => night(Some(NightAction::TwoTargets(first, slot(second)?))),
-                None => night(Some(NightAction::Target(first))),
+            match (numbers.next(), state.choices.copy_from) {
+                (Some(second), _) => night(Some(NightAction::TwoTargets(first, slot(second)?))),
+                // A Copycat who already picked with /copy only names who to use it on.
+                (None, Some(copied)) => night(Some(NightAction::TwoTargets(copied, first))),
+                (None, None) => night(Some(NightAction::Target(first))),
             }
         }
+        "copy" => Ok(Command::CopyFrom(slot(args)?)),
         "alert" | "vest" | "ignite" | "execute" => night(Some(NightAction::Activate)),
         "cancel" => night(None),
         "will" if args.is_empty() => Ok(Command::Role),
@@ -143,6 +148,22 @@ mod tests {
         );
         assert!(parse("/vote 0", &State::default()).is_err());
         assert!(parse("/vote 16", &State::default()).is_err());
+    }
+
+    #[test]
+    fn a_copycat_can_pick_in_two_steps() {
+        let mut state = State::default();
+        assert_eq!(
+            parse("/copy 3", &state),
+            Ok(Command::CopyFrom(PlayerSlot(2)))
+        );
+        state.copy_from(PlayerSlot(2));
+        assert_eq!(
+            parse("/target 5", &state),
+            Ok(Command::Send(ClientMessage::Game(GameAction::Night(Some(
+                NightAction::TwoTargets(PlayerSlot(2), PlayerSlot(4))
+            )))))
+        );
     }
 
     #[test]

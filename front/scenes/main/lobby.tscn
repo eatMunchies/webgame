@@ -66,7 +66,15 @@ text = "Customize character"
 [node name="Separator" type="HSeparator" parent="Center/Panel/Margin/Rows"]
 layout_mode = 2
 
+[node name="NameInput" type="LineEdit" parent="Center/Panel/Margin/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Your name"
+alignment = 1
+max_length = 16
+
 [node name="CreateButton" type="Button" parent="Center/Panel/Margin/Rows"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Create lobby"
 
@@ -100,3 +108,4 @@ autowrap_mode = 3
 [connection signal="text_changed" from="Center/Panel/Margin/Rows/JoinRow/CodeInput" to="." method="_on_code_input_text_changed"]
 [connection signal="text_submitted" from="Center/Panel/Margin/Rows/JoinRow/CodeInput" to="." method="_on_code_input_text_submitted"]
 [connection signal="pressed" from="Center/Panel/Margin/Rows/JoinRow/JoinButton" to="." method="_on_join_button_pressed"]
+[connection signal="text_changed" from="Center/Panel/Margin/Rows/NameInput" to="." method="_on_name_input_text_changed"]

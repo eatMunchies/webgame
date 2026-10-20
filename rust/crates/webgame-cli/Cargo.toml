@@ -8,4 +8,5 @@ clap = { version = "4.6.7", features = ["derive"] }
 futures-util = "0.3.34"
 tokio = { version = "1.54.0", features = ["full"] }
 tokio-tungstenite = "0.30"
+webgame-client = { version = "0.1.0", path = "../webgame-client" }
 webgame-protocol = { version = "0.1.0", path = "../webgame-protocol" }

@@ -7,7 +7,7 @@ A top-down RPG for the browser.
 | Path | Purpose |
 |------|---------|
 | `front/` | Game client (Godot 4.7 project, exported to the web) |
-| `rust/` | Rust workspace: the shared protocol, the game engine, the game server, a terminal test client, and the GDExtension the client loads |
+| `rust/` | Rust workspace: the shared protocol, the game engine, the game server, the client logic both clients share, a terminal test client, and the GDExtension the Godot client loads |
 | `api/auth/` | Authentication service |
 | `api/db/` | Database |
 | `assets/` | Art assets (see below) |
@@ -32,18 +32,22 @@ Machine-specific settings go in a `.env` file at the repo root, which is gitigno
 
 To work in the editor, open Godot's Project Manager, choose Import, and select `front/project.godot`. Press F5 to run.
 
-The game starts in the lobby, where you can open the character customizer, create a lobby, or type a code to join one. Creating or joining takes you to the town, where you walk with WASD or the arrow keys.
+The game starts in the lobby screen, where you enter a name, can open the character customizer, and create a lobby or type a code to join one. Lobbies live on the game server, so start it first (`just play`, see [Game server](#game-server-and-test-client-rust)). Creating or joining takes you to the town, where you walk with WASD or the arrow keys. On a touch screen, put a thumb anywhere on the lower-left half of the screen and drag to walk. To try that on a desktop, turn on Project Settings > Input Devices > Pointing > Emulate Touch From Mouse.
 
 The town is a cul-de-sac with a podium in the middle and 15 lots around it, one per player, since a lobby holds 15. Lots fill in join order, clockwise from the road in, and each player gets a house mixed from random yard, facade and roof styles. Players can't pick their house yet. Empty lots show a For Sale sign.
 
-Lobbies are local placeholders until the game server exists: creating one makes up a code, joining accepts any well-formed code, and the lobby pretends 14 other players are already in it so the town has houses to show. Set `STUB_OTHER_PLAYERS` in `scripts/autoload/session.gd` to 0 to see an empty town.
+In the town, each house is labeled with its owner's number and name; a player's number is how commands name them. The panel on the right is the game: the phase and time left, your role, and a log of chat, votes, night results and deaths. Press Enter to type and Enter again to send (Escape goes back to walking). Plain text is chat on whatever channel you can use now, and the commands are the same as the terminal client's (`/vote 3`, `/target 2`, `/will ...`; `/help` lists them). Below the log are buttons for whatever you can do right now: Vote next to each player while voting, Guilty / Innocent / Abstain during a trial, and at night your role's ability (Heal, Investigate, Kill ...) next to each player you can target, or a single button like Alert or Ignite. Your current choice shows pressed, and Cancel or Unvote takes it back. A button sends the same command as typing it, so the log shows the result either way. The Will button opens an editor for your last will. The host gets a Start game button once 4 players are in. Dead players' houses go grey, and the town darkens at night.
+
+The client connects to `ws://127.0.0.1:9090/ws`. To use another server, pass it after `--`: `godot --path front -- --server=ws://192.168.1.20:9090/ws`. In a browser it connects to port 9090 on the host that served the page (`wss://` when the page is on `https://`, which the server doesn't support yet). To play several Godot clients on one machine, run the game more than once with different names, or mix Godot and terminal clients in one lobby.
+
+Everyone in the lobby walks around the same town. Each client sends its player's position about 15 times a second while it changes, and the server passes it on to the others, who glide each character toward its latest position. A player's look from the customizer is sent on joining, so others see them as they dressed. Dead players show faded. Movement is only relayed, never stored, and other players don't block you.
 
 | Path | What it is |
 |------|------------|
-| `scenes/main/` | The game's scenes: `lobby`, `customizer`, `town`, plus `player` and `house`, which the town places |
+| `scenes/main/` | The game's scenes: `lobby`, `customizer`, `town`, plus what the town places: `player` (you), `remote_player` (everyone else), `house`, and `game_panel` |
 | `scenes/test/` | Standalone test scenes: `main` (walk around a field) and `wardrobe` (character preview with no save) |
 | `scripts/house/` | House drawing: `HouseCatalog` finds house art on disk, `HouseAppearance` holds one house's styles |
-| `scripts/autoload/` | Globals available in every scene: `PlayerProfile` (the saved character, kept in Godot's `user://` folder) and `Session` (the current lobby) |
+| `scripts/autoload/` | Globals available in every scene: `PlayerProfile` (the saved character and name, kept in Godot's `user://` folder) and `Session` (the connection to the server and the current lobby, through the Rust `GameClient`) |
 
 To run one scene by itself, open it and press F6.
 
@@ -66,7 +70,7 @@ The web build compiles the Rust extension to WebAssembly, which needs extra tool
      rustup component add rust-src --toolchain nightly
      rustup target add wasm32-unknown-emscripten --toolchain nightly
      ```
-   - Install Emscripten 3.1.74 with [emsdk](https://github.com/emscripten-core/emsdk) (`./emsdk install 3.1.74`, then `./emsdk activate 3.1.74`), and set `EMSDK` in `.env` to the emsdk directory.
+   - Install Emscripten 3.1.74 with [emsdk](https://github.com/emscripten-core/emsdk) (`./emsdk install 3.1.74`, then `./emsdk activate 3.1.74`), and set `EMSDK` in `.env` to the emsdk directory. The installer needs Python 3.10 or newer; if the system `python3` is older (macOS ships 3.9), point `EMSDK_PYTHON` at a newer one for the install, like `EMSDK_PYTHON=/opt/homebrew/bin/python3.13 ./emsdk install 3.1.74`. emsdk brings its own Python after that.
    - In the Godot editor, Editor > Manage Export Templates > Download and Install.
 2. Run `just export-web`. It builds the extension in release mode, then exports the game to `front/build/web/index.html` (gitignored).
 
@@ -75,15 +79,16 @@ The web build compiles the Rust extension to WebAssembly, which needs extra tool
 
 ## Game server and test client (`rust/`)
 
-The game itself (lobbies, roles, days and nights, chat, voting, last wills) runs on a Rust server. The Godot client isn't connected to it yet, so for now you play it from terminals with a small test client. Both speak the same protocol.
+The game itself (lobbies, roles, days and nights, chat, voting, last wills) runs on a Rust server. You play it from the Godot client, from a small terminal client, or both in the same lobby. They speak the same protocol and share the same client code.
 
 | Crate | What it is |
 |-------|-----------|
 | `webgame-protocol` | Every type that crosses the network, defined once: ids, roles, phases, chat channels and their rules, and the `ClientMessage` / `ServerMessage` enums. Messages are encoded with [postcard](https://docs.rs/postcard) and sent as WebSocket binary frames. It has no OS dependencies, so the Godot extension can use it, including in the web build. |
 | `webgame-game` | The rules engine: setting up a game, the day and night cycle, the night calculator, and win conditions. It does no networking and reads no clock (time is passed in), so whole games run in tests in milliseconds. |
 | `webgame-server` | The server: a WebSocket endpoint at `/ws` (and `/health`), one task per lobby that owns its game, and a SQLite file that records users, lobbies, games and every message each game sent. |
+| `webgame-client` | What a client knows about the game, kept up to date from server messages, how each message reads as text, and how a typed line like `/vote 3` becomes a message. Both clients use it, so they agree on the rules and describe the game the same way. |
 | `webgame-cli` | The terminal client. |
-| `webgame-godot-rust` | The GDExtension Godot loads. |
+| `webgame-godot-rust` | The GDExtension Godot loads: the `StateMachine`, and `GameClient`, the node that talks to the server over Godot's WebSocketPeer (which also works in the web export) and gives GDScript methods and signals. |
 
 ### Playing a test game
 
@@ -95,7 +100,7 @@ just cli --name Ada --create         # prints a lobby code, like ABC234
 just cli --name Bram --join ABC234   # and the same for Cleo, Dev, ...
 ```
 
-The player who created the lobby types `/start`. `/help` lists every command. Players are named by their number from `/players`, so `/vote 3` votes for player 3. Plain text goes to whatever chat you can use right now: the lobby, the town square by day, or by night the jail, the Mafia, or the dead.
+Players can also join from the Godot game (`just run`) by typing the lobby code, and Godot and terminal players can share a lobby. The player who created the lobby types `/start` (or presses Start game in Godot). `/help` lists every command. Players are named by their number from `/players`, so `/vote 3` votes for player 3. Plain text goes to whatever chat you can use right now: the lobby, the town square by day, or by night the jail, the Mafia, or the dead.
 
 | Command | What it does |
 |---------|-------------|
@@ -105,7 +110,7 @@ The player who created the lobby types `/start`. `/help` lists every command. Pl
 | `/guilty`, `/inno`, `/abstain` | Judge the player on trial. |
 | `/jail N` | (Jailer) pick tonight's prisoner, during the day. |
 | `/target N` | Use your night ability on player N. A lynched Jester haunts with it too. |
-| `/target N M` | (Copycat) use player N's night ability on player M. |
+| `/target N M` | (Copycat) use player N's night ability on player M. Or pick in two steps, like the buttons do: `/copy N`, then `/target M`. |
 | `/alert`, `/vest`, `/ignite`, `/execute` | Night abilities with no target: Veteran, Survivor, Arsonist, Jailer. |
 | `/cancel` | Take back tonight's action. |
 | `/will text` | Set your last will, shown to everyone when you die. Write `\n` for a new line. `/will` alone shows it. |

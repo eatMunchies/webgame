@@ -11,8 +11,9 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 use webgame_game::Timers;
 use webgame_protocol::{
-    ChatChannel, ClientMessage, ErrorCode, GameAction, GameOverInfo, GamePhase, LobbyCode,
-    NightAction, Outcome, PROTOCOL_VERSION, PlayerSlot, Role, ServerMessage, decode, encode,
+    Appearance, ChatChannel, ClientMessage, ErrorCode, Facing, GameAction, GameOverInfo, GamePhase,
+    LobbyCode, Movement, NightAction, Outcome, PROTOCOL_VERSION, PlayerSlot, Role, ServerMessage,
+    decode, encode,
 };
 use webgame_server::db::Db;
 use webgame_server::{Config, app};
@@ -298,5 +299,76 @@ async fn bad_requests_get_clear_errors() {
     assert_eq!(ada.error().await, ErrorCode::NotEnoughPlayers);
     ada.send(ClientMessage::Game(GameAction::Vote(None))).await;
     assert_eq!(ada.error().await, ErrorCode::NotAllowedNow);
+    let _ = std::fs::remove_file(path);
+}
+
+#[tokio::test]
+async fn movement_and_looks_reach_the_rest_of_the_lobby() {
+    let (addr, _db, path) = start_server(Timers::uniform(60_000), 1).await;
+    let mut ada = Client::connect(addr, "Ada").await;
+    let code = ada.create().await;
+    let mut bram = Client::connect(addr, "Bram").await;
+    bram.join(&code).await;
+
+    let step = Movement {
+        x: 120,
+        y: 300,
+        facing: Facing::Left,
+        walking: true,
+    };
+    ada.send(ClientMessage::Move(step)).await;
+    let moved = bram
+        .wait(|m| matches!(m, ServerMessage::Moved { .. }))
+        .await;
+    assert_eq!(
+        moved,
+        ServerMessage::Moved {
+            slot: PlayerSlot(0),
+            movement: step
+        }
+    );
+
+    let look = Appearance {
+        body_type: "regular".into(),
+        gender: "female".into(),
+        skin_color: 0xf5cbb0ff,
+        items: vec![("hat".into(), "cowboy".into())],
+    };
+    ada.send(ClientMessage::SetAppearance(look.clone())).await;
+    bram.wait(|m| match m {
+        ServerMessage::Lobby(info) => info.members[0].appearance.as_ref() == Some(&look),
+        _ => false,
+    })
+    .await;
+
+    // Someone joining later is told where everyone already is.
+    let mut cleo = Client::connect(addr, "Cleo").await;
+    cleo.join(&code).await;
+    let moved = cleo
+        .wait(|m| matches!(m, ServerMessage::Moved { .. }))
+        .await;
+    assert_eq!(
+        moved,
+        ServerMessage::Moved {
+            slot: PlayerSlot(0),
+            movement: step
+        }
+    );
+
+    // A player's own moves aren't echoed back to them.
+    bram.send(ClientMessage::Move(Movement { x: 5, ..step }))
+        .await;
+    let moved = ada.wait(|m| matches!(m, ServerMessage::Moved { .. })).await;
+    assert!(matches!(
+        moved,
+        ServerMessage::Moved {
+            slot: PlayerSlot(1),
+            ..
+        }
+    ));
+
+    ada.send(ClientMessage::Move(Movement { x: -1, ..step }))
+        .await;
+    assert_eq!(ada.error().await, ErrorCode::BadMessage);
     let _ = std::fs::remove_file(path);
 }

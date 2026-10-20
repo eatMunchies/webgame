@@ -7,8 +7,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ChatChannel, ChatMessage, GamePhase, LobbyCode, NightAction, PlayerSlot, Role, RoleSlot,
-    UserId, Verdict,
+    Appearance, ChatChannel, ChatMessage, GamePhase, LobbyCode, Movement, NightAction, PlayerSlot,
+    Role, RoleSlot, UserId, Verdict,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,6 +30,11 @@ pub enum ClientMessage {
         text: String,
     },
     Game(GameAction),
+    /// Where this player's character is now in the town. Sent a few times a second while it
+    /// moves; the server passes it on to everyone else in the lobby.
+    Move(Movement),
+    /// How this player's character looks. Sent after joining a lobby.
+    SetAppearance(Appearance),
 }
 
 /// Things a player does in a running game, other than chatting.
@@ -99,6 +104,12 @@ pub enum ServerMessage {
     /// An action was taken, to confirm it.
     Accepted(Accepted),
     GameOver(GameOverInfo),
+    /// Another player's character moved in the town. Also sent for everyone's last position on
+    /// joining a lobby.
+    Moved {
+        slot: PlayerSlot,
+        movement: Movement,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -161,6 +172,8 @@ pub struct LobbyMember {
     pub slot: PlayerSlot,
     /// False while the player is disconnected from a running game, holding their seat.
     pub connected: bool,
+    /// How the player's character looks, once their client has said.
+    pub appearance: Option<Appearance>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -375,6 +388,18 @@ mod tests {
         round_trip(ClientMessage::Game(GameAction::Night(Some(
             NightAction::TwoTargets(PlayerSlot(1), PlayerSlot(2)),
         ))));
+        round_trip(ClientMessage::Move(Movement {
+            x: 320,
+            y: 460,
+            facing: crate::Facing::Left,
+            walking: true,
+        }));
+        round_trip(ClientMessage::SetAppearance(Appearance {
+            body_type: "regular".into(),
+            gender: "female".into(),
+            skin_color: 0xf5cbb0ff,
+            items: vec![("hat".into(), "cowboy".into())],
+        }));
     }
 
     #[test]

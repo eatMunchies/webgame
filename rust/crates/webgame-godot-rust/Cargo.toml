@@ -8,6 +8,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 godot = "0.5.5"
+webgame-client = { version = "0.1.0", path = "../webgame-client" }
+webgame-protocol = { version = "0.1.0", path = "../webgame-protocol" }
 
 # Web build (`just build-web`). The Web export preset has thread support off, so the
 # extension is built single-threaded to match.

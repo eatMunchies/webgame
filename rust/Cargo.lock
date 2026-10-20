@@ -1388,6 +1388,14 @@ dependencies = [
  "futures-util",
  "tokio",
  "tokio-tungstenite 0.30.0",
+ "webgame-client",
+ "webgame-protocol",
+]
+
+[[package]]
+name = "webgame-client"
+version = "0.1.0"
+dependencies = [
  "webgame-protocol",
 ]
 
@@ -1406,6 +1414,8 @@ name = "webgame-godot-rust"
 version = "0.1.0"
 dependencies = [
  "godot",
+ "webgame-client",
+ "webgame-protocol",
 ]
 
 [[package]]

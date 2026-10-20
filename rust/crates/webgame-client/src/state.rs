@@ -1,11 +1,13 @@
 //! What this player knows, kept up to date from server messages, and how each message reads
 //! as a line of text.
 
+use std::collections::BTreeMap;
+
 use webgame_protocol::{
     Accepted, ChatChannel, ChatContext, ChatSender, DayStage, DeathCause, DeathReport,
-    GameOverInfo, GamePhase, GameStart, JailStatus, LobbyInfo, NightAction, Notice, Outcome,
-    PlayerSlot, PlayerSummary, Role, RoleSlot, SaveReason, ServerMessage, TeamMember, UserId,
-    VoteEntry,
+    GameOverInfo, GamePhase, GameStart, JailStatus, LobbyInfo, Movement, NightAction, Notice,
+    Outcome, PlayerSlot, PlayerSummary, Role, RoleSlot, SaveReason, ServerMessage, TeamMember,
+    UserId, Verdict, VoteEntry,
 };
 
 #[derive(Debug)]
@@ -23,6 +25,24 @@ pub struct State {
     /// When the current phase ends, in Unix milliseconds. Zero when it doesn't.
     pub ends_at_ms: u64,
     pub jail: JailStatus,
+    /// Where everyone else's character last was in the town.
+    pub positions: BTreeMap<PlayerSlot, Movement>,
+    /// What this player has chosen so far in the current phase, so buttons can show it.
+    pub choices: Choices,
+}
+
+/// This player's current choices, as the server confirmed them.
+#[derive(Debug, Default)]
+pub struct Choices {
+    pub vote: Option<PlayerSlot>,
+    pub verdict: Option<Verdict>,
+    pub jail: Option<PlayerSlot>,
+    pub night: Option<NightAction>,
+    /// A Copycat's first pick, whose ability they will use. Kept here until they pick who to
+    /// use it on, since the server takes both at once.
+    pub copy_from: Option<PlayerSlot>,
+    /// Who a lynched Jester may haunt tonight.
+    pub haunt: Vec<PlayerSlot>,
 }
 
 impl Default for State {
@@ -40,6 +60,8 @@ impl Default for State {
             phase: GamePhase::Lobby,
             ends_at_ms: 0,
             jail: JailStatus::Free,
+            positions: BTreeMap::new(),
+            choices: Choices::default(),
         }
     }
 }
@@ -49,7 +71,7 @@ impl State {
         self.me.is_some() && !matches!(self.phase, GamePhase::Lobby | GamePhase::GameOver)
     }
 
-    fn alive(&self, slot: PlayerSlot) -> bool {
+    pub(crate) fn alive(&self, slot: PlayerSlot) -> bool {
         self.players.iter().any(|p| p.slot == slot && p.alive)
     }
 
@@ -199,6 +221,12 @@ impl State {
         format!("Role list:\n{}", slots.join("\n"))
     }
 
+    /// Remembers a Copycat's first pick and says what to do next.
+    pub fn copy_from(&mut self, slot: PlayerSlot) -> String {
+        self.choices.copy_from = Some(slot);
+        format!("Now pick who to use {}'s ability on.", self.name(slot))
+    }
+
     /// Applies a message and returns the lines to show for it, if any.
     pub fn apply(&mut self, message: ServerMessage) -> Vec<String> {
         match message {
@@ -212,6 +240,8 @@ impl State {
                 let joined = self.lobby.as_ref().map(|l| l.members.len()).unwrap_or(0);
                 let now = info.members.len();
                 let ended = self.phase == GamePhase::GameOver && !info.in_game;
+                self.positions
+                    .retain(|slot, _| info.members.iter().any(|m| m.slot == *slot));
                 self.lobby = Some(info);
                 if ended {
                     self.reset_game();
@@ -231,6 +261,7 @@ impl State {
             }
             ServerMessage::LeftLobby => {
                 self.lobby = None;
+                self.positions.clear();
                 self.reset_game();
                 vec!["You left the lobby.".into()]
             }
@@ -238,8 +269,16 @@ impl State {
             ServerMessage::Phase { phase, ends_at_ms } => {
                 if phase.is_day() && !self.phase.is_day() {
                     self.jail = JailStatus::Free;
+                    self.choices.jail = None;
+                    self.choices.haunt.clear();
                 }
                 let changed = phase != self.phase;
+                if changed {
+                    self.choices.vote = None;
+                    self.choices.verdict = None;
+                    self.choices.night = None;
+                    self.choices.copy_from = None;
+                }
                 self.phase = phase;
                 self.ends_at_ms = ends_at_ms;
                 if !changed {
@@ -264,12 +303,25 @@ impl State {
                     )]
                 }
             }
-            ServerMessage::Notices(notices) => notices
-                .iter()
-                .map(|n| format!("* {}", self.notice(n)))
-                .collect(),
+            ServerMessage::Notices(notices) => {
+                for notice in &notices {
+                    if let Notice::ChooseHaunt { candidates } = notice {
+                        self.choices.haunt = candidates.clone();
+                    }
+                }
+                notices
+                    .iter()
+                    .map(|n| format!("* {}", self.notice(n)))
+                    .collect()
+            }
             ServerMessage::Deaths(deaths) => self.deaths(deaths),
-            ServerMessage::Votes { votes, needed } => vec![self.votes(&votes, needed)],
+            ServerMessage::Votes { votes, needed } => {
+                self.choices.vote = votes
+                    .iter()
+                    .find(|v| Some(v.voter) == self.me)
+                    .map(|v| v.target);
+                vec![self.votes(&votes, needed)]
+            }
             ServerMessage::TrialResult {
                 accused,
                 votes,
@@ -304,6 +356,10 @@ impl State {
             }
             ServerMessage::Accepted(accepted) => vec![self.accepted(accepted)],
             ServerMessage::GameOver(info) => self.game_over(info),
+            ServerMessage::Moved { slot, movement } => {
+                self.positions.insert(slot, movement);
+                Vec::new()
+            }
         }
     }
 
@@ -318,6 +374,7 @@ impl State {
         self.phase = GamePhase::Lobby;
         self.ends_at_ms = 0;
         self.jail = JailStatus::Free;
+        self.choices = Choices::default();
     }
 
     fn start(&mut self, start: GameStart) -> Vec<String> {
@@ -459,6 +516,15 @@ impl State {
     }
 
     fn accepted(&mut self, accepted: Accepted) -> String {
+        match accepted {
+            Accepted::Verdict(verdict) => self.choices.verdict = Some(verdict),
+            Accepted::Jail(target) => self.choices.jail = target,
+            Accepted::Night(action) => {
+                self.choices.night = action;
+                self.choices.copy_from = None;
+            }
+            Accepted::LastWill => {}
+        }
         match accepted {
             Accepted::LastWill => "Last will saved.".into(),
             Accepted::Verdict(verdict) => format!("You voted {verdict:?}."),

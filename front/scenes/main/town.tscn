@@ -105,6 +105,21 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 8
 text = "Leave"
 
+[node name="Joystick" type="VirtualJoystick" parent="HUD"]
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_top = 24.0
+grow_vertical = 0
+joystick_mode = 1
+joystick_size = 48.0
+tip_size = 20.0
+deadzone_ratio = 0.1
+action_left = &"move_left"
+action_right = &"move_right"
+action_up = &"move_up"
+action_down = &"move_down"
+visibility_mode = 1
+
 [connection signal="pressed" from="HUD/Bar/CopyButton" to="." method="_on_copy_button_pressed"]
 [connection signal="timeout" from="HUD/Bar/CopyButton/CopyResetTimer" to="." method="_on_copy_reset_timer_timeout"]
 [connection signal="pressed" from="HUD/Bar/LeaveButton" to="." method="_on_leave_button_pressed"]
