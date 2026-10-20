@@ -17,11 +17,28 @@
 //!
 //! Everyone acts at the same time, so a player killed tonight still carries out their own
 //! action. Deaths are returned, not applied: the caller marks the dead and reveals their wills.
+//!
+//! # Minigames
+//!
+//! Each action that goes ahead is played out as a minigame during the night, in [`STAGES`]
+//! order. Direct attacks (the Mafia's kill, a Serial Killer, a Vigilante, a Jester's haunt) are
+//! a [`Fight`] between attacker and victim; every other action, Jailer executions and Arsonist
+//! ignitions included, is a one-player [`SkillCheck`]. [`plan`] says who plays what, and
+//! [`resolve`] takes the [`Results`]:
+//!
+//! - A failed skill check still visits, so Lookouts see it and Veterans shoot it, but the
+//!   action does nothing and spends no uses.
+//! - A lost fight means the attack never reaches the victim. A won one only gets it there:
+//!   the victim's defense, heals, guards and traps still apply.
+//!
+//! Results nobody reported count as a pass or a win, so a night with no minigames resolves as
+//! if everyone succeeded.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use rand::Rng;
 use rand::seq::IndexedRandom;
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 use webgame_protocol::{
     DeathCause, Faction, NightAction, Notice, PlayerSlot, Power, Role, SaveReason,
 };
@@ -56,6 +73,113 @@ impl NightOutcome {
     fn kill(&mut self, slot: PlayerSlot, cause: DeathCause) {
         self.deaths.entry(slot).or_default().push(cause);
     }
+}
+
+/// A part of the night in which some actions are played out. Each stage only depends on the
+/// results of the stages before it in [`STAGES`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Stage {
+    /// Barkeeps and Escorts. Their results decide who acts in the later stages, and who a
+    /// Serial Killer fights.
+    Roleblock,
+    /// Fights, plus the other killing and Mafia actions: executions, ignitions, douses, poison,
+    /// ambushes and disguises.
+    Kill,
+    /// Heals, guards, traps, alerts and vests.
+    Protect,
+    /// Investigations and the Amnesiac. Nothing reads their results, so they could share any
+    /// stage's time.
+    Investigate,
+}
+
+/// The order the night's stages are played in.
+pub const STAGES: [Stage; 4] = [
+    Stage::Roleblock,
+    Stage::Kill,
+    Stage::Protect,
+    Stage::Investigate,
+];
+
+/// A player who plays a skill check for their action.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkillCheck {
+    pub player: PlayerSlot,
+    pub stage: Stage,
+}
+
+/// An attacker and victim who fight over whether the attack reaches the victim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Fight {
+    pub attacker: PlayerSlot,
+    pub victim: PlayerSlot,
+    pub stage: Stage,
+    pub power: Power,
+    /// The victim's defense, as far as the results reported so far show. Heals only count once
+    /// their skill check has passed.
+    pub defense: Power,
+}
+
+/// Who plays which minigame tonight. Everyone else plays a passive one.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NightPlan {
+    pub checks: Vec<SkillCheck>,
+    pub fights: Vec<Fight>,
+}
+
+impl NightPlan {
+    /// The skill checks and fights played in one stage.
+    pub fn stage(&self, stage: Stage) -> (Vec<SkillCheck>, Vec<Fight>) {
+        (
+            self.checks
+                .iter()
+                .filter(|c| c.stage == stage)
+                .copied()
+                .collect(),
+            self.fights
+                .iter()
+                .filter(|f| f.stage == stage)
+                .copied()
+                .collect(),
+        )
+    }
+}
+
+/// How tonight's minigames went.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Results {
+    checks: BTreeMap<PlayerSlot, bool>,
+    fights: BTreeMap<(PlayerSlot, PlayerSlot), bool>,
+}
+
+impl Results {
+    pub fn check(&mut self, player: PlayerSlot, passed: bool) {
+        self.checks.insert(player, passed);
+    }
+
+    pub fn fight(&mut self, attacker: PlayerSlot, victim: PlayerSlot, attacker_won: bool) {
+        self.fights.insert((attacker, victim), attacker_won);
+    }
+
+    fn passed(&self, player: PlayerSlot, unreported: bool) -> bool {
+        self.checks.get(&player).copied().unwrap_or(unreported)
+    }
+
+    fn won(&self, attacker: PlayerSlot, victim: PlayerSlot) -> bool {
+        self.fights
+            .get(&(attacker, victim))
+            .copied()
+            .unwrap_or(true)
+    }
+}
+
+/// Whether an attack that reached its target kills them. A won fight only means the attack
+/// reached them, so the target's defense still has to be beaten.
+///
+/// To let the fight decide on its own instead, return true here for any attack with `fight`
+/// set, and move [`Stage::Protect`] before [`Stage::Kill`] in [`STAGES`] so heals are known
+/// (and in [`Fight::defense`]) before the fight starts.
+fn kills(attack: &Attack, defense: Power) -> bool {
+    attack.power > defense
 }
 
 /// What one action does, once its role and target are known.
@@ -161,6 +285,28 @@ impl Ability {
             Execute(_) | Alert | Vest | Ignite | Remember(_) | Haunt(_) => None,
         }
     }
+
+    /// The victim and strength of an attack decided by a fight, if this is one.
+    fn fight(self) -> Option<(PlayerSlot, Power)> {
+        match self {
+            Ability::MafiaKill(t) | Ability::Kill(t, _) => Some((t, Power::Basic)),
+            Ability::Haunt(t) => Some((t, Power::Unstoppable)),
+            _ => None,
+        }
+    }
+
+    /// When the skill check for this ability is played.
+    fn stage(self) -> Stage {
+        use Ability::*;
+        match self {
+            Block(_) => Stage::Roleblock,
+            Execute(_) | Kill(..) | MafiaKill(_) | Haunt(_) | Ambush(_) | Poison(_) | Douse(_)
+            | Ignite | Disguise(_) => Stage::Kill,
+            Heal(_) | Guard(_) | Trap(_) | Alert | Vest => Stage::Protect,
+            Interrogate(_) | Investigate(_) | Consult(_) | Watch(_) | Track(_) | Bug(_)
+            | Remember(_) => Stage::Investigate,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -179,6 +325,8 @@ struct Attack {
     cause: DeathCause,
     /// A visitor attacking in person, which a Bodyguard or a trap can stop.
     direct: bool,
+    /// Decided by a fight between attacker and target.
+    fight: bool,
 }
 
 /// Works out a night. `players` is everyone in the game; role state (uses, douses, poison,
@@ -190,8 +338,52 @@ pub fn resolve(
     actions: &BTreeMap<PlayerSlot, NightAction>,
     night: u32,
     jail: Option<Jail>,
+    results: &Results,
     rng: &mut impl Rng,
 ) -> NightOutcome {
+    run(players, actions, night, jail, results, true, rng).0
+}
+
+/// Works out who plays which minigame tonight, given the results so far. Call it at the start
+/// of each stage: a roleblock that passed takes away its target's minigames and turns a Serial
+/// Killer's fight onto the roleblocker, and a heal that passed shows in [`Fight::defense`].
+///
+/// A skill check with no result yet counts as failed here, so a player is given a minigame
+/// whenever they might still act. That only matters inside one stage: an Escort blocking a
+/// Copycat who copied a roleblock leaves the Copycat a skill check either way.
+pub fn plan(
+    players: &[Player],
+    actions: &BTreeMap<PlayerSlot, NightAction>,
+    night: u32,
+    jail: Option<Jail>,
+    results: &Results,
+) -> NightPlan {
+    // Only Ambushers roll, and their attacks aren't fights, so any seed gives the same plan.
+    let mut rng = ChaCha8Rng::seed_from_u64(0);
+    run(
+        &mut players.to_vec(),
+        actions,
+        night,
+        jail,
+        results,
+        false,
+        &mut rng,
+    )
+    .1
+}
+
+/// [`resolve`] and [`plan`] in one pass. `unreported` is whether a skill check with no result
+/// counts as passed.
+fn run(
+    players: &mut [Player],
+    actions: &BTreeMap<PlayerSlot, NightAction>,
+    night: u32,
+    jail: Option<Jail>,
+    results: &Results,
+    unreported: bool,
+    rng: &mut impl Rng,
+) -> (NightOutcome, NightPlan) {
+    let passed = |slot: PlayerSlot| results.passed(slot, unreported);
     let index: BTreeMap<PlayerSlot, usize> = players
         .iter()
         .enumerate()
@@ -243,13 +435,14 @@ pub fn resolve(
 
     let mut attacks = VecDeque::new();
 
-    // 1. Jail.
+    // 1. Jail. A botched execution leaves a Serial Killer alive in jail too.
     let mut blocked = BTreeSet::new();
     if let Some(jail) = jail {
         blocked.insert(jail.prisoner);
-        let executing = intents
-            .iter()
-            .any(|i| i.actor == jail.jailer && matches!(i.ability, Ability::Execute(_)));
+        let executing = passed(jail.jailer)
+            && intents
+                .iter()
+                .any(|i| i.actor == jail.jailer && matches!(i.ability, Ability::Execute(_)));
         if !executing && role(players, jail.prisoner) == Role::SerialKiller {
             attacks.push_back(Attack {
                 attacker: jail.prisoner,
@@ -257,6 +450,7 @@ pub fn resolve(
                 power: Power::Basic,
                 cause: DeathCause::SerialKiller,
                 direct: false,
+                fight: false,
             });
         }
     }
@@ -274,7 +468,7 @@ pub fn resolve(
         let Ability::Block(target) = intent.ability else {
             unreachable!()
         };
-        if blocked.contains(&intent.actor) || Some(target) == prisoner {
+        if blocked.contains(&intent.actor) || Some(target) == prisoner || !passed(intent.actor) {
             continue;
         }
         let target_role = role(players, target);
@@ -355,6 +549,18 @@ pub fn resolve(
         found
     };
 
+    // Everyone still acting plays for it. Those who fail have visited, but do nothing more.
+    let mut plan = NightPlan::default();
+    for intent in &active {
+        if intent.ability.fight().is_none() {
+            plan.checks.push(SkillCheck {
+                player: intent.actor,
+                stage: intent.ability.stage(),
+            });
+        }
+    }
+    active.retain(|i| i.ability.fight().is_some() || passed(i.actor));
+
     // 4. Self effects and disguises.
     let mut alert = BTreeSet::new();
     let mut vested = BTreeSet::new();
@@ -396,6 +602,29 @@ pub fn resolve(
             _ => {}
         }
     }
+    // A jail protects its prisoner from everyone but the Jailer.
+    let defense = |players: &[Player], target: PlayerSlot, by_jailer: bool| {
+        let mut defense = role(players, target).base_defense();
+        if alert.contains(&target) || vested.contains(&target) {
+            defense = defense.max(Power::Basic);
+        }
+        let jailed = prisoner == Some(target) && !by_jailer;
+        if jailed || heals.contains_key(&target) {
+            defense = defense.max(Power::Powerful);
+        }
+        defense
+    };
+    for intent in &active {
+        if let Some((victim, power)) = intent.ability.fight() {
+            plan.fights.push(Fight {
+                attacker: intent.actor,
+                victim,
+                stage: Stage::Kill,
+                power,
+                defense: defense(players, victim, false),
+            });
+        }
+    }
 
     // 6. Attacks, in a fixed order so results never depend on who submitted first.
     for player in players.iter_mut().filter(|p| p.alive && p.guilty) {
@@ -406,6 +635,7 @@ pub fn resolve(
             power: Power::Unstoppable,
             cause: DeathCause::Guilt,
             direct: false,
+            fight: false,
         });
     }
     for intent in &active {
@@ -422,6 +652,7 @@ pub fn resolve(
             power,
             cause,
             direct,
+            fight: intent.ability.fight().is_some(),
         });
     }
     for intent in &active {
@@ -447,6 +678,7 @@ pub fn resolve(
                 power: Power::Basic,
                 cause: DeathCause::Mafia,
                 direct: true,
+                fight: false,
             });
         }
     }
@@ -461,6 +693,7 @@ pub fn resolve(
                 power: Power::Basic,
                 cause: DeathCause::Poison,
                 direct: false,
+                fight: false,
             });
         }
     }
@@ -477,6 +710,7 @@ pub fn resolve(
                     power: Power::Unstoppable,
                     cause: DeathCause::Arsonist,
                     direct: false,
+                    fight: false,
                 });
             }
         }
@@ -493,12 +727,16 @@ pub fn resolve(
                 power: Power::Powerful,
                 cause: DeathCause::Veteran,
                 direct: false,
+                fight: false,
             });
         }
     }
 
     while let Some(attack) = attacks.pop_front() {
         let target = attack.target;
+        if attack.fight && !results.won(attack.attacker, target) {
+            continue;
+        }
         if attack.direct {
             if let Some(bodyguard) = guards.get_mut(&target).and_then(|g| g.pop()) {
                 // The bodyguard fights the attacker off and dies doing it.
@@ -515,6 +753,7 @@ pub fn resolve(
                     power: Power::Powerful,
                     cause: DeathCause::Bodyguard,
                     direct: false,
+                    fight: false,
                 });
                 continue;
             }
@@ -537,21 +776,16 @@ pub fn resolve(
                     power: Power::Powerful,
                     cause: DeathCause::Trap,
                     direct: false,
+                    fight: false,
                 });
                 continue;
             }
         }
 
         let healers = heals.get(&target).cloned().unwrap_or_default();
-        let jailed = prisoner == Some(target) && attack.cause != DeathCause::Jailer;
-        let mut defense = role(players, target).base_defense();
-        if alert.contains(&target) || vested.contains(&target) {
-            defense = defense.max(Power::Basic);
-        }
-        if jailed || !healers.is_empty() {
-            defense = defense.max(Power::Powerful);
-        }
-        if attack.power > defense {
+        let by_jailer = attack.cause == DeathCause::Jailer;
+        let jailed = prisoner == Some(target) && !by_jailer;
+        if kills(&attack, defense(players, target, by_jailer)) {
             out.kill(target, attack.cause);
             let target_is_town = players[index[&target]].faction() == Faction::Town;
             let attacker = &mut players[index[&attack.attacker]];
@@ -685,5 +919,5 @@ pub fn resolve(
     }
 
     out.visits = visits;
-    out
+    (out, plan)
 }

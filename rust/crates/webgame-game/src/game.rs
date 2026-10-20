@@ -806,7 +806,14 @@ impl Game {
             }
         }
         let actions = std::mem::take(&mut self.night_actions);
-        let outcome = night::resolve(&mut self.players, &actions, night, self.jail, &mut self.rng);
+        let outcome = night::resolve(
+            &mut self.players,
+            &actions,
+            night,
+            self.jail,
+            &night::Results::default(),
+            &mut self.rng,
+        );
         self.haunt_candidates.clear();
         self.jail = None;
 

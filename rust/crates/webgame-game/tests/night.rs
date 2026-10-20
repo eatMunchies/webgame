@@ -5,8 +5,12 @@ use std::collections::BTreeMap;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use webgame_game::Player;
-use webgame_game::night::{Jail, NightOutcome, resolve};
-use webgame_protocol::{DeathCause, NightAction, Notice, PlayerSlot, Role, SaveReason, UserId};
+use webgame_game::night::{
+    Fight, Jail, NightOutcome, NightPlan, Results, SkillCheck, Stage, plan, resolve,
+};
+use webgame_protocol::{
+    DeathCause, NightAction, Notice, PlayerSlot, Power, Role, SaveReason, UserId,
+};
 
 fn players(roles: &[Role]) -> Vec<Player> {
     roles
@@ -30,21 +34,64 @@ fn run(
     night: u32,
     jail: Option<(u8, u8)>,
 ) -> NightOutcome {
-    let actions: BTreeMap<_, _> = actions
+    run_with(players, actions, night, jail, &Results::default())
+}
+
+fn actions(actions: &[(u8, NightAction)]) -> BTreeMap<PlayerSlot, NightAction> {
+    actions
         .iter()
         .map(|(actor, action)| (slot(*actor), *action))
-        .collect();
-    let jail = jail.map(|(jailer, prisoner)| Jail {
+        .collect()
+}
+
+fn jail(jail: Option<(u8, u8)>) -> Option<Jail> {
+    jail.map(|(jailer, prisoner)| Jail {
         jailer: slot(jailer),
         prisoner: slot(prisoner),
-    });
+    })
+}
+
+fn run_with(
+    players: &mut [Player],
+    actions_: &[(u8, NightAction)],
+    night: u32,
+    jail_: Option<(u8, u8)>,
+    results: &Results,
+) -> NightOutcome {
     resolve(
         players,
-        &actions,
+        &actions(actions_),
         night,
-        jail,
+        jail(jail_),
+        results,
         &mut ChaCha8Rng::seed_from_u64(1),
     )
+}
+
+fn plan_for(
+    players: &[Player],
+    actions_: &[(u8, NightAction)],
+    night: u32,
+    jail_: Option<(u8, u8)>,
+    results: &Results,
+) -> NightPlan {
+    plan(players, &actions(actions_), night, jail(jail_), results)
+}
+
+/// Results where these players failed their skill checks.
+fn failed(players: &[u8]) -> Results {
+    let mut results = Results::default();
+    for player in players {
+        results.check(slot(*player), false);
+    }
+    results
+}
+
+fn check(player: u8, stage: Stage) -> SkillCheck {
+    SkillCheck {
+        player: slot(player),
+        stage,
+    }
 }
 
 fn died(outcome: &NightOutcome) -> Vec<u8> {
@@ -515,4 +562,278 @@ fn escort_blocks_town_but_not_the_immune() {
     assert_eq!(notices(&outcome, 2), vec![Notice::RoleblockImmune]);
     // The Barkeep's own block still lands on the Mafioso.
     assert_eq!(notices(&outcome, 3), vec![Notice::Roleblocked]);
+}
+
+// ----- Minigames -----
+
+#[test]
+fn a_failed_heal_still_visits_but_saves_nobody() {
+    let mut game = players(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
+    let outcome = run_with(
+        &mut game,
+        &[(0, target(1)), (2, target(1)), (3, target(1))],
+        1,
+        None,
+        &failed(&[2]),
+    );
+    assert_eq!(died(&outcome), vec![1]);
+    assert_eq!(
+        notices(&outcome, 3),
+        vec![Notice::LookoutResult {
+            target: slot(1),
+            visitors: vec![slot(0), slot(2)]
+        }]
+    );
+    assert!(notices(&outcome, 2).is_empty());
+}
+
+#[test]
+fn a_failed_visit_still_meets_an_alert_veteran() {
+    let mut game = players(&[Role::Veteran, Role::Sheriff]);
+    let outcome = run_with(
+        &mut game,
+        &[(0, NightAction::Activate), (1, target(0))],
+        1,
+        None,
+        &failed(&[1]),
+    );
+    assert_eq!(outcome.deaths[&slot(1)], vec![DeathCause::Veteran]);
+    assert!(notices(&outcome, 1).is_empty());
+}
+
+#[test]
+fn a_failed_alert_shoots_nobody_and_keeps_its_use() {
+    let mut game = players(&[Role::Veteran, Role::Sheriff]);
+    let outcome = run_with(
+        &mut game,
+        &[(0, NightAction::Activate), (1, target(0))],
+        1,
+        None,
+        &failed(&[0]),
+    );
+    assert!(outcome.deaths.is_empty());
+    assert_eq!(game[0].uses, 3);
+}
+
+#[test]
+fn a_failed_roleblock_blocks_nobody() {
+    let mut game = players(&[Role::Escort, Role::Mafioso, Role::Sheriff]);
+    let outcome = run_with(
+        &mut game,
+        &[(0, target(1)), (1, target(2))],
+        1,
+        None,
+        &failed(&[0]),
+    );
+    assert_eq!(died(&outcome), vec![2]);
+    assert!(notices(&outcome, 1).is_empty());
+}
+
+#[test]
+fn a_failed_execution_spares_the_prisoner_and_keeps_its_use() {
+    let mut game = players(&[Role::Jailer, Role::Doctor]);
+    let outcome = run_with(
+        &mut game,
+        &[(0, NightAction::Activate)],
+        2,
+        Some((0, 1)),
+        &failed(&[0]),
+    );
+    assert!(outcome.deaths.is_empty());
+    assert_eq!(game[0].uses, 3);
+
+    // A Serial Killer who survives his execution attacks the Jailer, as if spared.
+    let mut game = players(&[Role::Jailer, Role::SerialKiller]);
+    let outcome = run_with(
+        &mut game,
+        &[(0, NightAction::Activate)],
+        2,
+        Some((0, 1)),
+        &failed(&[0]),
+    );
+    assert_eq!(outcome.deaths[&slot(0)], vec![DeathCause::SerialKiller]);
+}
+
+#[test]
+fn a_failed_ignite_leaves_the_douses() {
+    let mut game = players(&[Role::Arsonist, Role::Sheriff]);
+    run(&mut game, &[(0, target(1))], 1, None);
+    let outcome = run_with(
+        &mut game,
+        &[(0, NightAction::Activate)],
+        2,
+        None,
+        &failed(&[0]),
+    );
+    assert!(outcome.deaths.is_empty());
+    assert!(game[1].doused);
+}
+
+#[test]
+fn a_lost_fight_never_reaches_the_victim() {
+    let mut game = players(&[Role::Vigilante, Role::Mafioso, Role::Bodyguard]);
+    let mut results = Results::default();
+    results.fight(slot(0), slot(1), false);
+    let outcome = run_with(
+        &mut game,
+        &[(0, target(1)), (2, target(1))],
+        2,
+        None,
+        &results,
+    );
+    // The Bodyguard had nothing to step in front of.
+    assert!(outcome.deaths.is_empty());
+    assert!(notices(&outcome, 1).is_empty());
+    // The shot was still fired.
+    assert_eq!(game[0].uses, 2);
+}
+
+#[test]
+fn a_won_fight_still_has_to_beat_defense() {
+    let mut game = players(&[Role::Vigilante, Role::Godfather]);
+    let mut results = Results::default();
+    results.fight(slot(0), slot(1), true);
+    let outcome = run_with(&mut game, &[(0, target(1))], 2, None, &results);
+    assert!(outcome.deaths.is_empty());
+    assert_eq!(
+        notices(&outcome, 1),
+        vec![Notice::Attacked {
+            saved: SaveReason::Defense
+        }]
+    );
+}
+
+#[test]
+fn the_plan_gives_checks_by_stage_and_fights_for_attacks() {
+    let game = players(&[
+        Role::Mafioso,
+        Role::Sheriff,
+        Role::Doctor,
+        Role::Escort,
+        Role::Lookout,
+    ]);
+    let actions = [
+        (0, target(1)),
+        (1, target(0)),
+        (2, target(1)),
+        (3, target(4)),
+        (4, target(1)),
+    ];
+    let night = plan_for(&game, &actions, 1, None, &Results::default());
+    // Nothing is reported yet, so the Escort's block hasn't happened and the Lookout plays.
+    assert_eq!(
+        night.checks,
+        vec![
+            check(1, Stage::Investigate),
+            check(2, Stage::Protect),
+            check(3, Stage::Roleblock),
+            check(4, Stage::Investigate),
+        ]
+    );
+    assert_eq!(
+        night.fights,
+        vec![Fight {
+            attacker: slot(0),
+            victim: slot(1),
+            stage: Stage::Kill,
+            power: Power::Basic,
+            defense: Power::None,
+        }]
+    );
+
+    // Once the block and the heal pass, the Lookout has nothing to do and the heal shows.
+    let mut results = Results::default();
+    results.check(slot(3), true);
+    results.check(slot(2), true);
+    let night = plan_for(&game, &actions, 1, None, &results);
+    assert!(!night.checks.contains(&check(4, Stage::Investigate)));
+    assert_eq!(night.fights[0].defense, Power::Powerful);
+    assert_eq!(
+        night.stage(Stage::Roleblock).0,
+        vec![check(3, Stage::Roleblock)]
+    );
+}
+
+#[test]
+fn a_blocked_serial_killer_fights_the_roleblocker() {
+    let game = players(&[Role::SerialKiller, Role::Barkeep, Role::Sheriff]);
+    let actions = [(0, target(2)), (1, target(0))];
+    let before = plan_for(&game, &actions, 1, None, &Results::default());
+    assert_eq!(before.fights[0].victim, slot(2));
+    let mut results = Results::default();
+    results.check(slot(1), true);
+    let night = plan_for(&game, &actions, 1, None, &results);
+    assert_eq!(night.fights.len(), 1);
+    assert_eq!(night.fights[0].victim, slot(1));
+}
+
+#[test]
+fn jailed_and_blocked_players_play_nothing() {
+    let game = players(&[Role::Jailer, Role::Doctor, Role::Escort, Role::Sheriff]);
+    let mut results = Results::default();
+    results.check(slot(2), true);
+    let night = plan_for(
+        &game,
+        &[(1, target(3)), (2, target(3)), (3, target(1))],
+        2,
+        Some((0, 1)),
+        &results,
+    );
+    assert_eq!(night.checks, vec![check(2, Stage::Roleblock)]);
+    assert!(night.fights.is_empty());
+}
+
+#[test]
+fn executions_and_ignitions_are_checks_and_haunts_are_fights() {
+    let game = players(&[Role::Jailer, Role::Sheriff]);
+    let night = plan_for(
+        &game,
+        &[(0, NightAction::Activate)],
+        2,
+        Some((0, 1)),
+        &Results::default(),
+    );
+    assert_eq!(night.checks, vec![check(0, Stage::Kill)]);
+    assert!(night.fights.is_empty());
+
+    let game = players(&[Role::Arsonist, Role::Sheriff]);
+    let night = plan_for(
+        &game,
+        &[(0, NightAction::Activate)],
+        2,
+        None,
+        &Results::default(),
+    );
+    assert_eq!(night.checks, vec![check(0, Stage::Kill)]);
+
+    let mut game = players(&[Role::Jester, Role::Sheriff]);
+    game[0].alive = false;
+    game[0].won = true;
+    let night = plan_for(&game, &[(0, target(1))], 2, None, &Results::default());
+    assert!(night.checks.is_empty());
+    assert_eq!(
+        night.fights,
+        vec![Fight {
+            attacker: slot(0),
+            victim: slot(1),
+            stage: Stage::Kill,
+            power: Power::Unstoppable,
+            defense: Power::None,
+        }]
+    );
+}
+
+#[test]
+fn planning_changes_nothing() {
+    let game = players(&[Role::Vigilante, Role::Doctor, Role::Trapper]);
+    plan_for(
+        &game,
+        &[(0, target(1)), (1, target(1)), (2, target(1))],
+        2,
+        None,
+        &Results::default(),
+    );
+    assert_eq!(game[0].uses, 3);
+    assert_eq!(game[1].uses, 1);
+    assert_eq!(game[2].trap, None);
 }
