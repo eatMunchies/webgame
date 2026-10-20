@@ -78,7 +78,8 @@ run: build
 server *args:
     cargo run -p webgame-server -- {{ args }}
 
-# Run the game server with short phases, for playing a test game from terminals
+# Run the game server with short phases, for playing a test game from terminals. Terminal
+# clients roll their night minigames, which only --fast allows.
 play: (server "--fast")
 
 # Play from a terminal: `just cli --name Ada --create`, then `just cli --name Bram --join CODE`

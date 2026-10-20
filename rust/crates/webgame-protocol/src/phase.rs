@@ -14,6 +14,7 @@ pub enum GamePhase {
     },
     Night {
         night: u32,
+        stage: NightStage,
     },
     GameOver,
 }
@@ -30,9 +31,56 @@ pub enum DayStage {
     LastWords { accused: PlayerSlot },
 }
 
+/// The parts of a night, always in this order and always the same length, so their timing gives
+/// nothing away. Players pick their actions while Choosing. In each later stage every living
+/// player plays one minigame: a skill check for an action played out in that stage, a fight for
+/// an attack, or a passive game for everyone else.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NightStage {
+    Choosing,
+    /// Barkeeps and Escorts.
+    Roleblock,
+    /// Fights and the other killing actions, over [`crate::FIGHT_ROUNDS`] rounds (from 1), so
+    /// a player attacked twice fights each attacker in turn.
+    Kill {
+        round: u8,
+    },
+    /// Heals, guards, traps, alerts and vests.
+    Protect,
+    /// Investigations.
+    Investigate,
+}
+
+impl NightStage {
+    /// The stage after this one, or None after the last.
+    pub fn next(self) -> Option<NightStage> {
+        Some(match self {
+            NightStage::Choosing => NightStage::Roleblock,
+            NightStage::Roleblock => NightStage::Kill { round: 1 },
+            NightStage::Kill { round } if round < crate::FIGHT_ROUNDS => {
+                NightStage::Kill { round: round + 1 }
+            }
+            NightStage::Kill { .. } => NightStage::Protect,
+            NightStage::Protect => NightStage::Investigate,
+            NightStage::Investigate => return None,
+        })
+    }
+}
+
 impl GamePhase {
     pub fn is_night(&self) -> bool {
         matches!(self, GamePhase::Night { .. })
+    }
+
+    /// Whether night actions can still be picked or changed.
+    pub fn is_choosing(&self) -> bool {
+        matches!(
+            self,
+            GamePhase::Night {
+                stage: NightStage::Choosing,
+                ..
+            }
+        )
     }
 
     pub fn is_day(&self) -> bool {

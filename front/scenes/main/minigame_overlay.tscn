@@ -1,0 +1,101 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/minigame/minigame_overlay.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_panel"]
+content_margin_left = 3.0
+content_margin_top = 3.0
+content_margin_right = 3.0
+content_margin_bottom = 3.0
+bg_color = Color(0.06, 0.06, 0.1, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 0.8, 0.3, 0.6)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[node name="MinigameOverlay" type="PanelContainer"]
+anchor_right = 0.56
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = 22.0
+offset_right = -2.0
+offset_bottom = -4.0
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_panel")
+script = ExtResource("1_script")
+
+[node name="Rows" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="Rows"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Rows/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.8, 0.3, 1)
+theme_override_font_sizes/font_size = 8
+text = "Skill check"
+
+[node name="TimeLeft" type="Label" parent="Rows/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 7
+text = "0.0s"
+
+[node name="Hint" type="Label" parent="Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 6
+autowrap_mode = 3
+
+[node name="Canvas" type="Control" parent="Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Result" type="Label" parent="Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 7
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="FightButtons" type="HBoxContainer" parent="Rows"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="StrikeButton" type="Button" parent="Rows/FightButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 7
+text = "Strike (J)"
+
+[node name="GrabButton" type="Button" parent="Rows/FightButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 7
+text = "Grab (K)"
+
+[node name="GuardButton" type="Button" parent="Rows/FightButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 7
+text = "Guard (L)"
+
+[connection signal="pressed" from="Rows/FightButtons/StrikeButton" to="." method="_on_strike_button_pressed"]
+[connection signal="pressed" from="Rows/FightButtons/GrabButton" to="." method="_on_grab_button_pressed"]
+[connection signal="button_down" from="Rows/FightButtons/GuardButton" to="." method="_on_guard_button_down"]
+[connection signal="button_up" from="Rows/FightButtons/GuardButton" to="." method="_on_guard_button_up"]

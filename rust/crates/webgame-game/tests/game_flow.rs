@@ -5,12 +5,27 @@ use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use webgame_game::{Audience, Game, Input, Outgoing, Seat, Timers};
 use webgame_protocol::{
-    ChatChannel, ChatSender, DayStage, DeathCause, ErrorCode, GameAction, GamePhase, NightAction,
-    Notice, Outcome, PlayerSlot, Role, ServerMessage, UserId, Verdict,
+    ChatChannel, ChatSender, DayStage, DeathCause, ErrorCode, FIGHT_HP, FIGHT_ROUNDS, FightMove,
+    GameAction, GamePhase, Minigame, MinigamePlay, MinigameResult, NightAction, NightStage, Notice,
+    Outcome, PlayerSlot, Role, STRIKE_WINDUP_MS, ServerMessage, UserId, Verdict,
 };
 
-/// Every phase lasts one second.
+/// Every phase lasts one second, except fight rounds, which leave time for a knockout.
 const PHASE: u64 = 1_000;
+const FIGHT_ROUND: u64 = 2_000;
+
+fn timers() -> Timers {
+    Timers {
+        fight_round: FIGHT_ROUND,
+        ..Timers::uniform(PHASE)
+    }
+}
+
+fn night(night: u32, stage: NightStage) -> GamePhase {
+    GamePhase::Night { night, stage }
+}
+
+const STRIKE: GameAction = GameAction::Minigame(MinigamePlay::Move(FightMove::Strike));
 
 fn seats(count: usize) -> Vec<Seat> {
     (0..count)
@@ -35,8 +50,7 @@ struct Table {
 
 impl Table {
     fn new(roles: &[Role]) -> Self {
-        let (game, log) =
-            Game::with_roles(seats(roles.len()), roles, 1, Timers::uniform(PHASE), 0).unwrap();
+        let (game, log) = Game::with_roles(seats(roles.len()), roles, 1, timers(), 0).unwrap();
         Table { game, now: 0, log }
     }
 
@@ -107,6 +121,53 @@ impl Table {
         self.until(|p| p.is_night());
     }
 
+    /// Runs the clock to the next day, or the end of the game.
+    fn until_dawn(&mut self) {
+        self.until(|p| !p.is_night());
+    }
+
+    /// Runs the clock to the next stage of the night, and returns the minigames it gave out.
+    fn next_stage(&mut self) -> Vec<(u8, Minigame)> {
+        let start = self.log.len();
+        self.next_phase();
+        self.log[start..]
+            .iter()
+            .filter_map(|o| match (&o.to, &o.message) {
+                (Audience::One(to), ServerMessage::Minigame { game, .. }) => Some((to.0, *game)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Plays out the rest of the night with every skill check passed and every attacker
+    /// knocking out their victim, then runs to dawn.
+    fn succeed_tonight(&mut self) {
+        while self.game.phase().is_night() {
+            let given = self.next_stage();
+            let attackers: Vec<u8> = given
+                .iter()
+                .filter(|(_, game)| *game == Minigame::Fight { attacking: true })
+                .map(|(n, _)| *n)
+                .collect();
+            for (n, game) in &given {
+                if *game == Minigame::SkillCheck {
+                    self.act(
+                        *n,
+                        GameAction::Minigame(MinigamePlay::Check { passed: true }),
+                    );
+                }
+            }
+            for _ in 0..if attackers.is_empty() { 0 } else { FIGHT_HP } {
+                for attacker in &attackers {
+                    self.act(*attacker, STRIKE);
+                }
+                self.now += u64::from(STRIKE_WINDUP_MS);
+                let out = self.game.tick(self.now);
+                self.log.extend(out);
+            }
+        }
+    }
+
     /// Messages seen by one player since the log was last cleared.
     fn seen_by(&self, n: u8) -> Vec<&ServerMessage> {
         self.log
@@ -136,7 +197,14 @@ fn phases_go_day_zero_then_night_one_then_day_one() {
     );
     assert_eq!(table.game.deadline(), Some(PHASE));
     table.next_phase();
-    assert_eq!(table.game.phase(), &GamePhase::Night { night: 1 });
+    assert_eq!(table.game.phase(), &night(1, NightStage::Choosing));
+    let mut stages = vec![NightStage::Roleblock];
+    stages.extend((1..=FIGHT_ROUNDS).map(|round| NightStage::Kill { round }));
+    stages.extend([NightStage::Protect, NightStage::Investigate]);
+    for stage in stages {
+        table.next_phase();
+        assert_eq!(table.game.phase(), &night(1, stage));
+    }
     table.next_phase();
     assert_eq!(
         table.game.phase(),
@@ -154,7 +222,7 @@ fn phases_go_day_zero_then_night_one_then_day_one() {
         }
     );
     table.next_phase();
-    assert_eq!(table.game.phase(), &GamePhase::Night { night: 2 });
+    assert_eq!(table.game.phase(), &night(2, NightStage::Choosing));
 }
 
 #[test]
@@ -204,7 +272,7 @@ fn a_failed_trial_returns_to_voting_and_three_end_the_day() {
             );
         }
     }
-    assert_eq!(table.game.phase(), &GamePhase::Night { night: 2 });
+    assert_eq!(table.game.phase(), &night(2, NightStage::Choosing));
 }
 
 #[test]
@@ -297,7 +365,7 @@ fn a_lynched_jester_wins_and_haunts_a_guilty_voter() {
     table.next_phase(); // -> last words
     table.log.clear();
     table.next_phase(); // -> lynch, night 2
-    assert_eq!(table.game.phase(), &GamePhase::Night { night: 2 });
+    assert_eq!(table.game.phase(), &night(2, NightStage::Choosing));
     assert!(table.game.player(slot(4)).unwrap().won);
     assert!(
         table
@@ -312,7 +380,7 @@ fn a_lynched_jester_wins_and_haunts_a_guilty_voter() {
         Err(ErrorCode::InvalidTarget)
     );
     table.act(4, GameAction::Night(Some(NightAction::Target(slot(3)))));
-    table.next_phase();
+    table.succeed_tonight();
     assert!(!table.game.player(slot(3)).unwrap().alive);
 }
 
@@ -341,7 +409,7 @@ fn executioner_wins_on_a_lynch_and_turns_jester_on_a_night_death() {
     table.until_night();
     table.act(0, GameAction::Night(Some(NightAction::Target(slot(1)))));
     table.log.clear();
-    table.next_phase();
+    table.succeed_tonight();
     assert_eq!(table.game.player(slot(4)).unwrap().role, Role::Jester);
     assert!(
         table
@@ -403,7 +471,7 @@ fn chat_reaches_only_those_who_may_read_it() {
 
     // Kill the Sheriff; the dead talk to the dead, and the Medium hears them at night.
     table.act(0, GameAction::Night(Some(NightAction::Target(slot(4)))));
-    table.next_phase();
+    table.succeed_tonight();
     assert!(!table.game.player(slot(4)).unwrap().alive);
     assert_eq!(
         table.say(4, ChatChannel::General, "I was the sheriff"),
@@ -458,7 +526,7 @@ fn jailer_jails_by_day_and_talks_anonymously_at_night() {
     table.act(0, GameAction::Jail(Some(slot(1))));
     table.until_night();
     table.act(0, GameAction::Night(Some(NightAction::Activate)));
-    table.next_phase();
+    table.succeed_tonight();
     // The only Mafia member is executed: Town wins.
     assert_eq!(table.game.result().unwrap().outcome, Outcome::Town);
 }
@@ -494,7 +562,7 @@ fn night_actions_are_checked_against_the_role() {
     );
     table.act(3, night(NightAction::Target(slot(3))));
     table.act(1, night(NightAction::Target(slot(4))));
-    table.next_phase();
+    table.succeed_tonight();
     table.until_night();
     // The Doctor's one self-heal is spent.
     assert_eq!(
@@ -538,17 +606,24 @@ fn random_games_always_finish() {
     for seed in 0..150u64 {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let count = rng.random_range(webgame_protocol::MIN_PLAYERS..=webgame_protocol::MAX_PLAYERS);
-        let (mut game, mut log) = Game::new(seats(count), seed, Timers::uniform(PHASE), 0).unwrap();
+        let (mut game, mut log) = Game::new(seats(count), seed, timers(), 0).unwrap();
+        game.allow_rolls(seed % 2 == 0);
         let mut now = 0;
         let mut phases = 0;
         while !game.is_over() {
             phases += 1;
-            assert!(phases < 400, "seed {seed} never finished");
+            assert!(phases < 4_000, "seed {seed} never finished");
             let all: Vec<PlayerSlot> = game.players().iter().map(|p| p.slot).collect();
             for from in &all {
                 let pick = *all.choose(&mut rng).unwrap();
                 let other = *all.choose(&mut rng).unwrap();
-                let action = match rng.random_range(0..8) {
+                let action = match rng.random_range(0..12) {
+                    8 => GameAction::Minigame(MinigamePlay::Roll),
+                    9 => GameAction::Minigame(MinigamePlay::Check {
+                        passed: rng.random_bool(0.5),
+                    }),
+                    10 => STRIKE,
+                    11 => GameAction::Minigame(MinigamePlay::Guard(rng.random_bool(0.5))),
                     0 => GameAction::Vote(Some(pick)),
                     1 => GameAction::Judgement(
                         *[Verdict::Guilty, Verdict::Innocent, Verdict::Abstain]
@@ -575,7 +650,12 @@ fn random_games_always_finish() {
                     )
                     .map(|out| log.extend(out));
             }
-            now = game.deadline().unwrap_or(now);
+            // Stop partway through some phases, so moves land while fights are on.
+            now = match game.wake_at() {
+                Some(at) if rng.random_bool(0.3) => (now + 300).min(at),
+                Some(at) => at,
+                None => now,
+            };
             log.extend(game.tick(now));
         }
         // Private messages always go to exactly one player, or the right group.
@@ -586,7 +666,10 @@ fn random_games_always_finish() {
                 }
                 ServerMessage::Notices(_)
                 | ServerMessage::Accepted(_)
-                | ServerMessage::RoleChanged { .. } => {
+                | ServerMessage::RoleChanged { .. }
+                | ServerMessage::Minigame { .. }
+                | ServerMessage::Fight(_)
+                | ServerMessage::MinigameOver { .. } => {
                     assert!(matches!(outgoing.to, Audience::One(_)), "{outgoing:?}")
                 }
                 ServerMessage::Chat(chat) if chat.channel == ChatChannel::Mafia => {
@@ -606,4 +689,279 @@ fn random_games_always_finish() {
             }
         }
     }
+}
+
+/// The minigames handed out over one night, stage by stage, with nobody playing them.
+fn minigames_by_stage(table: &mut Table) -> Vec<(GamePhase, Vec<(u8, Minigame)>)> {
+    let mut stages = Vec::new();
+    while table.game.phase().is_night() {
+        let given = table.next_stage();
+        if table.game.phase().is_night() {
+            stages.push((table.game.phase().clone(), given));
+        }
+    }
+    stages
+}
+
+fn over(table: &Table, n: u8) -> Vec<(MinigameResult, bool)> {
+    table
+        .seen_by(n)
+        .into_iter()
+        .filter_map(|m| match m {
+            ServerMessage::MinigameOver { result, rolled } => Some((*result, *rolled)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn every_living_player_gets_one_minigame_a_stage() {
+    let mut table = Table::new(&[
+        Role::Mafioso,
+        Role::Escort,
+        Role::Doctor,
+        Role::Sheriff,
+        Role::Medium,
+    ]);
+    table.until_night();
+    let target = |n| GameAction::Night(Some(NightAction::Target(slot(n))));
+    table.act(0, target(3));
+    table.act(1, target(4));
+    table.act(2, target(3));
+    table.act(3, target(0));
+    let stages = minigames_by_stage(&mut table);
+    assert_eq!(stages.len(), 1 + usize::from(FIGHT_ROUNDS) + 2);
+    let only = |given: &[(u8, Minigame)]| -> Vec<(u8, Minigame)> {
+        given
+            .iter()
+            .filter(|(_, game)| *game != Minigame::Passive)
+            .copied()
+            .collect()
+    };
+    for (_, given) in &stages {
+        assert_eq!(given.len(), 5, "everyone plays something every stage");
+    }
+    assert_eq!(only(&stages[0].1), [(1, Minigame::SkillCheck)]);
+    assert_eq!(
+        only(&stages[1].1),
+        [
+            (0, Minigame::Fight { attacking: true }),
+            (3, Minigame::Fight { attacking: false })
+        ]
+    );
+    assert_eq!(only(&stages[2].1), []);
+    assert_eq!(only(&stages[3].1), []);
+    assert_eq!(only(&stages[4].1), [(2, Minigame::SkillCheck)]);
+    assert_eq!(only(&stages[5].1), [(3, Minigame::SkillCheck)]);
+}
+
+#[test]
+fn unplayed_minigames_fail_and_spare_the_victim() {
+    let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
+    table.until_night();
+    table.act(0, GameAction::Night(Some(NightAction::Target(slot(1)))));
+    table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
+    table.log.clear();
+    table.until_dawn();
+    assert!(table.game.player(slot(1)).unwrap().alive);
+    assert_eq!(over(&table, 0), [(MinigameResult::Lost, false)]);
+    assert_eq!(
+        over(&table, 1),
+        [
+            (MinigameResult::Won, false),
+            (MinigameResult::Failed, false)
+        ]
+    );
+    let sheriff_learned = table
+        .seen_by(1)
+        .into_iter()
+        .any(|m| matches!(m, ServerMessage::Notices(n) if n.iter().any(|n| matches!(n, Notice::SheriffResult { .. }))));
+    assert!(!sheriff_learned, "a failed check learns nothing");
+}
+
+#[test]
+fn a_victim_who_wins_the_fight_survives() {
+    let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
+    table.until_night();
+    table.act(0, GameAction::Night(Some(NightAction::Target(slot(2)))));
+    table.next_stage();
+    table.next_stage(); // Kill, round 1
+    table.log.clear();
+    for _ in 0..FIGHT_HP {
+        table.act(2, STRIKE);
+        table.now += u64::from(STRIKE_WINDUP_MS);
+        let out = table.game.tick(table.now);
+        table.log.extend(out);
+    }
+    assert_eq!(over(&table, 2), [(MinigameResult::Won, false)]);
+    assert_eq!(over(&table, 0), [(MinigameResult::Lost, false)]);
+    assert_eq!(
+        table.try_act(2, STRIKE),
+        Ok(()),
+        "moves after the fight are ignored"
+    );
+    table.until_dawn();
+    assert!(table.game.player(slot(2)).unwrap().alive);
+}
+
+#[test]
+fn a_victim_attacked_twice_fights_each_attacker_in_turn() {
+    let mut table = Table::new(&[
+        Role::Mafioso,
+        Role::SerialKiller,
+        Role::Doctor,
+        Role::Lookout,
+        Role::Sheriff,
+    ]);
+    table.until_night();
+    table.act(0, GameAction::Night(Some(NightAction::Target(slot(2)))));
+    table.act(1, GameAction::Night(Some(NightAction::Target(slot(2)))));
+    let stages = minigames_by_stage(&mut table);
+    let fights = |round: usize| -> Vec<u8> {
+        stages[round]
+            .1
+            .iter()
+            .filter(|(_, game)| matches!(game, Minigame::Fight { .. }))
+            .map(|(n, _)| *n)
+            .collect()
+    };
+    let mut rounds = [fights(1), fights(2)];
+    rounds.sort();
+    assert_eq!(rounds, [vec![0, 2], vec![1, 2]]);
+    assert_eq!(fights(3), Vec::<u8>::new());
+}
+
+#[test]
+fn actions_lock_once_choosing_ends() {
+    let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
+    table.until_night();
+    table.next_stage();
+    assert_eq!(
+        table.try_act(0, GameAction::Night(Some(NightAction::Target(slot(1))))),
+        Err(ErrorCode::NotAllowedNow)
+    );
+    // Night chat goes on through every stage.
+    assert_eq!(table.say(0, ChatChannel::Mafia, "too late"), Ok(()));
+}
+
+#[test]
+fn skill_checks_count_once() {
+    let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
+    table.until_night();
+    table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
+    let check = |passed| GameAction::Minigame(MinigamePlay::Check { passed });
+    assert_eq!(
+        table.try_act(1, check(true)),
+        Err(ErrorCode::NotAllowedNow),
+        "no minigames while choosing"
+    );
+    table.until(|p| *p == night(1, NightStage::Investigate));
+    assert_eq!(table.try_act(2, STRIKE), Err(ErrorCode::BadMessage));
+    assert_eq!(
+        table.try_act(2, check(true)),
+        Ok(()),
+        "passive games report nothing"
+    );
+    table.act(1, check(true));
+    assert_eq!(
+        table.try_act(1, check(false)),
+        Err(ErrorCode::NotAllowedNow)
+    );
+    table.until_dawn();
+    assert!(
+        table
+            .seen_by(1)
+            .contains(&&ServerMessage::Notices(vec![Notice::SheriffResult {
+                target: slot(0),
+                suspicious: true
+            }]))
+    );
+}
+
+#[test]
+fn rolls_are_only_for_servers_that_allow_them() {
+    let roll = GameAction::Minigame(MinigamePlay::Roll);
+    let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
+    table.until_night();
+    table.act(0, GameAction::Night(Some(NightAction::Target(slot(1)))));
+    table.until(|p| {
+        matches!(
+            p,
+            GamePhase::Night {
+                stage: NightStage::Kill { .. },
+                ..
+            }
+        )
+    });
+    assert_eq!(
+        table.try_act(0, roll.clone()),
+        Err(ErrorCode::NotAllowedNow)
+    );
+
+    let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
+    table.game.allow_rolls(true);
+    table.until_night();
+    table.act(0, GameAction::Night(Some(NightAction::Target(slot(1)))));
+    table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
+    table.until(|p| {
+        matches!(
+            p,
+            GamePhase::Night {
+                stage: NightStage::Kill { .. },
+                ..
+            }
+        )
+    });
+    table.log.clear();
+    // The victim rolls; the fight is decided for both of them.
+    table.act(1, roll.clone());
+    let attacker = over(&table, 0);
+    let victim = over(&table, 1);
+    assert_eq!(attacker.len(), 1);
+    assert!(attacker[0].1 && victim[0].1, "both are told it was rolled");
+    assert_ne!(attacker[0].0, victim[0].0);
+    // The other fighter rolling too changes nothing.
+    table.act(0, roll.clone());
+    assert_eq!(over(&table, 0).len(), 1);
+    let sheriff_died = attacker[0].0 == MinigameResult::Won;
+
+    table.until(|p| *p == night(1, NightStage::Investigate));
+    table.log.clear();
+    table.act(1, roll.clone());
+    assert!(matches!(over(&table, 1)[..], [(_, true)]));
+    // Rolling a passive game does nothing.
+    table.act(2, roll);
+    assert!(over(&table, 2).is_empty());
+    table.until_dawn();
+    assert_eq!(table.game.player(slot(1)).unwrap().alive, !sheriff_died);
+}
+
+#[test]
+fn a_reconnecting_player_gets_their_minigame_back() {
+    let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
+    table.until_night();
+    table.act(0, GameAction::Night(Some(NightAction::Target(slot(1)))));
+    table.until(|p| {
+        matches!(
+            p,
+            GamePhase::Night {
+                stage: NightStage::Kill { .. },
+                ..
+            }
+        )
+    });
+    table.act(0, STRIKE);
+    let snapshot = table.game.snapshot(slot(1));
+    assert!(snapshot.contains(&ServerMessage::Minigame {
+        game: Minigame::Fight { attacking: false },
+        ends_at_ms: table.game.deadline().unwrap(),
+    }));
+    let fight = snapshot.iter().find_map(|m| match m {
+        ServerMessage::Fight(view) => Some(*view),
+        _ => None,
+    });
+    assert_eq!(
+        fight.unwrap().opponent.winding,
+        Some((FightMove::Strike, STRIKE_WINDUP_MS))
+    );
 }

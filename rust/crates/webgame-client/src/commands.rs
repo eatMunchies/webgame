@@ -2,7 +2,8 @@
 //! the same number `/players` prints.
 
 use webgame_protocol::{
-    ChatChannel, ClientMessage, GameAction, LobbyCode, NightAction, PlayerSlot, Verdict,
+    ChatChannel, ClientMessage, GameAction, LobbyCode, MinigamePlay, NightAction, PlayerSlot,
+    Verdict,
 };
 
 use crate::State;
@@ -33,7 +34,8 @@ Day:     /vote N   /unvote   /guilty   /inno   /abstain
 Night:   /target N        use your ability on player N (Lookout, Doctor, Mafioso, haunt ...)
          /target N M      Copycat: use N's ability on M (or /copy N, then /target M)
          /alert /vest /ignite /execute   abilities with no target
-         /cancel          take back tonight's action
+         /cancel          take back tonight's action, while choosing
+         /roll            have the server decide your minigame (test servers only)
 Notes:   /will text       set your last will (shown when you die), /will to see it
 Info:    /role   /roles   /players   /help   /quit";
 
@@ -86,6 +88,7 @@ pub fn parse(line: &str, state: &State) -> Result<Command, String> {
         "copy" => Ok(Command::CopyFrom(slot(args)?)),
         "alert" | "vest" | "ignite" | "execute" => night(Some(NightAction::Activate)),
         "cancel" => night(None),
+        "roll" => game(GameAction::Minigame(MinigamePlay::Roll)),
         "will" if args.is_empty() => Ok(Command::Role),
         "will" => game(GameAction::SetLastWill(args.replace("\\n", "\n"))),
         _ => Err(format!("Unknown command /{word}. Type /help.")),

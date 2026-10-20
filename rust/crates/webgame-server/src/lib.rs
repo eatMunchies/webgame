@@ -27,6 +27,8 @@ pub struct Config {
     pub timers: Timers,
     /// Seeds every game the same way, so roles and random picks repeat. Random when None.
     pub seed: Option<u64>,
+    /// Lets players have the server roll their minigames, for clients that can't show them.
+    pub rolls: bool,
 }
 
 /// The HTTP routes: `/ws` for the game and `/health` to check the server is up.

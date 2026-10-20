@@ -7,8 +7,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Appearance, ChatChannel, ChatMessage, GamePhase, LobbyCode, Movement, NightAction, PlayerSlot,
-    Role, RoleSlot, UserId, Verdict,
+    Appearance, ChatChannel, ChatMessage, FightView, GamePhase, LobbyCode, Minigame, MinigamePlay,
+    MinigameResult, Movement, NightAction, PlayerSlot, Role, RoleSlot, UserId, Verdict,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,8 +48,10 @@ pub enum GameAction {
     Judgement(Verdict),
     /// Jailer only, by day: who to jail tonight, or nobody.
     Jail(Option<PlayerSlot>),
-    /// At night: the night action, or none. The last one sent before dawn is used.
+    /// At night, while choosing: the night action, or none. The last one sent is used.
     Night(Option<NightAction>),
+    /// At night: a move in this player's current minigame.
+    Minigame(MinigamePlay),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,6 +106,20 @@ pub enum ServerMessage {
     /// An action was taken, to confirm it.
     Accepted(Accepted),
     GameOver(GameOverInfo),
+    /// This player's minigame for the stage of the night that just began. It lasts until
+    /// `ends_at_ms`, the end of the stage.
+    Minigame {
+        game: Minigame,
+        ends_at_ms: u64,
+    },
+    /// The fight this player is in, sent to both fighters whenever it changes.
+    Fight(FightView),
+    /// This player's minigame is over. `rolled` says the server decided it at random, because
+    /// this player or their opponent asked it to.
+    MinigameOver {
+        result: MinigameResult,
+        rolled: bool,
+    },
     /// Another player's character moved in the town. Also sent for everyone's last position on
     /// joining a lobby.
     Moved {
@@ -388,6 +404,12 @@ mod tests {
         round_trip(ClientMessage::Game(GameAction::Night(Some(
             NightAction::TwoTargets(PlayerSlot(1), PlayerSlot(2)),
         ))));
+        round_trip(ClientMessage::Game(GameAction::Minigame(
+            MinigamePlay::Roll,
+        )));
+        round_trip(ClientMessage::Game(GameAction::Minigame(
+            MinigamePlay::Move(crate::FightMove::Strike),
+        )));
         round_trip(ClientMessage::Move(Movement {
             x: 320,
             y: 460,
@@ -419,6 +441,35 @@ mod tests {
             from: ChatSender::Jailer,
             text: "why are you here".into(),
         }));
+        round_trip(ServerMessage::Phase {
+            phase: GamePhase::Night {
+                night: 3,
+                stage: crate::NightStage::Kill { round: 2 },
+            },
+            ends_at_ms: 9,
+        });
+        round_trip(ServerMessage::Minigame {
+            game: Minigame::Fight { attacking: false },
+            ends_at_ms: 5_000,
+        });
+        round_trip(ServerMessage::Fight(FightView {
+            you: crate::Fighter {
+                hp: 2,
+                guarding: true,
+                winding: None,
+                staggered_ms: 0,
+            },
+            opponent: crate::Fighter {
+                hp: 3,
+                guarding: false,
+                winding: Some((crate::FightMove::Grab, 120)),
+                staggered_ms: 0,
+            },
+        }));
+        round_trip(ServerMessage::MinigameOver {
+            result: MinigameResult::Passed,
+            rolled: true,
+        });
         round_trip(ServerMessage::Notices(vec![Notice::SpyBug {
             target: PlayerSlot(3),
             heard: vec![Notice::Attacked {

@@ -5,9 +5,9 @@ use std::collections::BTreeMap;
 
 use webgame_protocol::{
     Accepted, ChatChannel, ChatContext, ChatSender, DayStage, DeathCause, DeathReport,
-    GameOverInfo, GamePhase, GameStart, JailStatus, LobbyInfo, Movement, NightAction, Notice,
-    Outcome, PlayerSlot, PlayerSummary, Role, RoleSlot, SaveReason, ServerMessage, TeamMember,
-    UserId, Verdict, VoteEntry,
+    FIGHT_ROUNDS, FightView, GameOverInfo, GamePhase, GameStart, JailStatus, LobbyInfo, Minigame,
+    MinigameResult, Movement, NightAction, NightStage, Notice, Outcome, PlayerSlot, PlayerSummary,
+    Role, RoleSlot, SaveReason, ServerMessage, TeamMember, UserId, Verdict, VoteEntry,
 };
 
 #[derive(Debug)]
@@ -29,6 +29,22 @@ pub struct State {
     pub positions: BTreeMap<PlayerSlot, Movement>,
     /// What this player has chosen so far in the current phase, so buttons can show it.
     pub choices: Choices,
+    /// This player's minigame in the current stage of the night.
+    pub minigame: Option<CurrentMinigame>,
+}
+
+/// A minigame being played, or just finished.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CurrentMinigame {
+    pub game: Minigame,
+    /// When the stage, and so the minigame, ends, in Unix milliseconds.
+    pub ends_at_ms: u64,
+    /// The fight as the server last sent it.
+    pub fight: Option<FightView>,
+    /// How it ended, once it has.
+    pub result: Option<MinigameResult>,
+    /// Whether the server decided it at random.
+    pub rolled: bool,
 }
 
 /// This player's current choices, as the server confirmed them.
@@ -62,6 +78,7 @@ impl Default for State {
             jail: JailStatus::Free,
             positions: BTreeMap::new(),
             choices: Choices::default(),
+            minigame: None,
         }
     }
 }
@@ -119,7 +136,16 @@ impl State {
         let label = match &self.phase {
             GamePhase::Lobby => return "Lobby".into(),
             GamePhase::GameOver => return "Game over".into(),
-            GamePhase::Night { night } => format!("Night {night}"),
+            GamePhase::Night { night, stage } => {
+                let stage = match stage {
+                    NightStage::Choosing => "Choosing".to_string(),
+                    NightStage::Roleblock => "Roleblocks".to_string(),
+                    NightStage::Kill { round } => format!("Fights {round}/{FIGHT_ROUNDS}"),
+                    NightStage::Protect => "Protection".to_string(),
+                    NightStage::Investigate => "Investigations".to_string(),
+                };
+                format!("Night {night} {stage}")
+            }
             GamePhase::Day { day, stage } => {
                 let stage = match stage {
                     DayStage::Discussion => "Discussion".to_string(),
@@ -273,11 +299,19 @@ impl State {
                     self.choices.haunt.clear();
                 }
                 let changed = phase != self.phase;
-                if changed {
+                // Night actions hold through the night's stages.
+                let same_night = matches!(
+                    (&phase, &self.phase),
+                    (GamePhase::Night { night: a, .. }, GamePhase::Night { night: b, .. }) if a == b
+                );
+                if changed && !same_night {
                     self.choices.vote = None;
                     self.choices.verdict = None;
                     self.choices.night = None;
                     self.choices.copy_from = None;
+                }
+                if changed {
+                    self.minigame = None;
                 }
                 self.phase = phase;
                 self.ends_at_ms = ends_at_ms;
@@ -360,6 +394,49 @@ impl State {
                 self.positions.insert(slot, movement);
                 Vec::new()
             }
+            ServerMessage::Minigame { game, ends_at_ms } => {
+                self.minigame = Some(CurrentMinigame {
+                    game,
+                    ends_at_ms,
+                    fight: None,
+                    result: None,
+                    rolled: false,
+                });
+                match game {
+                    Minigame::SkillCheck => {
+                        vec!["* Skill check! Your night action only works if you pass.".into()]
+                    }
+                    Minigame::Fight { attacking: true } => {
+                        vec!["* Fight! Win it for your attack to reach your target.".into()]
+                    }
+                    Minigame::Fight { attacking: false } => {
+                        vec!["* You're attacked! Win the fight, or hold out until it ends.".into()]
+                    }
+                    Minigame::Passive => Vec::new(),
+                }
+            }
+            ServerMessage::Fight(view) => {
+                if let Some(minigame) = &mut self.minigame {
+                    minigame.fight = Some(view);
+                }
+                Vec::new()
+            }
+            ServerMessage::MinigameOver { result, rolled } => {
+                if let Some(minigame) = &mut self.minigame {
+                    minigame.result = Some(result);
+                    minigame.rolled = rolled;
+                }
+                let line = match result {
+                    MinigameResult::Passed => "* You passed the skill check.",
+                    MinigameResult::Failed => {
+                        "* You failed the skill check. Your action won't work tonight."
+                    }
+                    MinigameResult::Won => "* You won the fight.",
+                    MinigameResult::Lost => "* You lost the fight.",
+                };
+                let rolled = if rolled { " (rolled)" } else { "" };
+                vec![format!("{line}{rolled}")]
+            }
         }
     }
 
@@ -375,6 +452,7 @@ impl State {
         self.ends_at_ms = 0;
         self.jail = JailStatus::Free;
         self.choices = Choices::default();
+        self.minigame = None;
     }
 
     fn start(&mut self, start: GameStart) -> Vec<String> {
@@ -397,7 +475,15 @@ impl State {
     fn phase_hint(&self) -> String {
         let me = |slot: &PlayerSlot| Some(*slot) == self.me;
         let stage = match &self.phase {
-            GamePhase::Night { .. } => return self.night_hint(),
+            GamePhase::Night {
+                stage: NightStage::Choosing,
+                ..
+            } => return self.night_hint(),
+            GamePhase::Night {
+                stage: NightStage::Roleblock,
+                ..
+            } => return "Actions are locked in. The minigames begin.".into(),
+            GamePhase::Night { .. } => return String::new(),
             GamePhase::Lobby | GamePhase::GameOver => return String::new(),
             GamePhase::Day { stage, .. } => stage,
         };

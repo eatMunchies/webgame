@@ -160,6 +160,11 @@ impl Results {
         self.fights.insert((attacker, victim), attacker_won);
     }
 
+    /// The reported result of a player's skill check, if there is one.
+    pub fn checked(&self, player: PlayerSlot) -> Option<bool> {
+        self.checks.get(&player).copied()
+    }
+
     fn passed(&self, player: PlayerSlot, unreported: bool) -> bool {
         self.checks.get(&player).copied().unwrap_or(unreported)
     }

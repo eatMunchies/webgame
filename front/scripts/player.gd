@@ -18,6 +18,9 @@ func _physics_process(delta: float) -> void:
 	var focus := get_viewport().gui_get_focus_owner()
 	if focus is LineEdit or focus is TextEdit:
 		input = Vector2.ZERO
+	# Nor should playing a night minigame.
+	if Session.in_minigame():
+		input = Vector2.ZERO
 	velocity = input * SPEED
 	move_and_slide()
 

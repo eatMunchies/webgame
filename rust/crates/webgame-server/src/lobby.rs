@@ -2,7 +2,8 @@
 //!
 //! Each lobby runs as its own tokio task that owns all of its state, so nothing in it is shared
 //! or locked. Sessions talk to it by sending [`LobbyCmd`]s; it talks back through each member's
-//! outbox. The task sleeps until either a command arrives or the game's current phase ends.
+//! outbox. The task sleeps until either a command arrives or the game next has something to
+//! do: its current phase ends, or a move in a fight lands.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -105,7 +106,7 @@ impl Lobby {
     /// Runs the lobby until everyone has left or disconnected.
     pub async fn run(mut self, mut inbox: mpsc::Receiver<LobbyCmd>) {
         loop {
-            let deadline = self.running.as_ref().and_then(|r| r.game.deadline());
+            let deadline = self.running.as_ref().and_then(|r| r.game.wake_at());
             let phase_over = async {
                 match deadline {
                     Some(deadline) => {
@@ -373,7 +374,8 @@ impl Lobby {
             })
             .collect();
         let seed = self.config.seed.unwrap_or_else(rand::random);
-        let (game, out) = Game::new(seats, seed, self.config.timers, now_ms())?;
+        let (mut game, out) = Game::new(seats, seed, self.config.timers, now_ms())?;
+        game.allow_rolls(self.config.rolls);
         // Positive, so it reads the same as a signed SQLite integer.
         let id = (rand::random::<u64>() >> 1) as i64;
         let players: Vec<_> = self
