@@ -7,14 +7,15 @@
 script = ExtResource("1_script")
 
 [node name="Character" type="Node2D" parent="."]
+scale = Vector2(1.5, 1.5)
 script = ExtResource("2_character")
 
 [node name="NameLabel" type="Label" parent="."]
 z_index = 1
 offset_left = -40.0
-offset_top = -44.0
+offset_top = -60.0
 offset_right = 40.0
-offset_bottom = -33.0
+offset_bottom = -49.0
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 6

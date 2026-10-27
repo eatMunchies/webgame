@@ -399,6 +399,7 @@ mod tests {
             gender: "female".into(),
             skin_color: 0xf5cbb0ff,
             items: vec![("hat".into(), "cowboy".into())],
+            house: vec![("roof".into(), "victorian".into())],
         }));
     }
 

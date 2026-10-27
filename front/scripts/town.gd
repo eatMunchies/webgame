@@ -25,8 +25,10 @@ const MOVES_PER_SECOND := 15.0
 ## Where the player starts relative to their house's ground point: on the
 ## path just in front of it.
 const SPAWN_OFFSET := Vector2(0, 14)
-## Where the player starts without a house: the road in.
-const ENTRANCE := Vector2(320, 460)
+## Where the player starts without a house: the road in, near the bottom edge.
+const ENTRANCE := Vector2(CulDeSac.CENTER.x, CulDeSac.SIZE.y - 20)
+## Where the podium stands relative to the middle of the plaza.
+const PODIUM_OFFSET := Vector2(0, 8)
 const DEAD_HOUSE_COLOR := Color(0.55, 0.55, 0.6)
 const NIGHT_COLOR := Color(0.42, 0.45, 0.7)
 const DAY_FADE_SECONDS := 1.5
@@ -57,6 +59,11 @@ func _ready() -> void:
 	camera.limit_top = 0
 	camera.limit_right = CulDeSac.SIZE.x
 	camera.limit_bottom = CulDeSac.SIZE.y
+	# The walls along the right and bottom edges, and the podium, follow the
+	# map's size so resizing the cul-de-sac needs no scene edits.
+	$Bounds/Right.position.x = CulDeSac.SIZE.x
+	$Bounds/Bottom.position.y = CulDeSac.SIZE.y
+	$World/Podium.position = CulDeSac.CENTER + PODIUM_OFFSET
 
 	add_child(_sky)
 	_build_houses()
