@@ -51,6 +51,9 @@ var log_lines: Array[String] = []
 ## Why the player was last dropped from a lobby, for the lobby screen to
 ## show. Cleared once shown.
 var last_error := ""
+## Whether the lobby screen already acted on `--create` or `--join=`, so it
+## doesn't rejoin after the player leaves.
+var launch_request_done := false
 
 ## The name the connection was opened with, to reconnect if it changes.
 var _connected_as := ""
@@ -107,11 +110,11 @@ func submit(line: String) -> String:
 	return client.submit(line)
 
 
-## Tells everyone in the lobby how this player's character looks, from
-## PlayerProfile. Sent on joining a lobby.
+## Tells everyone in the lobby how this player's character and house look,
+## from PlayerProfile. Sent on joining a lobby.
 func send_appearance() -> void:
 	var look := PlayerProfile.appearance
-	client.set_appearance(look.body_type, look.gender, look.skin_color, look.items)
+	client.set_appearance(look.body_type, look.gender, look.skin_color, look.items, PlayerProfile.house.to_dictionary())
 
 
 ## Returns the player who owns a lot, or null if it's empty.
@@ -131,9 +134,9 @@ func normalize_code(raw_code: String) -> String:
 ## choose one. In a browser it is the host that served the page, on
 ## DEFAULT_PORT; otherwise this machine.
 func server_url() -> String:
-	for arg in OS.get_cmdline_user_args():
-		if arg.begins_with("--server="):
-			return arg.trim_prefix("--server=")
+	var chosen := LaunchOptions.value("server")
+	if chosen != "":
+		return chosen
 	if OS.has_feature("web"):
 		var host: String = JavaScriptBridge.eval("window.location.hostname")
 		var secure: bool = JavaScriptBridge.eval("window.location.protocol") == "https:"
@@ -178,11 +181,12 @@ func _refresh_players() -> void:
 		player.alive = member["alive"]
 		player.connected = member["connected"]
 		player.is_host = member["is_host"]
+		# Layers the player didn't pick are random, seeded from the lobby
+		# code and user id so every client in the lobby builds the same house.
+		player.house = HouseAppearance.random(hash("%s/%s" % [code, player.user_id]))
 		if member["appearance"] != null:
 			player.appearance = _appearance_from(member["appearance"])
-		# Seeded from the lobby code and user id, so every client in the
-		# lobby builds the same house for this player.
-		player.house = HouseAppearance.random(hash("%s/%s" % [code, player.user_id]))
+			player.house.apply_dictionary(member["appearance"]["house"])
 		players.append(player)
 		if member["is_me"]:
 			me = player

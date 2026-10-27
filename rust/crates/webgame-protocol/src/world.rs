@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 pub const MAX_COORD: i32 = 4096;
 /// An appearance has at most this many equipped items.
 pub const MAX_APPEARANCE_ITEMS: usize = 16;
+/// A house has at most this many layers (the client draws yard, facade and roof).
+pub const MAX_HOUSE_LAYERS: usize = 4;
 /// Style and item names (art folder names) are at most this many bytes.
 pub const MAX_STYLE_LEN: usize = 32;
 
@@ -60,6 +62,10 @@ pub struct Appearance {
     pub skin_color: u32,
     /// (slot, item) pairs, like ("hat", "cowboy").
     pub items: Vec<(String, String)>,
+    /// The player's house as (layer, style) pairs, like ("roof", "victorian"). A layer that's
+    /// missing hasn't been picked, and clients fill it in with the same random style for
+    /// everyone.
+    pub house: Vec<(String, String)>,
 }
 
 impl Appearance {
@@ -67,9 +73,12 @@ impl Appearance {
     pub fn validate(&self) -> Result<(), &'static str> {
         let names = [&self.body_type, &self.gender]
             .into_iter()
-            .chain(self.items.iter().flat_map(|(slot, item)| [slot, item]));
+            .chain(self.items.iter().flat_map(|(slot, item)| [slot, item]))
+            .chain(self.house.iter().flat_map(|(layer, style)| [layer, style]));
         if self.items.len() > MAX_APPEARANCE_ITEMS {
             Err("Too many items.")
+        } else if self.house.len() > MAX_HOUSE_LAYERS {
+            Err("Too many house layers.")
         } else if names.into_iter().any(|name| name.len() > MAX_STYLE_LEN) {
             Err("A style name is too long.")
         } else {
@@ -110,11 +119,15 @@ mod tests {
             gender: "male".into(),
             skin_color: 0xf5cbb0ff,
             items: vec![("hat".into(), "cowboy".into())],
+            house: vec![("roof".into(), "farm".into())],
         };
         assert!(look.validate().is_ok());
         look.items[0].1 = "x".repeat(MAX_STYLE_LEN + 1);
         assert!(look.validate().is_err());
         look.items = vec![("a".into(), "b".into()); MAX_APPEARANCE_ITEMS + 1];
+        assert!(look.validate().is_err());
+        look.items.clear();
+        look.house = vec![("a".into(), "b".into()); MAX_HOUSE_LAYERS + 1];
         assert!(look.validate().is_err());
     }
 }

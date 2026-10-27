@@ -26,11 +26,13 @@ pub use messages::{
 };
 pub use phase::{DayStage, GamePhase};
 pub use roles::{Faction, InvestigatorGroup, Power, Role, RoleCategory, RoleSlot, TargetRule};
-pub use world::{Appearance, Facing, MAX_APPEARANCE_ITEMS, MAX_COORD, MAX_STYLE_LEN, Movement};
+pub use world::{
+    Appearance, Facing, MAX_APPEARANCE_ITEMS, MAX_COORD, MAX_HOUSE_LAYERS, MAX_STYLE_LEN, Movement,
+};
 
 /// Bumped whenever a message changes shape. The server refuses a client whose version differs,
 /// since postcard can't tell an old message from a garbled one.
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 
 /// A game can't start with fewer players than this.
 pub const MIN_PLAYERS: usize = 4;

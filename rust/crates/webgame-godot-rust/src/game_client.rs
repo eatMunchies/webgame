@@ -173,8 +173,9 @@ impl GameClient {
         }
     }
 
-    /// Tells everyone how this player's character looks: the fields of a
-    /// `CharacterAppearance`, with `items` mapping slot names to item names.
+    /// Tells everyone how this player's character and house look: the fields of a
+    /// `CharacterAppearance`, with `items` mapping slot names to item names, and `house` mapping
+    /// the house layers the player picked to their styles.
     #[func]
     fn set_appearance(
         &mut self,
@@ -182,17 +183,14 @@ impl GameClient {
         gender: GString,
         skin_color: Color,
         items: VarDictionary,
+        house: VarDictionary,
     ) {
-        let mut items: Vec<(String, String)> = items
-            .iter_shared()
-            .map(|(slot, item)| (slot.to_string(), item.to_string()))
-            .collect();
-        items.sort();
         self.send(ClientMessage::SetAppearance(Appearance {
             body_type: body_type.to_string(),
             gender: gender.to_string(),
             skin_color: skin_color.to_u32(ColorChannelOrder::RGBA),
-            items,
+            items: sorted_pairs(&items),
+            house: sorted_pairs(&house),
         }));
     }
 
@@ -328,7 +326,8 @@ impl GameClient {
     /// `lot` (int, from 0), `number` (int, the number players type, from 1), `name`,
     /// `user_id` (String, stable for a username), `connected`, `alive` (always true outside a
     /// game), `is_host`, `is_me`, and `appearance`: a Dictionary with the fields of a
-    /// `CharacterAppearance`, or null until their client sends it.
+    /// `CharacterAppearance` plus `house` (picked house layers to styles), or null until their
+    /// client sends it.
     #[func]
     fn members(&self) -> Array<VarDictionary> {
         let mut out = Array::new();
@@ -517,18 +516,33 @@ fn position(movement: &Movement) -> Vector2 {
 }
 
 fn appearance(appearance: &Appearance) -> VarDictionary {
-    let items: VarDictionary = appearance
-        .items
-        .iter()
-        .map(|(slot, item)| (text(slot).to_variant(), text(item).to_variant()))
-        .collect();
     let [r, g, b, a] = appearance.skin_color.to_be_bytes();
     vdict! {
         "body_type" => &text(&appearance.body_type),
         "gender" => &text(&appearance.gender),
         "skin_color" => Color::from_rgba8(r, g, b, a),
-        "items" => &items,
+        "items" => &dictionary(&appearance.items),
+        "house" => &dictionary(&appearance.house),
     }
+}
+
+/// A Godot Dictionary of name pairs, like slot to item.
+fn dictionary(pairs: &[(String, String)]) -> VarDictionary {
+    pairs
+        .iter()
+        .map(|(key, value)| (text(key).to_variant(), text(value).to_variant()))
+        .collect()
+}
+
+/// The entries of a Godot Dictionary as text pairs, sorted so the same choices always make the
+/// same message.
+fn sorted_pairs(dictionary: &VarDictionary) -> Vec<(String, String)> {
+    let mut pairs: Vec<(String, String)> = dictionary
+        .iter_shared()
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect();
+    pairs.sort();
+    pairs
 }
 
 /// Converts Rust text for Godot.

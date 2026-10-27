@@ -333,6 +333,7 @@ async fn movement_and_looks_reach_the_rest_of_the_lobby() {
         gender: "female".into(),
         skin_color: 0xf5cbb0ff,
         items: vec![("hat".into(), "cowboy".into())],
+        house: vec![("roof".into(), "victorian".into())],
     };
     ada.send(ClientMessage::SetAppearance(look.clone())).await;
     bram.wait(|m| match m {
