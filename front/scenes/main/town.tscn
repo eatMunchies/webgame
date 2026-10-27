@@ -33,21 +33,21 @@ script = ExtResource("2_ground")
 shape = SubResource("Boundary_top")
 
 [node name="Bottom" type="CollisionShape2D" parent="Bounds" unique_id=425569312]
-position = Vector2(0, 480)
+position = Vector2(0, 360)
 shape = SubResource("Boundary_bottom")
 
 [node name="Left" type="CollisionShape2D" parent="Bounds" unique_id=1130603199]
 shape = SubResource("Boundary_left")
 
 [node name="Right" type="CollisionShape2D" parent="Bounds" unique_id=2074012702]
-position = Vector2(640, 0)
+position = Vector2(456, 0)
 shape = SubResource("Boundary_right")
 
 [node name="World" type="Node2D" parent="." unique_id=647481292]
 y_sort_enabled = true
 
 [node name="Podium" type="StaticBody2D" parent="World"]
-position = Vector2(320, 259)
+position = Vector2(228, 196)
 
 [node name="Sprite2D" type="Sprite2D" parent="World/Podium"]
 texture = ExtResource("5_podium")
@@ -63,7 +63,7 @@ unique_name_in_owner = true
 y_sort_enabled = true
 
 [node name="Player" parent="World" unique_id=1238959919 instance=ExtResource("3_player")]
-position = Vector2(320, 460)
+position = Vector2(228, 340)
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=1148319304]
 

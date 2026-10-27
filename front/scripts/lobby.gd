@@ -39,6 +39,21 @@ func _ready() -> void:
 	# Say why the player is back here, if they were dropped from a lobby.
 	status_label.text = Session.last_error
 	Session.last_error = ""
+	_follow_launch_options()
+
+
+## Hosts or joins straight away when the game was started with `--create`
+## or `--join=CODE` (after `--`), once per run.
+func _follow_launch_options() -> void:
+	if Session.launch_request_done or name_input.text.strip_edges() == "":
+		return
+	Session.launch_request_done = true
+	var code := LaunchOptions.value("join")
+	if LaunchOptions.value("create") != "":
+		_on_create_button_pressed()
+	elif code != "":
+		code_input.text = Session.normalize_code(code)
+		_on_join_button_pressed()
 
 
 ## The preview is a Node2D, which containers don't lay out, so it's placed by
