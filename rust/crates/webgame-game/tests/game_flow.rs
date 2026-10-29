@@ -7,7 +7,8 @@ use webgame_game::{Audience, Game, Input, Outgoing, Seat, Timers};
 use webgame_protocol::{
     ChatChannel, ChatSender, DayStage, DeathCause, ErrorCode, FIGHT_HP, FIGHT_ROUNDS, FightMove,
     GameAction, GamePhase, Minigame, MinigamePlay, MinigameResult, NightAction, NightStage, Notice,
-    Outcome, PlayerSlot, Role, STRIKE_WINDUP_MS, ServerMessage, UserId, Verdict,
+    Outcome, PlayerSlot, Role, SKILL_CHECK_PRESSES, STRIKE_WINDUP_MS, ServerMessage, UserId,
+    Verdict,
 };
 
 /// Every phase lasts one second, except fight rounds, which leave time for a knockout.
@@ -26,6 +27,10 @@ fn night(night: u32, stage: NightStage) -> GamePhase {
 }
 
 const STRIKE: GameAction = GameAction::Minigame(MinigamePlay::Move(FightMove::Strike));
+
+fn press(hit: bool) -> GameAction {
+    GameAction::Minigame(MinigamePlay::Press { hit })
+}
 
 fn seats(count: usize) -> Vec<Seat> {
     (0..count)
@@ -50,7 +55,11 @@ struct Table {
 
 impl Table {
     fn new(roles: &[Role]) -> Self {
-        let (game, log) = Game::with_roles(seats(roles.len()), roles, 1, timers(), 0).unwrap();
+        Table::seeded(roles, 1)
+    }
+
+    fn seeded(roles: &[Role], seed: u64) -> Self {
+        let (game, log) = Game::with_roles(seats(roles.len()), roles, seed, timers(), 0).unwrap();
         Table { game, now: 0, log }
     }
 
@@ -151,10 +160,9 @@ impl Table {
                 .collect();
             for (n, game) in &given {
                 if *game == Minigame::SkillCheck {
-                    self.act(
-                        *n,
-                        GameAction::Minigame(MinigamePlay::Check { passed: true }),
-                    );
+                    for _ in 0..SKILL_CHECK_PRESSES {
+                        self.act(*n, press(true));
+                    }
                 }
             }
             for _ in 0..if attackers.is_empty() { 0 } else { FIGHT_HP } {
@@ -619,9 +627,7 @@ fn random_games_always_finish() {
                 let other = *all.choose(&mut rng).unwrap();
                 let action = match rng.random_range(0..12) {
                     8 => GameAction::Minigame(MinigamePlay::Roll),
-                    9 => GameAction::Minigame(MinigamePlay::Check {
-                        passed: rng.random_bool(0.5),
-                    }),
+                    9 => press(rng.random_bool(0.5)),
                     10 => STRIKE,
                     11 => GameAction::Minigame(MinigamePlay::Guard(rng.random_bool(0.5))),
                     0 => GameAction::Vote(Some(pick)),
@@ -845,26 +851,31 @@ fn actions_lock_once_choosing_ends() {
 }
 
 #[test]
-fn skill_checks_count_once() {
+fn a_skill_check_is_decided_after_its_last_press() {
     let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
     table.until_night();
     table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
-    let check = |passed| GameAction::Minigame(MinigamePlay::Check { passed });
     assert_eq!(
-        table.try_act(1, check(true)),
+        table.try_act(1, press(true)),
         Err(ErrorCode::NotAllowedNow),
         "no minigames while choosing"
     );
     table.until(|p| *p == night(1, NightStage::Investigate));
     assert_eq!(table.try_act(2, STRIKE), Err(ErrorCode::BadMessage));
     assert_eq!(
-        table.try_act(2, check(true)),
+        table.try_act(2, press(true)),
         Ok(()),
         "passive games report nothing"
     );
-    table.act(1, check(true));
+    table.log.clear();
+    for _ in 1..SKILL_CHECK_PRESSES {
+        table.act(1, press(true));
+    }
+    assert!(over(&table, 1).is_empty(), "a press still to go");
+    table.act(1, press(true));
+    assert_eq!(over(&table, 1), [(MinigameResult::Passed, false)]);
     assert_eq!(
-        table.try_act(1, check(false)),
+        table.try_act(1, press(false)),
         Err(ErrorCode::NotAllowedNow)
     );
     table.until_dawn();
@@ -964,4 +975,47 @@ fn a_reconnecting_player_gets_their_minigame_back() {
         fight.unwrap().opponent.winding,
         Some((FightMove::Strike, STRIKE_WINDUP_MS))
     );
+}
+
+/// The chance a check passes with this many hits, out of many nights with different seeds.
+fn pass_rate(hits: u8) -> f64 {
+    const NIGHTS: u64 = 200;
+    let mut passed = 0;
+    for seed in 0..NIGHTS {
+        let mut table = Table::seeded(
+            &[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout],
+            seed,
+        );
+        table.until_night();
+        table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
+        table.until(|p| *p == night(1, NightStage::Investigate));
+        table.log.clear();
+        // The presses not made count as misses when the stage ends.
+        for _ in 0..hits {
+            table.act(1, press(true));
+        }
+        table.act(1, press(false));
+        table.next_stage();
+        if over(&table, 1) == [(MinigameResult::Passed, false)] {
+            passed += 1;
+        }
+    }
+    passed as f64 / NIGHTS as f64
+}
+
+#[test]
+fn a_skill_check_passes_with_a_chance_of_hits_out_of_five() {
+    assert_eq!(pass_rate(0), 0.0);
+    let three = pass_rate(3);
+    assert!((0.45..0.75).contains(&three), "3 hits passed {three}");
+    // Every press a hit always passes.
+    let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
+    table.until_night();
+    table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
+    table.until(|p| *p == night(1, NightStage::Investigate));
+    table.log.clear();
+    for _ in 0..SKILL_CHECK_PRESSES {
+        table.act(1, press(true));
+    }
+    assert_eq!(over(&table, 1), [(MinigameResult::Passed, false)]);
 }

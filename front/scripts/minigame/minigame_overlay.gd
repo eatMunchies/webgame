@@ -8,8 +8,10 @@ extends PanelContainer
 ## the town passes those to the GameClient. It never talks to the server
 ## itself, so it can be driven directly in tests.
 ##
-## - A skill check is a TimingWheel with one try: press while the needle is
-##   in the gold zone.
+## - A skill check is a TimingWheel pressed five times (as many as the
+##   server's `presses`): each press hits if the needle is in the gold zone.
+##   Each is reported as it happens; the server then passes the check with a
+##   chance of hits out of presses.
 ## - A fight shows both fighters (the opponent masked) as the server last
 ##   described them, read each frame from `fight_source`. Strike, grab, and
 ##   hold guard.
@@ -20,8 +22,8 @@ extends PanelContainer
 ## Keys: Space presses the wheel (or guards, held, in a fight); J or Z
 ## strikes; K or X grabs; L or C guards. Everything can be tapped as well.
 
-## The player pressed in their skill check.
-signal check_reported(passed: bool)
+## The player pressed in their skill check, and hit or missed.
+signal check_pressed(hit: bool)
 ## The player started a fight move: "strike" or "grab".
 signal fight_move(move: String)
 ## The player raised or lowered their guard.
@@ -53,9 +55,12 @@ var rolled := false
 var fight := {}
 ## Practice hits in a row.
 var score := 0
+## How many presses the skill check takes.
+var presses := 5
+## The skill check's presses so far, true for each hit.
+var marks: Array[bool] = []
 
 var _wheel := TimingWheel.new()
-var _pressed := false
 var _guard_held := false
 var _ends_at_msec := 0
 ## Seconds left on each flash: the wheel, then each fighter.
@@ -78,20 +83,21 @@ func _ready() -> void:
 
 
 ## Shows a minigame as GameClient.minigame() describes it, or hides the
-## overlay when `info` is empty. Calling it again with the same kind keeps
-## the game going and only updates its result and time.
+## overlay when `info` is empty. Calling it again for the same game keeps it
+## going and only updates its result and time. A result never goes back to
+## "", so one that does is the next stage's game (two fights in a row).
 func show_minigame(info: Dictionary) -> void:
 	if info.is_empty():
 		hide_minigame()
 		return
 	var new_kind: String = info["kind"]
-	if new_kind != kind or not visible:
+	var new_result: String = info.get("result", "")
+	if new_kind != kind or not visible or (new_result == "" and result != ""):
 		_start(new_kind)
 	attacking = info.get("attacking", false)
+	presses = info.get("presses", presses)
 	rolled = info.get("rolled", false)
-	var new_result: String = info.get("result", "")
-	if new_result != "":
-		result = new_result
+	result = new_result
 	_ends_at_msec = Time.get_ticks_msec() + int(info.get("ends_in_ms", 0))
 	visible = true
 	_update_text()
@@ -108,16 +114,24 @@ func practicing() -> bool:
 	return kind == "passive" or (kind != "" and result != "")
 
 
-## The wheel, pressed: the skill check's one try, or a practice hit.
+## Whether the skill check has had all its presses and waits on the server.
+func rolling() -> bool:
+	return kind == "skill_check" and result == "" and marks.size() >= presses
+
+
+## How many of the skill check's presses hit.
+func hits() -> int:
+	return marks.count(true)
+
+
+## The wheel, pressed: one of the skill check's presses, or a practice hit.
 func press() -> void:
-	if kind == "fight" and result == "":
+	if (kind == "fight" and result == "") or rolling():
 		return
 	var hit := _wheel.in_zone()
-	if kind == "skill_check" and not _pressed:
-		_pressed = true
-		# Shown straight away; the server's answer confirms it.
-		result = "passed" if hit else "failed"
-		check_reported.emit(hit)
+	if kind == "skill_check" and result == "":
+		marks.append(hit)
+		check_pressed.emit(hit)
 	elif hit:
 		score += 1
 	else:
@@ -156,7 +170,7 @@ func _start(new_kind: String) -> void:
 	rolled = false
 	fight = {}
 	score = 0
-	_pressed = false
+	marks = []
 	_wheel = TimingWheel.new()
 	_hit_flash = {"you": 0.0, "opponent": 0.0}
 
@@ -190,7 +204,7 @@ func _update_text() -> void:
 	match kind:
 		"skill_check":
 			title.text = "Skill check"
-			hint.text = "Press Space or tap when the needle is in the gold zone. One try."
+			hint.text = "Press Space or tap when the needle is in the gold zone, %d times. Each hit is a 1 in %d chance your action works." % [presses, presses]
 		"fight":
 			title.text = "Fight! You attack." if attacking else "Fight! You're attacked."
 			hint.text = "J strike, K grab, hold L guard. Strike beats open, guard beats strike, grab beats guard."
@@ -200,6 +214,14 @@ func _update_text() -> void:
 	result_label.text = RESULT_TEXT.get(result, "")
 	if result != "" and rolled:
 		result_label.text += " (rolled)"
+	elif kind == "skill_check" and not marks.is_empty():
+		var tally := "%d/%d hits" % [hits(), presses]
+		if result != "":
+			result_label.text += " (%s)" % tally
+		elif rolling():
+			result_label.text = "%s, rolling..." % tally
+		else:
+			result_label.text = tally
 	if practicing():
 		result_label.text = ("%s  Streak %d" % [result_label.text, score]).strip_edges()
 
@@ -278,6 +300,19 @@ func _draw_wheel() -> void:
 	var tip := center + Vector2.from_angle(_wheel.angle - PI / 2) * (radius + 3)
 	canvas.draw_line(center, tip, Color.WHITE, 2.0)
 	canvas.draw_circle(center, 2.5, Color.WHITE)
+	if kind == "skill_check":
+		_draw_marks(Vector2(center.x, center.y + radius + 10))
+
+
+## The skill check's presses as a row of pips: gold for a hit, red for a
+## miss, hollow for one still to come.
+func _draw_marks(middle: Vector2) -> void:
+	for i in presses:
+		var at := middle + Vector2((i - (presses - 1) / 2.0) * 10, 0)
+		if i < marks.size():
+			canvas.draw_circle(at, 3, GOLD if marks[i] else OPPONENT_COLOR)
+		else:
+			canvas.draw_arc(at, 3, 0, TAU, 12, Color(1, 1, 1, 0.4), 1.0)
 
 
 func _draw_fight() -> void:

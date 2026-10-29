@@ -103,7 +103,7 @@ impl Timers {
     };
 
     /// Short phases for trying the game out by hand. Choosing stays long enough for players
-    /// typing commands.
+    /// typing commands, and the skill check stages for five presses.
     pub const FAST: Timers = Timers {
         day_zero: 10_000,
         discussion: 15_000,
@@ -112,10 +112,10 @@ impl Timers {
         judgement: 10_000,
         last_words: 5_000,
         choosing: 15_000,
-        roleblock: 5_000,
+        roleblock: 8_000,
         fight_round: 8_000,
-        protect: 5_000,
-        investigate: 5_000,
+        protect: 8_000,
+        investigate: 8_000,
     };
 
     /// Every phase takes the same time. Handy in tests.

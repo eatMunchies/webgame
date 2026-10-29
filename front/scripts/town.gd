@@ -96,7 +96,7 @@ func _add_minigame_overlay() -> void:
 	_minigame = MINIGAME_SCENE.instantiate()
 	$HUD.add_child(_minigame)
 	_minigame.fight_source = Session.client.fight
-	_minigame.check_reported.connect(Session.client.report_check)
+	_minigame.check_pressed.connect(Session.client.press_check)
 	_minigame.fight_move.connect(Session.client.fight_move)
 	_minigame.guard_changed.connect(Session.client.fight_guard)
 	Session.minigame_changed.connect(_on_session_minigame_changed)

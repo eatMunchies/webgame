@@ -6,7 +6,7 @@ use webgame_client::{Command, HELP, State};
 use webgame_protocol::{
     Appearance, ClientMessage, FIGHT_HP, Facing, FightMove, Fighter, GameAction, LobbyCode,
     MAX_COORD, Minigame, MinigamePlay, MinigameResult, Movement, PROTOCOL_VERSION, PlayerSlot,
-    ServerMessage, decode, encode,
+    SKILL_CHECK_PRESSES, ServerMessage, decode, encode,
 };
 
 /// The connection to the game server. Add one to the scene tree (the Session autoload does)
@@ -400,7 +400,8 @@ impl GameClient {
     /// The player's minigame in this stage of the night, or an empty Dictionary when they have
     /// none: `kind` ("skill_check", "fight" or "passive"), `attacking` (in a fight, whether
     /// they are the attacker), `ends_in_ms`, `result` ("" while it is being played, then
-    /// "passed", "failed", "won" or "lost") and `rolled` (whether the server decided it).
+    /// "passed", "failed", "won" or "lost"), `rolled` (whether the server decided it) and
+    /// `presses` (how many presses a skill check takes).
     #[func]
     fn minigame(&self) -> VarDictionary {
         let Some(minigame) = &self.state.minigame else {
@@ -424,6 +425,7 @@ impl GameClient {
             "ends_in_ms" => minigame.ends_at_ms.saturating_sub(unix_ms()) as i64,
             "result" => &text(result),
             "rolled" => minigame.rolled,
+            "presses" => i64::from(SKILL_CHECK_PRESSES),
         }
     }
 
@@ -452,12 +454,12 @@ impl GameClient {
         }
     }
 
-    /// Reports how the player's skill check went.
+    /// Reports one press in the player's skill check, and whether it hit.
     #[func]
-    fn report_check(&mut self, passed: bool) {
-        self.send(ClientMessage::Game(GameAction::Minigame(MinigamePlay::Check {
-            passed,
-        })));
+    fn press_check(&mut self, hit: bool) {
+        self.send(ClientMessage::Game(GameAction::Minigame(
+            MinigamePlay::Press { hit },
+        )));
     }
 
     /// Starts a move in the player's fight: "strike" or "grab".
@@ -471,17 +473,17 @@ impl GameClient {
                 return;
             }
         };
-        self.send(ClientMessage::Game(GameAction::Minigame(MinigamePlay::Move(
-            play,
-        ))));
+        self.send(ClientMessage::Game(GameAction::Minigame(
+            MinigamePlay::Move(play),
+        )));
     }
 
     /// Raises or lowers the player's guard in their fight.
     #[func]
     fn fight_guard(&mut self, up: bool) {
-        self.send(ClientMessage::Game(GameAction::Minigame(MinigamePlay::Guard(
-            up,
-        ))));
+        self.send(ClientMessage::Game(GameAction::Minigame(
+            MinigamePlay::Guard(up),
+        )));
     }
 }
 

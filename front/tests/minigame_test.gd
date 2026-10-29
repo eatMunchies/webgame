@@ -11,7 +11,7 @@ func before_test() -> void:
 	reported = []
 	overlay = auto_free(OVERLAY_SCENE.instantiate())
 	add_child(overlay)
-	overlay.check_reported.connect(func(passed: bool) -> void: reported.append(["check", passed]))
+	overlay.check_pressed.connect(func(hit: bool) -> void: reported.append(["press", hit]))
 	overlay.fight_move.connect(func(move: String) -> void: reported.append(["move", move]))
 	overlay.guard_changed.connect(func(up: bool) -> void: reported.append(["guard", up]))
 
@@ -51,26 +51,42 @@ func test_the_wheel_turns_and_wraps() -> void:
 	assert_float(wheel.angle).is_equal_approx(fposmod(TimingWheel.SPEED * 1.5, TAU), 0.0001)
 
 
-func test_a_skill_check_gets_one_try_then_becomes_practice() -> void:
-	overlay.show_minigame({"kind": "skill_check", "ends_in_ms": 5000, "result": ""})
+## Presses the wheel with the needle in the zone or out of it.
+func press(hit: bool) -> void:
+	overlay._wheel.angle = overlay._wheel.zone_start + (0.05 if hit else -0.2)
+	overlay.press()
+
+
+func test_a_skill_check_reports_each_press_then_waits_for_the_server() -> void:
+	overlay.show_minigame({"kind": "skill_check", "ends_in_ms": 5000, "result": "", "presses": 5})
 	assert_bool(overlay.visible).is_true()
 	overlay._wheel.angle = overlay._wheel.zone_start + 0.05
 	key(KEY_SPACE)
-	assert_array(reported).is_equal([["check", true]])
-	assert_str(overlay.result).is_equal("passed")
-	assert_bool(overlay.practicing()).is_true()
-	key(KEY_SPACE)
-	assert_array(reported).has_size(1)
-	# The server's word replaces the local guess.
+	for hit in [false, true, true, false]:
+		press(hit)
+	assert_array(reported).is_equal([
+		["press", true], ["press", false], ["press", true], ["press", true], ["press", false],
+	])
+	assert_bool(overlay.rolling()).is_true()
+	assert_str(overlay.result_label.text).contains("3/5 hits").contains("rolling")
+	assert_bool(overlay.practicing()).is_false()
+	press(true)
+	assert_array(reported).has_size(5)
 	overlay.show_minigame({"kind": "skill_check", "ends_in_ms": 4000, "result": "failed"})
-	assert_str(overlay.result_label.text).contains("Failed")
+	assert_str(overlay.result_label.text).contains("Failed").contains("3/5")
+	assert_bool(overlay.practicing()).is_true()
+	press(true)
+	assert_array(reported).has_size(5)
+	assert_int(overlay.score).is_equal(1)
 
 
-func test_a_missed_skill_check_reports_failure() -> void:
-	overlay.show_minigame({"kind": "skill_check", "ends_in_ms": 5000})
-	overlay._wheel.angle = overlay._wheel.zone_start - 0.2
-	overlay.press()
-	assert_array(reported).is_equal([["check", false]])
+func test_a_skill_check_takes_as_many_presses_as_the_server_says() -> void:
+	overlay.show_minigame({"kind": "skill_check", "ends_in_ms": 5000, "presses": 2})
+	press(false)
+	assert_bool(overlay.rolling()).is_false()
+	press(false)
+	assert_bool(overlay.rolling()).is_true()
+	assert_array(reported).is_equal([["press", false], ["press", false]])
 
 
 func test_practice_counts_a_streak_and_reports_nothing() -> void:
@@ -121,3 +137,12 @@ func test_an_empty_minigame_hides_the_overlay_and_drops_the_guard() -> void:
 	overlay.show_minigame({})
 	assert_bool(overlay.visible).is_false()
 	assert_array(reported).is_equal([["guard", true], ["guard", false]])
+
+
+func test_a_second_fight_in_a_row_starts_fresh() -> void:
+	overlay.show_minigame({"kind": "fight", "ends_in_ms": 8000})
+	overlay.show_minigame({"kind": "fight", "ends_in_ms": 2000, "result": "lost"})
+	overlay.show_minigame({"kind": "fight", "ends_in_ms": 8000, "result": ""})
+	assert_str(overlay.result).is_equal("")
+	key(KEY_J)
+	assert_array(reported).is_equal([["move", "strike"]])
