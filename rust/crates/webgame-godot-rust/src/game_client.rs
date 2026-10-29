@@ -4,8 +4,9 @@ use godot::classes::{INode, Node, Time, WebSocketPeer};
 use godot::prelude::*;
 use webgame_client::{Command, HELP, State};
 use webgame_protocol::{
-    Appearance, ClientMessage, Facing, GameAction, LobbyCode, MAX_COORD, Movement,
-    PROTOCOL_VERSION, PlayerSlot, ServerMessage, decode, encode,
+    Appearance, ClientMessage, FIGHT_HP, Facing, FightMove, Fighter, GameAction, LobbyCode,
+    MAX_COORD, Minigame, MinigamePlay, MinigameResult, Movement, PROTOCOL_VERSION, PlayerSlot,
+    SKILL_CHECK_PRESSES, ServerMessage, decode, encode,
 };
 
 /// The connection to the game server. Add one to the scene tree (the Session autoload does)
@@ -29,6 +30,8 @@ pub struct GameClient {
     state: State,
     /// The last movement sent, so standing still sends nothing.
     sent_movement: Option<Movement>,
+    /// When the last fight view arrived, in engine milliseconds, to count its timers down.
+    fight_received_at: u64,
 }
 
 #[godot_api]
@@ -41,6 +44,7 @@ impl INode for GameClient {
             open: false,
             state: State::default(),
             sent_movement: None,
+            fight_received_at: 0,
         }
     }
 
@@ -83,6 +87,11 @@ impl GameClient {
     /// Read `actions()`.
     #[signal]
     fn actions_changed();
+
+    /// The player's minigame started, ended, or (in a fight) changed. Read `minigame()` and
+    /// `fight()`.
+    #[signal]
+    fn minigame_changed();
 
     /// Opens a connection to `url` (like `ws://127.0.0.1:9090/ws`) as `username`. Returns ""
     /// when the connection is under way, or a message saying why it couldn't start. Anything
@@ -364,8 +373,7 @@ impl GameClient {
     /// The phase and the time left in it, like "Day 1 Voting, 3 trials left 0:42".
     #[func]
     fn phase_label(&self) -> GString {
-        let now = (Time::singleton().get_unix_time_from_system() * 1000.0) as u64;
-        text(self.state.clock(now))
+        text(self.state.clock(unix_ms()))
     }
 
     /// Whether it is night, for dimming the town.
@@ -387,6 +395,95 @@ impl GameClient {
     #[func]
     fn help_text(&self) -> GString {
         HELP.into()
+    }
+
+    /// The player's minigame in this stage of the night, or an empty Dictionary when they have
+    /// none: `kind` ("skill_check", "fight" or "passive"), `attacking` (in a fight, whether
+    /// they are the attacker), `ends_in_ms`, `result` ("" while it is being played, then
+    /// "passed", "failed", "won" or "lost"), `rolled` (whether the server decided it) and
+    /// `presses` (how many presses a skill check takes).
+    #[func]
+    fn minigame(&self) -> VarDictionary {
+        let Some(minigame) = &self.state.minigame else {
+            return VarDictionary::new();
+        };
+        let kind = match minigame.game {
+            Minigame::SkillCheck => "skill_check",
+            Minigame::Fight { .. } => "fight",
+            Minigame::Passive => "passive",
+        };
+        let result = match minigame.result {
+            None => "",
+            Some(MinigameResult::Passed) => "passed",
+            Some(MinigameResult::Failed) => "failed",
+            Some(MinigameResult::Won) => "won",
+            Some(MinigameResult::Lost) => "lost",
+        };
+        vdict! {
+            "kind" => &text(kind),
+            "attacking" => matches!(minigame.game, Minigame::Fight { attacking: true }),
+            "ends_in_ms" => minigame.ends_at_ms.saturating_sub(unix_ms()) as i64,
+            "result" => &text(result),
+            "rolled" => minigame.rolled,
+            "presses" => i64::from(SKILL_CHECK_PRESSES),
+        }
+    }
+
+    /// Whether the player has a minigame up, so walking can wait.
+    #[func]
+    fn has_minigame(&self) -> bool {
+        self.state.minigame.is_some()
+    }
+
+    /// The fight the player is in, counted down to now, or an empty Dictionary outside one:
+    /// `you` and `opponent`, each with `hp`, `guarding`, `move` ("", "strike" or "grab"),
+    /// `windup_ms` (how long that move takes), `lands_in_ms` and `staggered_ms`; and `max_hp`.
+    #[func]
+    fn fight(&self) -> VarDictionary {
+        let Some(view) = self.state.minigame.as_ref().and_then(|m| m.fight) else {
+            return VarDictionary::new();
+        };
+        let elapsed = Time::singleton()
+            .get_ticks_msec()
+            .saturating_sub(self.fight_received_at);
+        let elapsed = u32::try_from(elapsed).unwrap_or(u32::MAX);
+        vdict! {
+            "you" => &fighter(&view.you, elapsed),
+            "opponent" => &fighter(&view.opponent, elapsed),
+            "max_hp" => i64::from(FIGHT_HP),
+        }
+    }
+
+    /// Reports one press in the player's skill check, and whether it hit.
+    #[func]
+    fn press_check(&mut self, hit: bool) {
+        self.send(ClientMessage::Game(GameAction::Minigame(
+            MinigamePlay::Press { hit },
+        )));
+    }
+
+    /// Starts a move in the player's fight: "strike" or "grab".
+    #[func]
+    fn fight_move(&mut self, name: GString) {
+        let play = match name.to_string().as_str() {
+            "strike" => FightMove::Strike,
+            "grab" => FightMove::Grab,
+            other => {
+                godot_error!("GameClient: no fight move called {other:?}");
+                return;
+            }
+        };
+        self.send(ClientMessage::Game(GameAction::Minigame(
+            MinigamePlay::Move(play),
+        )));
+    }
+
+    /// Raises or lowers the player's guard in their fight.
+    #[func]
+    fn fight_guard(&mut self, up: bool) {
+        self.send(ClientMessage::Game(GameAction::Minigame(
+            MinigamePlay::Guard(up),
+        )));
     }
 }
 
@@ -480,6 +577,15 @@ impl GameClient {
             ServerMessage::Error(err) => Some(err.message.clone()),
             _ => None,
         };
+        let minigame = matches!(
+            message,
+            ServerMessage::Minigame { .. }
+                | ServerMessage::Fight(_)
+                | ServerMessage::MinigameOver { .. }
+        );
+        if matches!(message, ServerMessage::Fight(_)) {
+            self.fight_received_at = Time::singleton().get_ticks_msec();
+        }
         let before = self.state.phase.clone();
         let lines = self.state.apply(message);
         if welcome {
@@ -497,6 +603,9 @@ impl GameClient {
         if phase || before != self.state.phase {
             self.signals().phase_changed().emit();
         }
+        if minigame || before != self.state.phase {
+            self.signals().minigame_changed().emit();
+        }
         self.signals().actions_changed().emit();
     }
 
@@ -508,6 +617,33 @@ impl GameClient {
             .iter()
             .find(|m| m.user_id == me)
             .map(|m| m.slot)
+    }
+}
+
+/// The time by the system clock, in Unix milliseconds, as the server counts it.
+fn unix_ms() -> u64 {
+    (Time::singleton().get_unix_time_from_system() * 1000.0) as u64
+}
+
+/// One side of a fight, `elapsed` milliseconds after the server sent it.
+fn fighter(fighter: &Fighter, elapsed: u32) -> VarDictionary {
+    let (name, windup, lands_in) = match fighter.winding {
+        Some((play, left)) => {
+            let name = match play {
+                FightMove::Strike => "strike",
+                FightMove::Grab => "grab",
+            };
+            (name, play.windup_ms(), left.saturating_sub(elapsed))
+        }
+        None => ("", 0, 0),
+    };
+    vdict! {
+        "hp" => i64::from(fighter.hp),
+        "guarding" => fighter.guarding,
+        "move" => &text(name),
+        "windup_ms" => i64::from(windup),
+        "lands_in_ms" => i64::from(lands_in),
+        "staggered_ms" => i64::from(fighter.staggered_ms.saturating_sub(elapsed)),
     }
 }
 

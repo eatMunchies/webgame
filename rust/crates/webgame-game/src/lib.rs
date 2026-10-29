@@ -6,6 +6,7 @@
 //! deciding who learns what (roles, whispers, night results) happens here and can be tested
 //! without a server. Time is passed in as milliseconds, so tests can run a whole game instantly.
 
+mod duel;
 mod game;
 pub mod night;
 mod player;
@@ -13,9 +14,9 @@ pub mod setup;
 pub mod win;
 
 use serde::Serialize;
-use webgame_protocol::{PlayerSlot, ServerMessage, UserId};
+use webgame_protocol::{NightStage, PlayerSlot, ServerMessage, UserId};
 
-pub use game::{Game, Input};
+pub use game::{FIGHT_ROLL_CHANCE, Game, Input, ROLL_PASS_CHANCE};
 pub use player::Player;
 
 /// One player's seat when a game starts.
@@ -76,7 +77,13 @@ pub struct Timers {
     pub defense: u64,
     pub judgement: u64,
     pub last_words: u64,
-    pub night: u64,
+    /// The start of the night, while players pick their actions.
+    pub choosing: u64,
+    pub roleblock: u64,
+    /// Each of the Kill stage's rounds.
+    pub fight_round: u64,
+    pub protect: u64,
+    pub investigate: u64,
 }
 
 impl Timers {
@@ -88,10 +95,15 @@ impl Timers {
         defense: 20_000,
         judgement: 20_000,
         last_words: 7_000,
-        night: 37_000,
+        choosing: 15_000,
+        roleblock: 10_000,
+        fight_round: 15_000,
+        protect: 20_000,
+        investigate: 10_000,
     };
 
-    /// Short phases for trying the game out by hand.
+    /// Short phases for trying the game out by hand. Choosing stays long enough for players
+    /// typing commands, and the skill check stages for five presses.
     pub const FAST: Timers = Timers {
         day_zero: 10_000,
         discussion: 15_000,
@@ -99,7 +111,11 @@ impl Timers {
         defense: 10_000,
         judgement: 10_000,
         last_words: 5_000,
-        night: 20_000,
+        choosing: 15_000,
+        roleblock: 8_000,
+        fight_round: 8_000,
+        protect: 8_000,
+        investigate: 8_000,
     };
 
     /// Every phase takes the same time. Handy in tests.
@@ -111,7 +127,22 @@ impl Timers {
             defense: ms,
             judgement: ms,
             last_words: ms,
-            night: ms,
+            choosing: ms,
+            roleblock: ms,
+            fight_round: ms,
+            protect: ms,
+            investigate: ms,
+        }
+    }
+
+    /// How long a stage of the night lasts.
+    pub fn night_stage(&self, stage: NightStage) -> u64 {
+        match stage {
+            NightStage::Choosing => self.choosing,
+            NightStage::Roleblock => self.roleblock,
+            NightStage::Kill { .. } => self.fight_round,
+            NightStage::Protect => self.protect,
+            NightStage::Investigate => self.investigate,
         }
     }
 }

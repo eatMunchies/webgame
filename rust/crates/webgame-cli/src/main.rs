@@ -7,6 +7,10 @@
 //! cargo run -p webgame-cli -- --name Ada --create
 //! cargo run -p webgame-cli -- --name Bram --join ABC234
 //! ```
+//!
+//! It can't show the night's minigames, so it asks the server to roll each skill check and
+//! fight it is given. Servers started with `--fast` allow that; others refuse, and the
+//! minigame fails.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -16,7 +20,8 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 use webgame_protocol::{
-    ClientMessage, GameAction, LobbyCode, PROTOCOL_VERSION, ServerMessage, decode, encode,
+    ClientMessage, GameAction, LobbyCode, Minigame, MinigamePlay, PROTOCOL_VERSION, ServerMessage,
+    decode, encode,
 };
 
 use webgame_client::{Command, HELP, State};
@@ -87,8 +92,15 @@ async fn run(args: Args) -> Result<(), String> {
                     Some(Ok(_)) => continue,
                     Some(Err(err)) => return Err(format!("Lost the server: {err}")),
                 };
+                let roll = matches!(
+                    message,
+                    ServerMessage::Minigame { game, .. } if game != Minigame::Passive
+                );
                 let lines = state.apply(message);
                 print(&state, lines);
+                if roll {
+                    send(ClientMessage::Game(GameAction::Minigame(MinigamePlay::Roll))).await?;
+                }
             }
             line = lines.next_line() => {
                 let Some(line) = line.map_err(|err| err.to_string())? else {

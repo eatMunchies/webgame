@@ -11,4 +11,4 @@ mod state;
 
 pub use actions::Action;
 pub use commands::{Command, HELP, parse};
-pub use state::{Choices, State};
+pub use state::{Choices, CurrentMinigame, State};

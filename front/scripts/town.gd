@@ -14,11 +14,15 @@ extends Node2D
 ## Everyone else in the lobby walks around here too. This player's position
 ## goes to the server a few times a second (only when it changes), and each
 ## other player is a RemotePlayer that follows what the server relays.
+##
+## At night the MinigameOverlay covers the town's side of the screen while the
+## player has a minigame, and its moves go to the server.
 
 const LOBBY_SCENE := "res://scenes/main/lobby.tscn"
 const HOUSE_SCENE := preload("res://scenes/main/house.tscn")
 const GAME_PANEL_SCENE := preload("res://scenes/main/game_panel.tscn")
 const REMOTE_PLAYER_SCENE := preload("res://scenes/main/remote_player.tscn")
+const MINIGAME_SCENE := preload("res://scenes/main/minigame_overlay.tscn")
 ## How often this player's position is sent while it changes. Others see
 ## the steps in between smoothed out.
 const MOVES_PER_SECOND := 15.0
@@ -43,6 +47,7 @@ const DAY_FADE_SECONDS := 1.5
 @onready var copy_reset_timer: Timer = %CopyResetTimer
 
 var _sky := CanvasModulate.new()
+var _minigame: MinigameOverlay
 ## The other players' characters, by lot.
 var _remote_players: Dictionary[int, RemotePlayer] = {}
 var _since_move_sent := 0.0
@@ -76,6 +81,7 @@ func _ready() -> void:
 	_update_label()
 	if Session.in_lobby():
 		$HUD.add_child(GAME_PANEL_SCENE.instantiate())
+		_add_minigame_overlay()
 	Session.lobby_changed.connect(_on_session_lobby_changed)
 	Session.phase_changed.connect(_update_sky)
 	Session.player_moved.connect(_on_session_player_moved)
@@ -84,6 +90,21 @@ func _ready() -> void:
 	for moved in Session.client.positions():
 		_on_session_player_moved(moved["lot"], moved["position"], moved["facing"], moved["walking"])
 	_send_movement()
+
+
+func _add_minigame_overlay() -> void:
+	_minigame = MINIGAME_SCENE.instantiate()
+	$HUD.add_child(_minigame)
+	_minigame.fight_source = Session.client.fight
+	_minigame.check_pressed.connect(Session.client.press_check)
+	_minigame.fight_move.connect(Session.client.fight_move)
+	_minigame.guard_changed.connect(Session.client.fight_guard)
+	Session.minigame_changed.connect(_on_session_minigame_changed)
+	_on_session_minigame_changed()
+
+
+func _on_session_minigame_changed() -> void:
+	_minigame.show_minigame(Session.client.minigame())
 
 
 func _process(delta: float) -> void:

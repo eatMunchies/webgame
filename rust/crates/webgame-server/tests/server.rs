@@ -12,8 +12,8 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 use webgame_game::Timers;
 use webgame_protocol::{
     Appearance, ChatChannel, ClientMessage, ErrorCode, Facing, GameAction, GameOverInfo, GamePhase,
-    LobbyCode, Movement, NightAction, Outcome, PROTOCOL_VERSION, PlayerSlot, Role, ServerMessage,
-    decode, encode,
+    LobbyCode, Minigame, MinigamePlay, MinigameResult, Movement, NightAction, NightStage, Outcome,
+    PROTOCOL_VERSION, PlayerSlot, Role, ServerMessage, decode, encode,
 };
 use webgame_server::db::Db;
 use webgame_server::{Config, app};
@@ -32,6 +32,7 @@ async fn start_server(timers: Timers, seed: u64) -> (SocketAddr, Db, PathBuf) {
         Config {
             timers,
             seed: Some(seed),
+            rolls: true,
         },
     );
     tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
@@ -130,8 +131,8 @@ async fn lobby_of_four(addr: SocketAddr) -> (Vec<Client>, LobbyCode) {
     (clients, code)
 }
 
-/// A player who does nothing except, as the Mafioso, kill the lowest seat outside the Mafia
-/// every night. Plays until the game ends.
+/// A player who does nothing except, as the Mafioso, try to kill the lowest seat outside the
+/// Mafia every night, rolling for the fight. Plays until the game ends.
 async fn play(mut client: Client) -> (Client, GameOverInfo) {
     let mut role = None;
     let mut alive = BTreeSet::new();
@@ -157,7 +158,11 @@ async fn play(mut client: Client) -> (Client, GameOverInfo) {
                 }
             }
             ServerMessage::Phase {
-                phase: GamePhase::Night { .. },
+                phase:
+                    GamePhase::Night {
+                        stage: NightStage::Choosing,
+                        ..
+                    },
                 ..
             } if role == Some(Role::Mafioso) => {
                 let victim = *alive.iter().find(|s| !mafia.contains(*s)).unwrap();
@@ -165,6 +170,16 @@ async fn play(mut client: Client) -> (Client, GameOverInfo) {
                     .send(ClientMessage::Game(GameAction::Night(Some(
                         NightAction::Target(victim),
                     ))))
+                    .await;
+            }
+            ServerMessage::Minigame {
+                game: Minigame::Fight { attacking: true },
+                ..
+            } => {
+                client
+                    .send(ClientMessage::Game(GameAction::Minigame(
+                        MinigamePlay::Roll,
+                    )))
                     .await;
             }
             ServerMessage::GameOver(result) => return (client, result),
@@ -196,10 +211,22 @@ async fn four_players_play_a_whole_game() {
         .await;
 
     let results = futures_util::future::join_all(clients.into_iter().map(play)).await;
-    // With nobody but the Mafioso acting, it kills on nights 1 and 2 and wins.
+    // With nobody but the Mafioso acting, it kills whenever it wins the roll, and wins.
     for (_, result) in &results {
         assert_eq!(result.outcome, Outcome::Mafia);
     }
+    let rolled = results.iter().any(|(client, _)| {
+        client.seen.iter().any(|m| {
+            matches!(
+                m,
+                ServerMessage::MinigameOver {
+                    result: MinigameResult::Won,
+                    rolled: true
+                }
+            )
+        })
+    });
+    assert!(rolled, "the Mafioso won its fights by rolling");
     let saw_text = |client: &Client| {
         client
             .seen

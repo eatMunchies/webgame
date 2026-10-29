@@ -131,7 +131,10 @@ mod tests {
         GamePhase::Day { day: 1, stage }
     }
 
-    const NIGHT: GamePhase = GamePhase::Night { night: 1 };
+    const NIGHT: GamePhase = GamePhase::Night {
+        night: 1,
+        stage: crate::NightStage::Choosing,
+    };
 
     #[test]
     fn town_square_is_for_the_living_by_day() {

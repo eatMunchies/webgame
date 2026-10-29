@@ -26,6 +26,9 @@ signal log_line(text: String)
 signal player_moved(lot: int, position: Vector2, facing: int, walking: bool)
 ## What the player can do changed. Read client.actions().
 signal actions_changed
+## The player's night minigame started, ended, or changed. Read
+## client.minigame() and client.fight().
+signal minigame_changed
 
 const CODE_LENGTH := 6
 ## Letters and digits that are hard to confuse when read aloud or typed
@@ -70,6 +73,7 @@ func _ready() -> void:
 	client.disconnected.connect(_on_disconnected)
 	client.player_moved.connect(player_moved.emit)
 	client.actions_changed.connect(actions_changed.emit)
+	client.minigame_changed.connect(minigame_changed.emit)
 
 
 func in_lobby() -> bool:
@@ -79,6 +83,11 @@ func in_lobby() -> bool:
 ## Whether a game is being played (not in the lobby, not over).
 func in_game() -> bool:
 	return client.in_game()
+
+
+## Whether the player is busy with a night minigame, and shouldn't walk.
+func in_minigame() -> bool:
+	return client.has_minigame()
 
 
 ## Hosts a new lobby on the server and joins it.

@@ -1,18 +1,25 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use rand::SeedableRng;
 use rand::seq::IndexedRandom;
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use webgame_protocol::{
     Accepted, ChatChannel, ChatContext, ChatMessage, ChatSender, DayStage, DeathCause, DeathReport,
-    ErrorCode, GameAction, GameOverInfo, GamePhase, GameStart, JailStatus, MAX_CHAT_LEN,
-    MAX_PLAYERS, MAX_WILL_LEN, MIN_PLAYERS, NightAction, Notice, PlayerSlot, PlayerSummary, Role,
-    RoleSlot, ServerError, ServerMessage, TRIALS_PER_DAY, TargetRule, TeamMember, Verdict,
-    VoteEntry,
+    ErrorCode, FIGHT_ROUNDS, GameAction, GameOverInfo, GamePhase, GameStart, JailStatus,
+    MAX_CHAT_LEN, MAX_PLAYERS, MAX_WILL_LEN, MIN_PLAYERS, Minigame, MinigamePlay, MinigameResult,
+    NightAction, NightStage, Notice, PlayerSlot, PlayerSummary, Role, RoleSlot,
+    SKILL_CHECK_PRESSES, ServerError, ServerMessage, TRIALS_PER_DAY, TargetRule, TeamMember,
+    Verdict, VoteEntry,
 };
 
-use crate::night::{self, Jail};
+use crate::duel::Duel;
+use crate::night::{self, Jail, Stage};
 use crate::{Audience, Outgoing, Player, Seat, Timers, setup, win};
+
+/// How likely a rolled skill check is to pass.
+pub const ROLL_PASS_CHANCE: f64 = 0.75;
+/// How likely the attacker is to win a rolled fight.
+pub const FIGHT_ROLL_CHANCE: f64 = 0.5;
 
 /// Something a player does in a game: chat, or one of the game actions.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,6 +35,12 @@ pub enum Input {
 /// Judgement); a guilty verdict leads to LastWords and the lynch, which ends the day. Otherwise
 /// voting picks up where it left off, until [`TRIALS_PER_DAY`] trials have been held or voting
 /// time runs out.
+///
+/// Each night runs the [`NightStage`]s. Actions are picked while Choosing and locked after. At
+/// the start of every later stage each living player is given a minigame for it, from
+/// [`night::plan`]: a skill check, a fight, or a passive game. A skill check nobody reports by
+/// the end of its stage fails, and a fight still going then is the victim's. The night is
+/// resolved after the last stage, from those results.
 pub struct Game {
     players: Vec<Player>,
     role_list: Vec<RoleSlot>,
@@ -54,6 +67,48 @@ pub struct Game {
     /// Day and night cycles in a row with no deaths.
     quiet_cycles: u32,
     result: Option<GameOverInfo>,
+    /// Whether players may have the server decide their minigames at random.
+    rolls: bool,
+    /// How tonight's minigames have gone so far.
+    results: night::Results,
+    /// Skill check presses so far tonight, as (presses, hits), for checks not yet decided.
+    presses: BTreeMap<PlayerSlot, (u8, u8)>,
+    /// Each player's minigame in the current stage of the night.
+    minigames: BTreeMap<PlayerSlot, Play>,
+    /// The fights in the current stage of the night.
+    duels: Vec<Duel>,
+    /// Tonight's Kill stage minigames, by round, worked out when it starts.
+    kill_rounds: Vec<Vec<Assigned>>,
+    /// The latest time the game has been given, for timing fight views.
+    last_tick: u64,
+}
+
+/// A player's minigame in the current stage of the night.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Play {
+    Check,
+    /// An index into the stage's fights.
+    Fight(usize),
+    Passive,
+}
+
+/// A minigame that decides something.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Assigned {
+    Check(PlayerSlot),
+    Fight {
+        attacker: PlayerSlot,
+        victim: PlayerSlot,
+    },
+}
+
+impl Assigned {
+    fn players(self) -> Vec<PlayerSlot> {
+        match self {
+            Assigned::Check(player) => vec![player],
+            Assigned::Fight { attacker, victim } => vec![attacker, victim],
+        }
+    }
 }
 
 fn error(code: ErrorCode, message: &str) -> ServerError {
@@ -158,6 +213,13 @@ impl Game {
             lynched_today: false,
             quiet_cycles: 0,
             result: None,
+            rolls: false,
+            results: night::Results::default(),
+            presses: BTreeMap::new(),
+            minigames: BTreeMap::new(),
+            duels: Vec::new(),
+            kill_rounds: Vec::new(),
+            last_tick: now,
         };
         let mut out: Vec<Outgoing> = game
             .players
@@ -175,6 +237,12 @@ impl Game {
         (game, out)
     }
 
+    /// Lets players send [`MinigamePlay::Roll`] to have the server decide their minigames at
+    /// random, for clients with no way to show them. Off unless turned on.
+    pub fn allow_rolls(&mut self, allow: bool) {
+        self.rolls = allow;
+    }
+
     pub fn phase(&self) -> &GamePhase {
         &self.phase
     }
@@ -183,6 +251,15 @@ impl Game {
     /// the game is over.
     pub fn deadline(&self) -> Option<u64> {
         self.deadline
+    }
+
+    /// When [`Game::tick`] next has something to do: the end of the phase, or sooner when a
+    /// move in a fight lands.
+    pub fn wake_at(&self) -> Option<u64> {
+        [self.deadline, self.next_landing()]
+            .into_iter()
+            .flatten()
+            .min()
     }
 
     pub fn players(&self) -> &[Player] {
@@ -222,18 +299,41 @@ impl Game {
         if let Some(result) = &self.result {
             messages.push(ServerMessage::GameOver(result.clone()));
         }
+        if let Some(play) = self.minigames.get(&slot).copied()
+            && !self.minigame_over(slot, play)
+        {
+            messages.push(ServerMessage::Minigame {
+                game: self.minigame_kind(slot, play),
+                ends_at_ms: self.deadline.unwrap_or(0),
+            });
+            if let Play::Fight(i) = play
+                && let Some(view) = self.duels[i].view(slot, self.last_tick)
+            {
+                messages.push(ServerMessage::Fight(view));
+            }
+        }
         messages
     }
 
-    /// Moves through every phase whose deadline is at or before `now`.
+    /// Moves through every phase whose deadline is at or before `now`, landing fight moves due
+    /// on the way.
     pub fn tick(&mut self, now: u64) -> Vec<Outgoing> {
         let mut out = Vec::new();
-        while let Some(deadline) = self.deadline
-            && now >= deadline
-        {
-            // The next phase is timed from when this one was due to end, not from `now`, so a
-            // late tick doesn't stretch the game.
-            self.advance(deadline, &mut out);
+        self.last_tick = self.last_tick.max(now);
+        loop {
+            if let Some(at) = self.next_landing()
+                && at <= now
+                && self.deadline.is_none_or(|deadline| at < deadline)
+            {
+                self.land(at, &mut out);
+                continue;
+            }
+            match self.deadline {
+                // The next phase is timed from when this one was due to end, not from `now`,
+                // so a late tick doesn't stretch the game.
+                Some(deadline) if now >= deadline => self.advance(deadline, &mut out),
+                _ => break,
+            }
         }
         out
     }
@@ -454,6 +554,12 @@ impl Game {
                         "Night actions are for the night.",
                     ));
                 }
+                if !self.phase.is_choosing() {
+                    return Err(error(
+                        ErrorCode::NotAllowedNow,
+                        "Tonight's actions are locked in.",
+                    ));
+                }
                 match action {
                     Some(action) => {
                         self.check_night_action(&player, action)?;
@@ -468,6 +574,7 @@ impl Game {
                     ServerMessage::Accepted(Accepted::Night(action)),
                 ));
             }
+            GameAction::Minigame(play) => self.minigame(from, play, now, out)?,
         }
         Ok(())
     }
@@ -481,7 +588,7 @@ impl Game {
         };
         let no_uses = || error(ErrorCode::NoUsesLeft, "You have no uses of that left.");
         let night = match self.phase {
-            GamePhase::Night { night } => night,
+            GamePhase::Night { night, .. } => night,
             _ => 0,
         };
         let me = player.slot;
@@ -642,7 +749,7 @@ impl Game {
                     self.start_night(day + 1, at, out);
                 }
             }
-            GamePhase::Night { night } => self.end_night(night, at, out),
+            GamePhase::Night { night, stage } => self.next_night_stage(night, stage, at, out),
             GamePhase::Lobby | GamePhase::GameOver => self.deadline = None,
         }
     }
@@ -756,7 +863,19 @@ impl Game {
                 prisoner,
             })
         });
-        self.set_phase(GamePhase::Night { night }, at + self.timers.night, out);
+        self.results = night::Results::default();
+        self.presses.clear();
+        self.minigames.clear();
+        self.duels.clear();
+        self.kill_rounds.clear();
+        self.set_phase(
+            GamePhase::Night {
+                night,
+                stage: NightStage::Choosing,
+            },
+            at + self.timers.choosing,
+            out,
+        );
         if let Some(jail) = self.jail {
             out.push(Outgoing::one(
                 jail.prisoner,
@@ -784,8 +903,28 @@ impl Game {
         }
     }
 
-    fn end_night(&mut self, night: u32, at: u64, out: &mut Vec<Outgoing>) {
-        // A lynched Jester who didn't pick haunts someone anyway.
+    /// Ends one stage of the night and starts the next, or dawn after the last.
+    fn next_night_stage(
+        &mut self,
+        night: u32,
+        stage: NightStage,
+        at: u64,
+        out: &mut Vec<Outgoing>,
+    ) {
+        if stage == NightStage::Choosing {
+            self.lock_actions();
+        } else {
+            self.close_minigames(out);
+        }
+        match stage.next() {
+            Some(next) => self.begin_night_stage(night, next, at, out),
+            None => self.end_night(night, at, out),
+        }
+    }
+
+    /// Fills in what's missing once actions can no longer change: a lynched Jester who didn't
+    /// pick haunts someone anyway.
+    fn lock_actions(&mut self) {
         if let Some(jester) = self
             .players
             .iter()
@@ -805,8 +944,311 @@ impl Game {
                     .insert(jester, NightAction::Target(*victim));
             }
         }
+    }
+
+    /// Starts a minigame stage: works out who plays what in it and tells each player.
+    fn begin_night_stage(
+        &mut self,
+        night: u32,
+        stage: NightStage,
+        at: u64,
+        out: &mut Vec<Outgoing>,
+    ) {
+        self.set_phase(
+            GamePhase::Night { night, stage },
+            at + self.timers.night_stage(stage),
+            out,
+        );
+        let assigned = match stage {
+            NightStage::Choosing => Vec::new(),
+            NightStage::Roleblock => self.planned(night, Stage::Roleblock),
+            NightStage::Kill { round } => {
+                if round == 1 {
+                    self.kill_rounds = self.schedule_kill(night);
+                }
+                self.kill_rounds
+                    .get(usize::from(round) - 1)
+                    .cloned()
+                    .unwrap_or_default()
+            }
+            NightStage::Protect => self.planned(night, Stage::Protect),
+            NightStage::Investigate => self.planned(night, Stage::Investigate),
+        };
+        self.minigames.clear();
+        self.duels.clear();
+        for assigned in assigned {
+            match assigned {
+                Assigned::Check(player) => {
+                    self.minigames.insert(player, Play::Check);
+                }
+                Assigned::Fight { attacker, victim } => {
+                    let i = self.duels.len();
+                    self.duels.push(Duel::new(attacker, victim));
+                    self.minigames.insert(attacker, Play::Fight(i));
+                    self.minigames.insert(victim, Play::Fight(i));
+                }
+            }
+        }
+        for player in self.players.iter().filter(|p| p.alive) {
+            self.minigames.entry(player.slot).or_insert(Play::Passive);
+        }
+        let ends_at_ms = self.deadline.unwrap_or(at);
+        for (&slot, &play) in &self.minigames {
+            out.push(Outgoing::one(
+                slot,
+                ServerMessage::Minigame {
+                    game: self.minigame_kind(slot, play),
+                    ends_at_ms,
+                },
+            ));
+        }
+        for i in 0..self.duels.len() {
+            self.send_fight(i, at, out);
+        }
+    }
+
+    /// The skill checks and fights of a stage other than Kill, given the results so far.
+    fn planned(&self, night: u32, stage: Stage) -> Vec<Assigned> {
+        let plan = night::plan(
+            &self.players,
+            &self.night_actions,
+            night,
+            self.jail,
+            &self.results,
+        );
+        let (checks, fights) = plan.stage(stage);
+        fights
+            .iter()
+            .filter(|f| f.attacker != f.victim)
+            .map(|f| Assigned::Fight {
+                attacker: f.attacker,
+                victim: f.victim,
+            })
+            .chain(checks.iter().map(|c| Assigned::Check(c.player)))
+            .collect()
+    }
+
+    /// Spreads the Kill stage's minigames over its rounds so nobody plays two at once: each
+    /// fight, then each skill check, goes in the first round where its players are free. Any
+    /// that don't fit are decided at random, as if rolled.
+    fn schedule_kill(&mut self, night: u32) -> Vec<Vec<Assigned>> {
+        let wanted = self.planned(night, Stage::Kill);
+        let rounds = usize::from(FIGHT_ROUNDS);
+        let mut schedule: Vec<Vec<Assigned>> = vec![Vec::new(); rounds];
+        let mut busy: Vec<BTreeSet<PlayerSlot>> = vec![BTreeSet::new(); rounds];
+        for assigned in wanted {
+            let players = assigned.players();
+            let free = (0..rounds).find(|r| players.iter().all(|p| !busy[*r].contains(p)));
+            match (free, assigned) {
+                (Some(r), _) => {
+                    busy[r].extend(players);
+                    schedule[r].push(assigned);
+                }
+                (None, Assigned::Check(player)) => {
+                    let passed = self.rng.random_bool(ROLL_PASS_CHANCE);
+                    self.results.check(player, passed);
+                }
+                (None, Assigned::Fight { attacker, victim }) => {
+                    let won = self.rng.random_bool(FIGHT_ROLL_CHANCE);
+                    self.results.fight(attacker, victim, won);
+                }
+            }
+        }
+        schedule
+    }
+
+    /// Ends the stage's minigames: skill checks still going are decided from the presses made,
+    /// the rest counting as misses, and fights still going are won by the victim.
+    fn close_minigames(&mut self, out: &mut Vec<Outgoing>) {
+        let checks: Vec<PlayerSlot> = self
+            .minigames
+            .iter()
+            .filter(|(slot, play)| **play == Play::Check && self.results.checked(**slot).is_none())
+            .map(|(slot, _)| *slot)
+            .collect();
+        for slot in checks {
+            self.decide_check(slot, None, out);
+        }
+        for i in 0..self.duels.len() {
+            if !self.duels[i].is_over() {
+                self.duels[i].finish(false);
+                self.duel_over(i, false, out);
+            }
+        }
+        self.minigames.clear();
+        self.duels.clear();
+    }
+
+    /// What a player's minigame is, as they are told it.
+    fn minigame_kind(&self, slot: PlayerSlot, play: Play) -> Minigame {
+        match play {
+            Play::Check => Minigame::SkillCheck,
+            Play::Passive => Minigame::Passive,
+            Play::Fight(i) => Minigame::Fight {
+                attacking: self.duels[i].attacker == slot,
+            },
+        }
+    }
+
+    fn minigame_over(&self, slot: PlayerSlot, play: Play) -> bool {
+        match play {
+            Play::Check => self.results.checked(slot).is_some(),
+            Play::Fight(i) => self.duels[i].is_over(),
+            Play::Passive => false,
+        }
+    }
+
+    /// A move in a player's minigame.
+    fn minigame(
+        &mut self,
+        from: PlayerSlot,
+        play: MinigamePlay,
+        now: u64,
+        out: &mut Vec<Outgoing>,
+    ) -> Result<(), ServerError> {
+        let Some(current) = self.minigames.get(&from).copied() else {
+            return Err(error(
+                ErrorCode::NotAllowedNow,
+                "You have no minigame right now.",
+            ));
+        };
+        if play == MinigamePlay::Roll && !self.rolls {
+            return Err(error(
+                ErrorCode::NotAllowedNow,
+                "This server doesn't roll minigames for you.",
+            ));
+        }
+        match (current, play) {
+            // Nothing rides on a passive game, so there is nothing to report.
+            (Play::Passive, MinigamePlay::Roll | MinigamePlay::Press { .. }) => {}
+            (Play::Check, MinigamePlay::Roll | MinigamePlay::Press { .. }) => {
+                if self.results.checked(from).is_some() {
+                    return Err(error(
+                        ErrorCode::NotAllowedNow,
+                        "You already played your skill check.",
+                    ));
+                }
+                match play {
+                    MinigamePlay::Press { hit } => {
+                        let (presses, hits) = self.presses.entry(from).or_default();
+                        *presses += 1;
+                        *hits += u8::from(hit);
+                        if *presses >= SKILL_CHECK_PRESSES {
+                            self.decide_check(from, None, out);
+                        }
+                    }
+                    _ => {
+                        let passed = self.rng.random_bool(ROLL_PASS_CHANCE);
+                        self.decide_check(from, Some(passed), out);
+                    }
+                }
+            }
+            // Both fighters may roll; the first decides it.
+            (Play::Fight(i), MinigamePlay::Roll) if !self.duels[i].is_over() => {
+                let won = self.rng.random_bool(FIGHT_ROLL_CHANCE);
+                self.duels[i].finish(won);
+                self.duel_over(i, true, out);
+            }
+            (Play::Fight(_), MinigamePlay::Roll) => {}
+            (Play::Fight(i), MinigamePlay::Move(_) | MinigamePlay::Guard(_)) => {
+                if self.duels[i].play(from, play, now) {
+                    self.send_fight(i, now, out);
+                }
+            }
+            (Play::Fight(_), MinigamePlay::Press { .. }) => {
+                return Err(error(
+                    ErrorCode::BadMessage,
+                    "You're in a fight, not a skill check.",
+                ));
+            }
+            (Play::Check | Play::Passive, MinigamePlay::Move(_) | MinigamePlay::Guard(_)) => {
+                return Err(error(ErrorCode::BadMessage, "You aren't in a fight."));
+            }
+        }
+        Ok(())
+    }
+
+    /// Decides a skill check: from a roll when `rolled` is given, otherwise with a chance of
+    /// hits out of [`SKILL_CHECK_PRESSES`], presses not made counting as misses.
+    fn decide_check(&mut self, slot: PlayerSlot, rolled: Option<bool>, out: &mut Vec<Outgoing>) {
+        let (_, hits) = self.presses.remove(&slot).unwrap_or_default();
+        let passed = rolled.unwrap_or_else(|| {
+            let chance = f64::from(hits.min(SKILL_CHECK_PRESSES)) / f64::from(SKILL_CHECK_PRESSES);
+            self.rng.random_bool(chance)
+        });
+        self.results.check(slot, passed);
+        out.push(Outgoing::one(
+            slot,
+            ServerMessage::MinigameOver {
+                result: if passed {
+                    MinigameResult::Passed
+                } else {
+                    MinigameResult::Failed
+                },
+                rolled: rolled.is_some(),
+            },
+        ));
+    }
+
+    fn next_landing(&self) -> Option<u64> {
+        self.duels.iter().filter_map(Duel::next_landing).min()
+    }
+
+    /// Lands the fight moves due at `at`.
+    fn land(&mut self, at: u64, out: &mut Vec<Outgoing>) {
+        for i in 0..self.duels.len() {
+            if self.duels[i].next_landing().is_some_and(|due| due <= at) {
+                self.duels[i].land(at);
+                self.send_fight(i, at, out);
+                if self.duels[i].is_over() {
+                    self.duel_over(i, false, out);
+                }
+            }
+        }
+    }
+
+    fn send_fight(&self, i: usize, now: u64, out: &mut Vec<Outgoing>) {
+        let duel = &self.duels[i];
+        for slot in [duel.attacker, duel.victim] {
+            if let Some(view) = duel.view(slot, now) {
+                out.push(Outgoing::one(slot, ServerMessage::Fight(view)));
+            }
+        }
+    }
+
+    /// Records a fight that just ended and tells both fighters.
+    fn duel_over(&mut self, i: usize, rolled: bool, out: &mut Vec<Outgoing>) {
+        let duel = &self.duels[i];
+        let won = duel.attacker_won.unwrap_or(false);
+        self.results.fight(duel.attacker, duel.victim, won);
+        let result = |win: bool| {
+            if win {
+                MinigameResult::Won
+            } else {
+                MinigameResult::Lost
+            }
+        };
+        for (slot, win) in [(duel.attacker, won), (duel.victim, !won)] {
+            out.push(Outgoing::one(
+                slot,
+                ServerMessage::MinigameOver {
+                    result: result(win),
+                    rolled,
+                },
+            ));
+        }
+    }
+
+    fn end_night(&mut self, night: u32, at: u64, out: &mut Vec<Outgoing>) {
         let actions = std::mem::take(&mut self.night_actions);
-        let outcome = night::resolve(&mut self.players, &actions, night, self.jail, &mut self.rng);
+        let outcome = night::resolve(
+            &mut self.players,
+            &actions,
+            night,
+            self.jail,
+            &self.results,
+            &mut self.rng,
+        );
         self.haunt_candidates.clear();
         self.jail = None;
 

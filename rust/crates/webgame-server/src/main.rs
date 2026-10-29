@@ -16,7 +16,9 @@ struct Args {
     /// SQLite file for users, lobbies, and game logs. Created if missing.
     #[arg(long, default_value = "webgame.db")]
     db: PathBuf,
-    /// Short phases (15s discussion, 20s nights) for trying the game out.
+    /// Short phases (15s discussion, under a minute of night) for trying the game out. Also
+    /// lets players have the server roll their minigames at random, which the terminal client
+    /// does since it can't show them.
     #[arg(long)]
     fast: bool,
     /// Seed every game the same way, to replay one.
@@ -35,6 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Timers::NORMAL
         },
         seed: args.seed,
+        rolls: args.fast,
     };
     let listener = tokio::net::TcpListener::bind((args.host, args.port)).await?;
     println!(

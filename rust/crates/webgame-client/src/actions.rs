@@ -3,7 +3,7 @@
 //! offer exactly what the server will accept.
 
 use webgame_protocol::{
-    DayStage, GamePhase, JailStatus, NightAction, PlayerSlot, Role, TargetRule, Verdict,
+    DayStage, GamePhase, JailStatus, NightAction, NightStage, PlayerSlot, Role, TargetRule, Verdict,
 };
 
 use crate::State;
@@ -54,7 +54,12 @@ impl State {
         }
         match &self.phase {
             GamePhase::Day { stage, .. } => self.day_actions(me, role, stage),
-            GamePhase::Night { night } => self.night_actions(me, role, *night),
+            GamePhase::Night {
+                night,
+                stage: NightStage::Choosing,
+            } => self.night_actions(me, role, *night),
+            // Later in the night the minigames take over.
+            GamePhase::Night { .. } => Vec::new(),
             GamePhase::Lobby | GamePhase::GameOver => Vec::new(),
         }
     }
@@ -343,7 +348,13 @@ mod tests {
             },
         ];
         let mut state = game(Role::Mafioso, team);
-        at(&mut state, GamePhase::Night { night: 1 });
+        at(
+            &mut state,
+            GamePhase::Night {
+                night: 1,
+                stage: NightStage::Choosing,
+            },
+        );
         assert_eq!(commands(&state), ["/target 2", "/target 4"]);
 
         state.apply(ServerMessage::Accepted(Accepted::Night(Some(
@@ -357,27 +368,57 @@ mod tests {
     #[test]
     fn doctors_can_heal_themselves_and_amnesiacs_pick_the_dead() {
         let mut doctor = game(Role::Doctor, Vec::new());
-        at(&mut doctor, GamePhase::Night { night: 1 });
+        at(
+            &mut doctor,
+            GamePhase::Night {
+                night: 1,
+                stage: NightStage::Choosing,
+            },
+        );
         assert_eq!(doctor.actions().len(), 4);
 
         let mut amnesiac = game(Role::Amnesiac, Vec::new());
-        at(&mut amnesiac, GamePhase::Night { night: 1 });
+        at(
+            &mut amnesiac,
+            GamePhase::Night {
+                night: 1,
+                stage: NightStage::Choosing,
+            },
+        );
         assert_eq!(commands(&amnesiac), ["/target 5"]);
     }
 
     #[test]
     fn a_vigilante_waits_for_the_second_night() {
         let mut state = game(Role::Vigilante, Vec::new());
-        at(&mut state, GamePhase::Night { night: 1 });
+        at(
+            &mut state,
+            GamePhase::Night {
+                night: 1,
+                stage: NightStage::Choosing,
+            },
+        );
         assert!(state.actions().is_empty());
-        at(&mut state, GamePhase::Night { night: 2 });
+        at(
+            &mut state,
+            GamePhase::Night {
+                night: 2,
+                stage: NightStage::Choosing,
+            },
+        );
         assert_eq!(state.actions().len(), 3);
     }
 
     #[test]
     fn a_copycat_picks_in_two_steps() {
         let mut state = game(Role::Copycat, Vec::new());
-        at(&mut state, GamePhase::Night { night: 1 });
+        at(
+            &mut state,
+            GamePhase::Night {
+                night: 1,
+                stage: NightStage::Choosing,
+            },
+        );
         assert_eq!(commands(&state), ["/copy 2", "/copy 3", "/copy 4"]);
 
         state.choices.copy_from = Some(PlayerSlot(2));
@@ -391,6 +432,83 @@ mod tests {
                 "/cancel"
             ]
         );
+    }
+
+    #[test]
+    fn choices_last_the_night_and_buttons_go_once_choosing_ends() {
+        let mut state = game(Role::Sheriff, Vec::new());
+        at(
+            &mut state,
+            GamePhase::Night {
+                night: 1,
+                stage: NightStage::Choosing,
+            },
+        );
+        state.apply(ServerMessage::Accepted(Accepted::Night(Some(
+            NightAction::Target(PlayerSlot(2)),
+        ))));
+        at(
+            &mut state,
+            GamePhase::Night {
+                night: 1,
+                stage: NightStage::Roleblock,
+            },
+        );
+        assert_eq!(
+            state.choices.night,
+            Some(NightAction::Target(PlayerSlot(2)))
+        );
+        assert!(state.actions().is_empty());
+        at(
+            &mut state,
+            GamePhase::Day {
+                day: 1,
+                stage: DayStage::Discussion,
+            },
+        );
+        assert_eq!(state.choices.night, None);
+    }
+
+    #[test]
+    fn minigames_are_tracked_until_the_stage_ends() {
+        use webgame_protocol::{Minigame, MinigameResult};
+
+        let mut state = game(Role::Doctor, Vec::new());
+        at(
+            &mut state,
+            GamePhase::Night {
+                night: 1,
+                stage: NightStage::Protect,
+            },
+        );
+        let lines = state.apply(ServerMessage::Minigame {
+            game: Minigame::SkillCheck,
+            ends_at_ms: 9,
+        });
+        assert_eq!(lines.len(), 1);
+        let lines = state.apply(ServerMessage::MinigameOver {
+            result: MinigameResult::Passed,
+            rolled: true,
+        });
+        assert_eq!(lines, ["* You passed the skill check. (rolled)"]);
+        let minigame = state.minigame.clone().unwrap();
+        assert_eq!(minigame.result, Some(MinigameResult::Passed));
+        assert_eq!(minigame.ends_at_ms, 9);
+        // Passive games aren't worth a line.
+        at(
+            &mut state,
+            GamePhase::Night {
+                night: 1,
+                stage: NightStage::Investigate,
+            },
+        );
+        assert_eq!(state.minigame, None);
+        let lines = state.apply(ServerMessage::Minigame {
+            game: Minigame::Passive,
+            ends_at_ms: 10,
+        });
+        assert!(lines.is_empty());
+        assert!(state.clock(0).starts_with("Night 1 Investigations"));
     }
 
     #[test]
