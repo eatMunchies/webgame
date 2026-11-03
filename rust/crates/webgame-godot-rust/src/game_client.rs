@@ -4,9 +4,10 @@ use godot::classes::{INode, Node, Time, WebSocketPeer};
 use godot::prelude::*;
 use webgame_client::{Command, HELP, State};
 use webgame_protocol::{
-    Appearance, ClientMessage, FIGHT_HP, Facing, FightMove, Fighter, GameAction, LobbyCode,
-    MAX_CHANCE, MAX_COORD, Minigame, MinigamePlay, MinigameResult, Movement, PROTOCOL_VERSION,
-    PlayerSlot, ServerMessage, decode, encode,
+    Appearance, ChatChannel, ClientMessage, DayStage, FIGHT_HP, FIGHT_ROUNDS, Facing, FightMove,
+    Fighter, GameAction, GamePhase, LobbyCode, MAX_CHANCE, MAX_COORD, Minigame, MinigamePlay,
+    MinigameResult, Movement, NightStage, PROTOCOL_VERSION, PlayerSlot, ServerMessage, decode,
+    encode,
 };
 
 /// The connection to the game server. Add one to the scene tree (the Session autoload does)
@@ -334,7 +335,9 @@ impl GameClient {
     /// Everyone in the lobby, one Dictionary each, in lot order:
     /// `lot` (int, from 0), `number` (int, the number players type, from 1), `name`,
     /// `user_id` (String, stable for a username), `connected`, `alive` (always true outside a
-    /// game), `is_host`, `is_me`, and `appearance`: a Dictionary with the fields of a
+    /// game), `is_host`, `is_me`, `role` (their role once it is public, when they die or the
+    /// game ends, else ""), `votes` (votes on them during voting, else 0), and `appearance`: a
+    /// Dictionary with the fields of a
     /// `CharacterAppearance` plus `house` (picked house layers to styles), or null until their
     /// client sends it.
     #[func]
@@ -345,6 +348,7 @@ impl GameClient {
         };
         let mut members = lobby.members.clone();
         members.sort_by_key(|m| m.slot);
+        let tally = self.state.vote_tally();
         for member in members {
             let alive = self
                 .state
@@ -361,6 +365,13 @@ impl GameClient {
                 "alive" => alive,
                 "is_host" => member.user_id == lobby.host,
                 "is_me" => Some(member.user_id) == self.state.user_id,
+                "role" => &self
+                    .state
+                    .revealed
+                    .get(&member.slot)
+                    .map(|role| GString::from(role.name()))
+                    .unwrap_or_default(),
+                "votes" => tally.get(&member.slot).copied().unwrap_or(0) as i64,
                 "appearance" => &member
                     .appearance
                     .as_ref()
@@ -374,6 +385,88 @@ impl GameClient {
     #[func]
     fn phase_label(&self) -> GString {
         text(self.state.clock(unix_ms()))
+    }
+
+    /// The phase in parts, for the HUD's clock: `title` ("Day 2", "Night 1", "Lobby" or "Game
+    /// over"), `stage` (like "Voting (2 trials left)" or "Defense: Bram", "" when there is
+    /// none), `seconds_left` (whole seconds, rounded up, or -1 when the phase has no end),
+    /// `night`, and `voting` (whether the day's vote is open).
+    #[func]
+    fn phase_info(&self) -> VarDictionary {
+        let name = |slot: &PlayerSlot| self.plain_name(*slot);
+        let (title, stage) = match &self.state.phase {
+            GamePhase::Lobby => ("Lobby".to_string(), String::new()),
+            GamePhase::GameOver => ("Game over".to_string(), String::new()),
+            GamePhase::Day { day, stage } => {
+                let stage = match stage {
+                    DayStage::Discussion => "Discussion".to_string(),
+                    DayStage::Voting { trials_left: 1 } => "Voting (last trial)".to_string(),
+                    DayStage::Voting { trials_left } => {
+                        format!("Voting ({trials_left} trials left)")
+                    }
+                    DayStage::Defense { accused } => format!("Defense: {}", name(accused)),
+                    DayStage::Judgement { accused } => format!("Judgement: {}", name(accused)),
+                    DayStage::LastWords { accused } => format!("Last words: {}", name(accused)),
+                };
+                (format!("Day {day}"), stage)
+            }
+            GamePhase::Night { night, stage } => {
+                let stage = match stage {
+                    NightStage::Choosing => "Choose your action".to_string(),
+                    NightStage::Roleblock => "Roleblocks".to_string(),
+                    NightStage::Kill { round } => format!("Fights {round}/{FIGHT_ROUNDS}"),
+                    NightStage::Protect => "Protection".to_string(),
+                    NightStage::Investigate => "Investigations".to_string(),
+                };
+                (format!("Night {night}"), stage)
+            }
+        };
+        let timed = self.state.ends_at_ms != 0
+            && !matches!(self.state.phase, GamePhase::Lobby | GamePhase::GameOver);
+        let seconds_left = if timed {
+            self.state
+                .ends_at_ms
+                .saturating_sub(unix_ms())
+                .div_ceil(1000) as i64
+        } else {
+            -1
+        };
+        vdict! {
+            "title" => &text(title),
+            "stage" => &text(stage),
+            "seconds_left" => seconds_left,
+            "night" => self.state.phase.is_night(),
+            "voting" => matches!(
+                self.state.phase,
+                GamePhase::Day {
+                    stage: DayStage::Voting { .. },
+                    ..
+                }
+            ),
+        }
+    }
+
+    /// How many votes put someone on trial, from the server's last count, or 0 before one.
+    #[func]
+    fn votes_needed(&self) -> i64 {
+        i64::from(self.state.votes_needed)
+    }
+
+    /// Where plain typed text goes right now: "lobby", "town", "jail", "mafia" or "dead", or
+    /// "" when nobody can hear the player. Whispers are typed as `/w N text`, so they never
+    /// show here.
+    #[func]
+    fn chat_channel(&self) -> GString {
+        let channel = match webgame_client::chat_channel(&self.state) {
+            Some(ChatChannel::Lobby) => "lobby",
+            Some(ChatChannel::General) => "town",
+            Some(ChatChannel::Whisper { .. }) => "whisper",
+            Some(ChatChannel::Jail) => "jail",
+            Some(ChatChannel::Mafia) => "mafia",
+            Some(ChatChannel::Dead) => "dead",
+            None => "",
+        };
+        text(channel)
     }
 
     /// Whether it is night, for dimming the town.
@@ -607,6 +700,20 @@ impl GameClient {
             self.signals().minigame_changed().emit();
         }
         self.signals().actions_changed().emit();
+    }
+
+    /// A player's name alone, without the number `State::name` adds, for labels that have
+    /// little room.
+    fn plain_name(&self, slot: PlayerSlot) -> String {
+        let from_game = self.state.players.iter().find(|p| p.slot == slot);
+        let from_lobby = || {
+            let lobby = self.state.lobby.as_ref()?;
+            lobby.members.iter().find(|m| m.slot == slot)
+        };
+        from_game
+            .map(|p| p.name.clone())
+            .or_else(|| from_lobby().map(|m| m.name.clone()))
+            .unwrap_or_else(|| "?".into())
     }
 
     fn my_slot(&self) -> Option<PlayerSlot> {

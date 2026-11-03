@@ -31,6 +31,14 @@ pub struct State {
     pub choices: Choices,
     /// This player's minigame in the current stage of the night.
     pub minigame: Option<CurrentMinigame>,
+    /// The roles of players whose role is public: the dead (revealed when they died) and,
+    /// once the game is over, everyone.
+    pub revealed: BTreeMap<PlayerSlot, Role>,
+    /// The day votes as the server last counted them. Cleared when the phase changes, so they
+    /// only describe the current vote.
+    pub votes: Vec<VoteEntry>,
+    /// How many votes put someone on trial, from the last count.
+    pub votes_needed: u8,
 }
 
 /// A minigame being played, or just finished.
@@ -79,6 +87,9 @@ impl Default for State {
             positions: BTreeMap::new(),
             choices: Choices::default(),
             minigame: None,
+            revealed: BTreeMap::new(),
+            votes: Vec::new(),
+            votes_needed: 0,
         }
     }
 }
@@ -102,6 +113,15 @@ impl State {
             role: self.role?,
             jail: self.jail,
         })
+    }
+
+    /// How many votes are on each player right now, during voting. Empty in other stages.
+    pub fn vote_tally(&self) -> BTreeMap<PlayerSlot, usize> {
+        let mut tally = BTreeMap::new();
+        for vote in &self.votes {
+            *tally.entry(vote.target).or_insert(0) += 1;
+        }
+        tally
     }
 
     /// A player as `Name (3)`.
@@ -312,6 +332,7 @@ impl State {
                 }
                 if changed {
                     self.minigame = None;
+                    self.votes.clear();
                 }
                 self.phase = phase;
                 self.ends_at_ms = ends_at_ms;
@@ -354,7 +375,10 @@ impl State {
                     .iter()
                     .find(|v| Some(v.voter) == self.me)
                     .map(|v| v.target);
-                vec![self.votes(&votes, needed)]
+                let line = self.votes(&votes, needed);
+                self.votes = votes;
+                self.votes_needed = needed;
+                vec![line]
             }
             ServerMessage::TrialResult {
                 accused,
@@ -453,6 +477,9 @@ impl State {
         self.jail = JailStatus::Free;
         self.choices = Choices::default();
         self.minigame = None;
+        self.revealed.clear();
+        self.votes.clear();
+        self.votes_needed = 0;
     }
 
     fn start(&mut self, start: GameStart) -> Vec<String> {
@@ -463,6 +490,8 @@ impl State {
         self.team = start.team;
         self.executioner_target = start.executioner_target;
         self.will = start.last_will;
+        self.revealed.clear();
+        self.votes.clear();
         vec![
             "=== The game begins ===".into(),
             self.roles_text(),
@@ -561,6 +590,7 @@ impl State {
             if let Some(player) = self.players.iter_mut().find(|p| p.slot == death.slot) {
                 player.alive = false;
             }
+            self.revealed.insert(death.slot, death.role);
             let causes: Vec<&str> = death.causes.iter().map(|c| cause(*c)).collect();
             lines.push(format!(
                 "{} died ({}). They were the {}.",
@@ -737,6 +767,7 @@ impl State {
         };
         let mut lines = vec![format!("=== Game over. {outcome} ===")];
         lines.push(format!("Winners: {}", self.names(&info.winners)));
+        self.revealed.extend(info.roles.iter().copied());
         for (slot, role) in &info.roles {
             lines.push(format!("  {} was the {role}", self.name(*slot)));
         }
@@ -759,5 +790,81 @@ fn cause(cause: DeathCause) -> &'static str {
         DeathCause::Poison => "poisoned",
         DeathCause::Haunted => "haunted by a Jester",
         DeathCause::Guilt => "died of guilt",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn game() -> State {
+        let mut state = State::default();
+        let players = (0..4)
+            .map(|n| PlayerSummary {
+                slot: PlayerSlot(n),
+                name: format!("P{}", n + 1),
+                alive: true,
+            })
+            .collect();
+        state.apply(ServerMessage::GameStarted(GameStart {
+            you: PlayerSlot(0),
+            role: Role::Sheriff,
+            players,
+            role_list: Vec::new(),
+            team: Vec::new(),
+            executioner_target: None,
+            last_will: String::new(),
+        }));
+        state
+    }
+
+    fn day(stage: DayStage) -> ServerMessage {
+        ServerMessage::Phase {
+            phase: GamePhase::Day { day: 2, stage },
+            ends_at_ms: 0,
+        }
+    }
+
+    #[test]
+    fn vote_tally_counts_the_current_vote_only() {
+        let mut state = game();
+        state.apply(day(DayStage::Voting { trials_left: 3 }));
+        let vote = |voter, target| VoteEntry {
+            voter: PlayerSlot(voter),
+            target: PlayerSlot(target),
+        };
+        state.apply(ServerMessage::Votes {
+            votes: vec![vote(0, 2), vote(1, 2), vote(3, 1)],
+            needed: 3,
+        });
+        let tally = state.vote_tally();
+        assert_eq!(tally[&PlayerSlot(2)], 2);
+        assert_eq!(tally[&PlayerSlot(1)], 1);
+        assert_eq!(state.votes_needed, 3);
+
+        state.apply(day(DayStage::Defense {
+            accused: PlayerSlot(2),
+        }));
+        assert!(state.vote_tally().is_empty());
+    }
+
+    #[test]
+    fn deaths_and_game_over_reveal_roles() {
+        let mut state = game();
+        state.apply(ServerMessage::Deaths(vec![DeathReport {
+            slot: PlayerSlot(2),
+            role: Role::Doctor,
+            will: String::new(),
+            causes: vec![DeathCause::Mafia],
+        }]));
+        assert_eq!(state.revealed.get(&PlayerSlot(2)), Some(&Role::Doctor));
+        assert_eq!(state.revealed.get(&PlayerSlot(1)), None);
+
+        state.apply(ServerMessage::GameOver(GameOverInfo {
+            outcome: Outcome::Town,
+            winners: Vec::new(),
+            roles: vec![(PlayerSlot(1), Role::Mafioso)],
+        }));
+        assert_eq!(state.revealed.get(&PlayerSlot(1)), Some(&Role::Mafioso));
     }
 }

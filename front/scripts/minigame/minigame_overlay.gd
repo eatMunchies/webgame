@@ -14,9 +14,16 @@ extends PanelContainer
 ## - A fight shows both fighters (the opponent masked) as the server last
 ##   described them, read each frame from `fight_source`. Strike, grab, and
 ##   hold guard.
-## - A passive game is a skill check played for practice. Once a skill check
-##   or fight is decided, a practice game carries on until the stage ends, so
-##   a finished player looks as busy as anyone.
+## - A passive game is practice, nothing riding on it: one of
+##   `practice_checks`, picked at random by weight. The same practice game
+##   carries on from stage to stage through the night, until a skill check or
+##   fight interrupts it; the next practice after that is picked afresh. Once a
+##   skill check is decided it carries on as practice until the stage ends,
+##   and a decided fight gives way to a practice game, so a finished player
+##   looks as busy as anyone.
+##
+## Every minigame is titled with just its name, with no instructions, and
+## the time left shows only while something rides on it.
 ##
 ## Keys in a fight: J or Z strikes; K or X grabs; L, C or Space guards, held.
 ## Everything can be tapped as well. A skill check takes its own keys.
@@ -42,8 +49,11 @@ const RESULT_TEXT := {
 ## How long a hit flashes, in seconds.
 const FLASH_SECONDS := 0.25
 
-## The kinds of skill check to pick from.
+## The kinds of skill check to pick from when the chance counts.
 @export var skill_checks: Array[SkillCheckDef] = []
+## The games to pick from for practice. Falls back on `skill_checks` when
+## empty.
+@export var practice_checks: Array[SkillCheckDef] = []
 
 ## Returns the fight as GameClient.fight() describes it. Read every frame
 ## during a fight.
@@ -60,6 +70,12 @@ var rolled := false
 var fight := {}
 
 var _rng := RandomNumberGenerator.new()
+## The practice game being played this night, kept (hidden) between stages
+## so the next stage's practice carries on with it. Dropped when a skill
+## check or fight interrupts it, or the night it was picked in is over.
+var _practice: SkillCheck
+## The phase `_practice` was picked in, like "Night 2".
+var _practice_phase := ""
 var _guard_held := false
 var _ends_at_msec := 0
 ## Seconds left on each fighter's hit flash.
@@ -67,7 +83,6 @@ var _hit_flash := {"you": 0.0, "opponent": 0.0}
 
 @onready var title: Label = %Title
 @onready var time_left: Label = %TimeLeft
-@onready var hint: Label = %Hint
 @onready var canvas: Control = %Canvas
 @onready var fight_buttons: Control = %FightButtons
 @onready var result_label: Label = %Result
@@ -150,13 +165,21 @@ func _start(new_kind: String) -> void:
 	rolled = false
 	fight = {}
 	_hit_flash = {"you": 0.0, "opponent": 0.0}
+	if kind == "skill_check" or kind == "fight":
+		_drop_practice()
 	if kind == "skill_check":
 		_start_check(false)
 
 
-## Fills the game area with a skill check picked from `skill_checks`.
+## Fills the game area with a skill check picked from `skill_checks`, or
+## for practice from `practice_checks`.
 func _start_check(practice: bool) -> void:
-	var def := SkillCheckDef.pick(skill_checks, _rng)
+	var phase: String = Session.client.phase_info()["title"]
+	if practice and _practice != null and _practice_phase == phase:
+		check = _practice
+		return
+	var defs := practice_checks if practice and not practice_checks.is_empty() else skill_checks
+	var def := SkillCheckDef.pick(defs, _rng)
 	if def == null:
 		push_error("MinigameOverlay: no skill check to pick from")
 		return
@@ -166,12 +189,27 @@ func _start_check(practice: bool) -> void:
 	check.changed.connect(_update_text)
 	canvas.add_child(check)
 	check.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if practice:
+		_drop_practice()
+		_practice = check
+		_practice_phase = phase
 
 
+## Lets go of the check shown now. The night's practice game stays for the
+## next stage; anything else is freed.
 func _end_check() -> void:
-	if check != null:
+	if check != null and check != _practice:
 		check.queue_free()
-		check = null
+	check = null
+
+
+## Frees the kept practice game, so the next practice is picked afresh.
+func _drop_practice() -> void:
+	if _practice != null:
+		if check == _practice:
+			check = null
+		_practice.queue_free()
+		_practice = null
 
 
 func _process(delta: float) -> void:
@@ -202,13 +240,9 @@ func _update_text() -> void:
 		"skill_check":
 			title.text = check.title() if check != null else "Skill check"
 		"fight":
-			title.text = "Fight! You attack." if attacking else "Fight! You're attacked."
+			title.text = "Fight"
 		"passive":
-			title.text = "Practice"
-	if check != null:
-		hint.text = check.hint()
-	elif kind == "fight":
-		hint.text = "J strike, K grab, hold L guard. Strike beats open, guard beats strike, grab beats guard."
+			title.text = check.title() if check != null else "Practice"
 	result_label.text = RESULT_TEXT.get(result, "")
 	var status := check.status() if check != null and kind == "skill_check" else ""
 	if result != "" and rolled:
@@ -222,6 +256,10 @@ func _update_text() -> void:
 			result_label.text = status
 	if practicing() and check != null:
 		result_label.text = ("%s  %s" % [result_label.text, check.practice_status()]).strip_edges()
+	# Practice is titled by the game being played, even after a decided fight.
+	if practicing() and check != null:
+		title.text = check.title()
+	time_left.visible = not practicing()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

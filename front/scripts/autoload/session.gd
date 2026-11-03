@@ -215,6 +215,12 @@ func _appearance_from(fields: Dictionary) -> CharacterAppearance:
 	return look
 
 
+## Adds a line of this client's own to the game log, like the reason a
+## button's command was refused. Everyone else's lines come from the client.
+func add_log_line(text: String) -> void:
+	_add_log_line(text)
+
+
 func _add_log_line(text: String) -> void:
 	log_lines.append(text)
 	if log_lines.size() > MAX_LOG_LINES:

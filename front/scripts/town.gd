@@ -3,8 +3,9 @@ extends Node2D
 ## The town the player walks around after hosting or joining a lobby: a
 ## cul-de-sac with one lot per lobby player around a podium. Each player's
 ## house is built on their lot and the player starts in front of their own.
-## The HUD shows the lobby code with a button back to the lobby screen, and
-## the game panel (chat, phase, actions) on the right.
+## The HUD (scenes/main/hud.tscn) puts the players at the top left, the day
+## and time left at the top middle, the chat on the right under the lobby
+## code and Leave button, and what the player can do at the bottom middle.
 ##
 ## Houses are rebuilt whenever the lobby changes: when someone joins or
 ## leaves, and when someone dies, whose house goes grey. Each house is labeled
@@ -15,12 +16,13 @@ extends Node2D
 ## goes to the server a few times a second (only when it changes), and each
 ## other player is a RemotePlayer that follows what the server relays.
 ##
-## At night the MinigameOverlay covers the town's side of the screen while the
-## player has a minigame, and its moves go to the server.
+## At night the MinigameOverlay takes the HUD's middle column, between the
+## players and the chat, while the player has a minigame, and its moves go to
+## the server.
 
 const LOBBY_SCENE := "res://scenes/main/lobby.tscn"
 const HOUSE_SCENE := preload("res://scenes/main/house.tscn")
-const GAME_PANEL_SCENE := preload("res://scenes/main/game_panel.tscn")
+const HUD_SCENE := preload("res://scenes/main/hud.tscn")
 const REMOTE_PLAYER_SCENE := preload("res://scenes/main/remote_player.tscn")
 const MINIGAME_SCENE := preload("res://scenes/main/minigame_overlay.tscn")
 ## How often this player's position is sent while it changes. Others see
@@ -41,6 +43,7 @@ const DAY_FADE_SECONDS := 1.5
 @onready var houses: Node2D = %Houses
 @onready var world: Node2D = $World
 @onready var lobby_label: Label = %LobbyLabel
+@onready var bar: Control = $HUD/Bar
 
 @onready var copy_button: Button = %CopyButton
 
@@ -54,9 +57,7 @@ var _since_move_sent := 0.0
 
 
 func _ready() -> void:
-	# The world draws at 320x180 scaled up. canvas_items scaling (rather than
-	# the project's default viewport scaling) keeps the HUD text sharp.
-	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	ScreenScale.for_world(get_window())
 	player.character.appearance = PlayerProfile.appearance
 
 	var camera: Camera2D = player.get_node("Camera2D")
@@ -78,9 +79,11 @@ func _ready() -> void:
 		player.position = CulDeSac.lot_position(Session.me.lot, Session.MAX_PLAYERS) + SPAWN_OFFSET
 
 	copy_button.visible = Session.in_lobby()
+	# The lobby bar sits above the chat, so it shares the HUD's small look.
+	bar.theme = HudStyle.build()
 	_update_label()
 	if Session.in_lobby():
-		$HUD.add_child(GAME_PANEL_SCENE.instantiate())
+		$HUD.add_child(HUD_SCENE.instantiate())
 		_add_minigame_overlay()
 	Session.lobby_changed.connect(_on_session_lobby_changed)
 	Session.phase_changed.connect(_update_sky)
@@ -123,7 +126,8 @@ func _update_label() -> void:
 	if not Session.in_lobby():
 		lobby_label.text = "Not in a lobby"
 	else:
-		lobby_label.text = "Lobby %s%s" % [Session.code, " (host)" if Session.is_host else ""]
+		# The player list marks the host, so the narrow bar only needs the code.
+		lobby_label.text = "Lobby %s" % Session.code
 
 
 ## Puts a house on every lot: the owner's house where someone lives, and a

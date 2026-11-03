@@ -12,15 +12,6 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_script")
 
-[node name="Background" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0.13, 0.15, 0.2, 1)
-
 [node name="Center" type="CenterContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -29,83 +20,116 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Panel" type="PanelContainer" parent="Center"]
-custom_minimum_size = Vector2(360, 0)
+[node name="Column" type="VBoxContainer" parent="Center"]
 layout_mode = 2
+theme_override_constants/separation = 20
 
-[node name="Margin" type="MarginContainer" parent="Center/Panel"]
+[node name="Title" type="Label" parent="Center/Column"]
 layout_mode = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 24
-
-[node name="Rows" type="VBoxContainer" parent="Center/Panel/Margin"]
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="Title" type="Label" parent="Center/Panel/Margin/Rows"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 32
-text = "webgame"
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 60
+text = "Table of Salem"
 horizontal_alignment = 1
 
-[node name="PreviewArea" type="Control" parent="Center/Panel/Margin/Rows"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 144)
+[node name="Panel" type="PanelContainer" parent="Center/Column"]
+custom_minimum_size = Vector2(860, 0)
 layout_mode = 2
 
-[node name="Preview" type="Node2D" parent="Center/Panel/Margin/Rows/PreviewArea"]
+[node name="Columns" type="HBoxContainer" parent="Center/Column/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="You" type="VBoxContainer" parent="Center/Column/Panel/Columns"]
+custom_minimum_size = Vector2(440, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PreviewWell" type="PanelContainer" parent="Center/Column/Panel/Columns/You"]
+layout_mode = 2
+theme_type_variation = &"InsetPanel"
+
+[node name="PreviewArea" type="Control" parent="Center/Column/Panel/Columns/You/PreviewWell"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 380)
+layout_mode = 2
+
+[node name="Preview" type="Node2D" parent="Center/Column/Panel/Columns/You/PreviewWell/PreviewArea"]
 unique_name_in_owner = true
 script = ExtResource("2_character")
 
-[node name="CustomizeButton" type="Button" parent="Center/Panel/Margin/Rows"]
+[node name="Corner" type="Control" parent="Center/Column/Panel/Columns/You/PreviewWell"]
 layout_mode = 2
-text = "Customize character"
+mouse_filter = 2
 
-[node name="Separator" type="HSeparator" parent="Center/Panel/Margin/Rows"]
-layout_mode = 2
+[node name="CustomizeButton" type="Button" parent="Center/Column/Panel/Columns/You/PreviewWell/Corner"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 52.0
+offset_bottom = 52.0
+text = "Customize"
 
-[node name="NameInput" type="LineEdit" parent="Center/Panel/Margin/Rows"]
+[node name="NameInput" type="LineEdit" parent="Center/Column/Panel/Columns/You"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
+theme_override_font_sizes/font_size = 22
 placeholder_text = "Your name"
 alignment = 1
 max_length = 16
 
-[node name="CreateButton" type="Button" parent="Center/Panel/Margin/Rows"]
-unique_name_in_owner = true
+[node name="Divider" type="VSeparator" parent="Center/Column/Panel/Columns"]
 layout_mode = 2
-text = "Create lobby"
 
-[node name="JoinRow" type="HBoxContainer" parent="Center/Panel/Margin/Rows"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="CodeInput" type="LineEdit" parent="Center/Panel/Margin/Rows/JoinRow"]
-unique_name_in_owner = true
+[node name="Play" type="VBoxContainer" parent="Center/Column/Panel/Columns"]
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "Lobby code"
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="CreateButton" type="Button" parent="Center/Column/Panel/Columns/Play"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+theme_override_font_sizes/font_size = 24
+text = "Create lobby"
+
+[node name="Rule" type="HSeparator" parent="Center/Column/Panel/Columns/Play"]
+layout_mode = 2
+
+[node name="JoinRow" type="HBoxContainer" parent="Center/Column/Panel/Columns/Play"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="CodeInput" type="LineEdit" parent="Center/Column/Panel/Columns/Play/JoinRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 28
+placeholder_text = "CODE"
 alignment = 1
 max_length = 8
 
-[node name="JoinButton" type="Button" parent="Center/Panel/Margin/Rows/JoinRow"]
+[node name="JoinButton" type="Button" parent="Center/Column/Panel/Columns/Play/JoinRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 64)
 layout_mode = 2
+theme_override_font_sizes/font_size = 24
 disabled = true
 text = "Join"
 
-[node name="StatusLabel" type="Label" parent="Center/Panel/Margin/Rows"]
+[node name="StatusLabel" type="Label" parent="Center/Column/Panel/Columns/Play"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
+theme_override_colors/font_color = Color(1, 0.55, 0.45, 1)
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[connection signal="pressed" from="Center/Panel/Margin/Rows/CustomizeButton" to="." method="_on_customize_button_pressed"]
-[connection signal="pressed" from="Center/Panel/Margin/Rows/CreateButton" to="." method="_on_create_button_pressed"]
-[connection signal="text_changed" from="Center/Panel/Margin/Rows/JoinRow/CodeInput" to="." method="_on_code_input_text_changed"]
-[connection signal="text_submitted" from="Center/Panel/Margin/Rows/JoinRow/CodeInput" to="." method="_on_code_input_text_submitted"]
-[connection signal="pressed" from="Center/Panel/Margin/Rows/JoinRow/JoinButton" to="." method="_on_join_button_pressed"]
-[connection signal="text_changed" from="Center/Panel/Margin/Rows/NameInput" to="." method="_on_name_input_text_changed"]
+[connection signal="text_changed" from="Center/Column/Panel/Columns/You/NameInput" to="." method="_on_name_input_text_changed"]
+[connection signal="pressed" from="Center/Column/Panel/Columns/You/PreviewWell/Corner/CustomizeButton" to="." method="_on_customize_button_pressed"]
+[connection signal="pressed" from="Center/Column/Panel/Columns/Play/CreateButton" to="." method="_on_create_button_pressed"]
+[connection signal="text_changed" from="Center/Column/Panel/Columns/Play/JoinRow/CodeInput" to="." method="_on_code_input_text_changed"]
+[connection signal="text_submitted" from="Center/Column/Panel/Columns/Play/JoinRow/CodeInput" to="." method="_on_code_input_text_submitted"]
+[connection signal="pressed" from="Center/Column/Panel/Columns/Play/JoinRow/JoinButton" to="." method="_on_join_button_pressed"]

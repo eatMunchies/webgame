@@ -100,20 +100,30 @@ fn chat(text: &str, state: &State) -> Result<Command, String> {
     if text.is_empty() {
         return Err(String::new());
     }
-    let channel = if state.in_game() {
-        state
-            .chat_context()
-            .and_then(|context| context.default_channel())
-            .ok_or("Nobody can hear you right now.")?
-    } else if state.lobby.is_some() {
-        ChatChannel::Lobby
-    } else {
-        return Err("Join a lobby first: /create or /join CODE.".into());
+    let channel = match chat_channel(state) {
+        Some(channel) => channel,
+        None if state.lobby.is_some() => return Err("Nobody can hear you right now.".into()),
+        None => return Err("Join a lobby first: /create or /join CODE.".into()),
     };
     Ok(Command::Send(ClientMessage::Chat {
         channel,
         text: text.to_string(),
     }))
+}
+
+/// The channel plain text goes to right now: the lobby outside a game, and in one whichever
+/// channel this player can talk in (see `ChatContext::default_channel`). None when nobody can
+/// hear them, or they aren't in a lobby.
+pub fn chat_channel(state: &State) -> Option<ChatChannel> {
+    if state.in_game() {
+        state
+            .chat_context()
+            .and_then(|context| context.default_channel())
+    } else if state.lobby.is_some() {
+        Some(ChatChannel::Lobby)
+    } else {
+        None
+    }
 }
 
 fn slot(number: &str) -> Result<PlayerSlot, String> {

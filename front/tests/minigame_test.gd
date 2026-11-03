@@ -11,8 +11,10 @@ var reported: Array
 func before_test() -> void:
 	reported = []
 	overlay = auto_free(OVERLAY_SCENE.instantiate())
-	# The wheel stands in for every kind; typing_check_test covers the rest.
+	# The wheel stands in for every kind, practice too; typing_check_test and
+	# the Card Memory tests cover the rest.
 	overlay.skill_checks = [load("res://skill_checks/wheel.tres")]
+	overlay.practice_checks = overlay.skill_checks
 	add_child(overlay)
 	overlay.check_reported.connect(func(chance: float, done: bool) -> void:
 		reported.append(["check", roundi(chance * 100), done]))
@@ -80,6 +82,10 @@ func test_the_overlay_offers_every_kind() -> void:
 	var listed: Array[SkillCheckDef] = auto_free(OVERLAY_SCENE.instantiate()).skill_checks
 	var ids := listed.map(func(def: SkillCheckDef) -> StringName: return def.id)
 	assert_array(ids).contains_exactly_in_any_order([&"wheel", &"typing"])
+	# Practice is random too, but the wheel only ever counts.
+	listed = auto_free(OVERLAY_SCENE.instantiate()).practice_checks
+	ids = listed.map(func(def: SkillCheckDef) -> StringName: return def.id)
+	assert_array(ids).contains_exactly_in_any_order([&"typing", &"memory"])
 
 
 func test_skill_checks_are_picked_by_weight() -> void:
@@ -177,9 +183,147 @@ func test_a_decided_fight_turns_into_practice() -> void:
 	assert_array(reported).is_empty()
 
 
+## Two cards on the board with the same face, and one with a different face.
+func pair_and_odd(game: MemoryGame) -> Array[int]:
+	var first := 0
+	var second := game.faces.find(game.faces[first], first + 1)
+	var odd := game.faces.find((game.faces[first] + 1) % 8)
+	return [first, second, odd]
+
+
+func test_a_memory_board_has_eight_pairs_and_a_seed_deals_the_same() -> void:
+	var game := MemoryGame.new(3)
+	for face in 8:
+		assert_int(game.faces.count(face)).is_equal(2)
+	assert_array(MemoryGame.new(3).faces).is_equal(game.faces)
+
+
+func test_memory_cards_cant_be_turned_during_the_peek() -> void:
+	var game := MemoryGame.new(1)
+	assert_bool(game.face_up(5)).is_true()
+	assert_str(game.pick(5)).is_equal("")
+	game.advance(MemoryGame.PEEK_SECONDS)
+	assert_bool(game.face_up(5)).is_false()
+	assert_str(game.pick(5)).is_equal("turned")
+	assert_bool(game.face_up(5)).is_true()
+
+
+func test_memory_pairs_stay_up_and_misses_turn_back() -> void:
+	var game := MemoryGame.new(2)
+	game.advance(MemoryGame.PEEK_SECONDS)
+	var cards := pair_and_odd(game)
+	assert_str(game.pick(cards[0])).is_equal("turned")
+	assert_str(game.pick(cards[2])).is_equal("miss")
+	assert_bool(game.missed()).is_true()
+	game.advance(MemoryGame.MISS_SECONDS)
+	assert_bool(game.face_up(cards[0])).is_false()
+	assert_str(game.pick(cards[0])).is_equal("turned")
+	assert_str(game.pick(cards[0])).override_failure_message("the same card twice is no try").is_equal("")
+	assert_str(game.pick(cards[1])).is_equal("match")
+	assert_bool(game.matched[cards[0]] and game.matched[cards[1]]).is_true()
+	assert_int(game.pairs_found).is_equal(1)
+
+
+func test_picking_during_a_miss_turns_the_miss_back_at_once() -> void:
+	var game := MemoryGame.new(4)
+	game.advance(MemoryGame.PEEK_SECONDS)
+	var cards := pair_and_odd(game)
+	game.pick(cards[0])
+	game.pick(cards[2])
+	assert_str(game.pick(cards[1])).is_equal("turned")
+	assert_array(game.turned).is_equal([cards[1]])
+
+
+func test_clearing_a_board_deals_a_new_one() -> void:
+	var game := MemoryGame.new(5)
+	game.advance(MemoryGame.PEEK_SECONDS)
+	for face in 8:
+		var first := game.faces.find(face)
+		game.pick(first)
+		game.pick(game.faces.find(face, first + 1))
+	assert_bool(game.cleared()).is_true()
+	assert_int(game.boards_cleared).is_equal(1)
+	game.advance(MemoryGame.CLEARED_SECONDS)
+	assert_bool(game.cleared()).is_false()
+	assert_bool(game.peeking()).is_true()
+	assert_int(game.pairs_found).is_equal(8)
+
+
+func test_the_memory_cursor_stops_at_the_edges() -> void:
+	var game := MemoryGame.new(6)
+	game.move_cursor(Vector2i.LEFT)
+	assert_int(game.cursor).is_equal(0)
+	game.move_cursor(Vector2i.RIGHT)
+	game.move_cursor(Vector2i.DOWN)
+	assert_int(game.cursor).is_equal(5)
+	for i in 5:
+		game.move_cursor(Vector2i(1, 1))
+	assert_int(game.cursor).is_equal(15)
+
+
+## Makes practice always Card Memory, and starts a passive game.
+func start_card_memory() -> MemoryCheck:
+	overlay.practice_checks = [load("res://skill_checks/memory.tres")]
+	overlay.show_minigame({"kind": "passive", "ends_in_ms": 5000})
+	return overlay.check
+
+
+func test_card_memory_is_played_by_keys_and_taps_and_reports_nothing() -> void:
+	var cards_check := start_card_memory()
+	# A real size, since a headless test never lays the overlay out.
+	cards_check.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	cards_check.size = Vector2(120, 120)
+	cards_check.game = MemoryGame.new(7)
+	cards_check.game.advance(MemoryGame.PEEK_SECONDS)
+	var cards := pair_and_odd(cards_check.game)
+	cards_check.game.cursor = cards[0]
+	key(KEY_SPACE)
+	var tap := InputEventMouseButton.new()
+	tap.button_index = MOUSE_BUTTON_LEFT
+	tap.pressed = true
+	tap.position = cards_check.card_rect(cards[1]).get_center()
+	cards_check._gui_input(tap)
+	assert_int(cards_check.game.pairs_found).is_equal(1)
+	key(KEY_RIGHT)
+	assert_int(cards_check.game.cursor).is_equal(cards[1] + 1 if cards[1] % 4 < 3 else cards[1])
+	assert_array(reported).is_empty()
+
+
+func test_card_memory_shows_just_its_name() -> void:
+	start_card_memory()
+	assert_str(overlay.title.text).is_equal("Card Memory")
+	assert_bool(overlay.time_left.visible).is_false()
+	assert_str(overlay.result_label.text).is_empty()
+
+
+func test_the_practice_game_carries_on_from_stage_to_stage() -> void:
+	var practice := start_card_memory()
+	var board := practice.game
+	# The stage ends, then the next stage's practice game starts.
+	overlay.show_minigame({})
+	overlay.show_minigame({"kind": "passive", "ends_in_ms": 5000})
+	assert_object(overlay.check).is_same(practice)
+	assert_object(overlay.check.game).is_same(board)
+
+
+func test_a_skill_check_or_fight_ends_the_practice_game() -> void:
+	for interruption in ["skill_check", "fight"]:
+		var practice := start_card_memory()
+		overlay.show_minigame({})
+		overlay.show_minigame({"kind": interruption, "ends_in_ms": 5000})
+		overlay.show_minigame({})
+		await await_idle_frame()
+		assert_bool(is_instance_valid(practice)).is_false()
+		overlay.show_minigame({"kind": "passive", "ends_in_ms": 5000})
+		assert_object(overlay.check).is_not_same(practice)
+		assert_bool(overlay.check is MemoryCheck).is_true()
+		overlay.show_minigame({})
+
+
 func test_fights_send_moves_until_decided() -> void:
 	overlay.show_minigame({"kind": "fight", "attacking": true, "ends_in_ms": 8000})
-	assert_str(overlay.title.text).contains("You attack")
+	assert_str(overlay.title.text).is_equal("Fight")
+	assert_bool(overlay.time_left.visible).is_true()
 	key(KEY_J)
 	key(KEY_K)
 	key(KEY_SPACE)

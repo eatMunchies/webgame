@@ -6,4 +6,5 @@
 [resource]
 script = ExtResource("1_script")
 id = &"wheel"
+title = "Timing Wheel"
 scene = ExtResource("2_scene")

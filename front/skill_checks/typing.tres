@@ -6,5 +6,5 @@
 [resource]
 script = ExtResource("1_script")
 id = &"typing"
-title = "Typing test"
+title = "Typing Test"
 scene = ExtResource("2_scene")

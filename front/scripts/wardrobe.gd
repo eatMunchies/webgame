@@ -77,7 +77,7 @@ var _thumbnail_timer := Timer.new()
 
 
 func _ready() -> void:
-	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+	ScreenScale.for_menus(get_window())
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	theme = RpgTheme.build()
 	for slot in DEFAULT_FIRST_ITEM:
@@ -113,18 +113,7 @@ func _footer_buttons() -> Array[Button]:
 
 
 func _build() -> void:
-	var background := TextureRect.new()
-	var glow := GradientTexture2D.new()
-	glow.fill = GradientTexture2D.FILL_RADIAL
-	glow.fill_from = Vector2(0.35, 0.4)
-	glow.fill_to = Vector2(1.2, 1.3)
-	glow.gradient = Gradient.new()
-	glow.gradient.set_color(0, Color(0.24, 0.19, 0.24))
-	glow.gradient.set_color(1, Color(0.05, 0.04, 0.06))
-	background.texture = glow
-	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	background.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	add_child(background)
+	add_child(RpgTheme.backdrop())
 
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -134,12 +123,6 @@ func _build() -> void:
 	var rows := VBoxContainer.new()
 	rows.add_theme_constant_override("separation", 16)
 	margin.add_child(rows)
-
-	var title := Label.new()
-	title.text = "Customize Character"
-	title.theme_type_variation = "TitleLabel"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	rows.add_child(title)
 
 	var columns := HBoxContainer.new()
 	columns.size_flags_vertical = SIZE_EXPAND_FILL
@@ -579,6 +562,8 @@ class Stage:
 	const YARD_SPOT := Vector2(16, 6)
 
 	var character: Character
+	## The house to show in house view. A stage without one only ever shows
+	## the character.
 	var house: House
 	var show_house := false:
 		set(value):
@@ -591,8 +576,9 @@ class Stage:
 	func _layout() -> void:
 		if character == null:
 			return
-		house.visible = show_house
-		if show_house:
+		if house != null:
+			house.visible = show_house
+		if show_house and house != null:
 			var image_size := Vector2(64, 80)
 			var house_zoom := clampf(floorf(minf(size.y * 0.85 / image_size.y, size.x * 0.9 / image_size.x)), 2.0, 8.0)
 			house.scale = Vector2.ONE * house_zoom
@@ -611,7 +597,7 @@ class Stage:
 	func _draw() -> void:
 		if character == null:
 			return
-		if show_house:
+		if show_house and house != null:
 			var house_zoom := house.scale.x
 			for i in 8:
 				draw_circle(house.position - Vector2(0, 36 * house_zoom), (44 - i * 4) * house_zoom, Color(1.0, 0.85, 0.5, 0.025))

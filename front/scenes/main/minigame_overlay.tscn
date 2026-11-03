@@ -4,6 +4,7 @@
 [ext_resource type="Resource" path="res://skill_checks/wheel.tres" id="2_wheel"]
 [ext_resource type="Script" path="res://scripts/minigame/skill_check_def.gd" id="3_def"]
 [ext_resource type="Resource" path="res://skill_checks/typing.tres" id="4_typing"]
+[ext_resource type="Resource" path="res://skill_checks/memory.tres" id="5_memory"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_panel"]
 content_margin_left = 3.0
@@ -22,16 +23,19 @@ corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
 
 [node name="MinigameOverlay" type="PanelContainer"]
-anchor_right = 0.56
+anchor_left = 0.5
+anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = 4.0
-offset_top = 22.0
-offset_right = -2.0
-offset_bottom = -4.0
+offset_left = -94.0
+offset_top = 30.0
+offset_right = 60.0
+offset_bottom = -2.0
+grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBox_panel")
 script = ExtResource("1_script")
 skill_checks = Array[ExtResource("3_def")]([ExtResource("2_wheel"), ExtResource("4_typing")])
+practice_checks = Array[ExtResource("3_def")]([ExtResource("4_typing"), ExtResource("5_memory")])
 
 [node name="Rows" type="VBoxContainer" parent="."]
 layout_mode = 2
@@ -53,12 +57,6 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 7
 text = "0.0s"
-
-[node name="Hint" type="Label" parent="Rows"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 6
-autowrap_mode = 3
 
 [node name="Canvas" type="Control" parent="Rows"]
 unique_name_in_owner = true
