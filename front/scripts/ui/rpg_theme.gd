@@ -81,6 +81,22 @@ static func build() -> Theme:
 	theme.set_color("font_pressed_color", "CheckBox", TEXT)
 	theme.set_color("font_hover_pressed_color", "CheckBox", GOLD_BRIGHT)
 
+	# Text boxes are dark wells, outlined in gold while being typed in.
+	theme.set_stylebox("normal", "LineEdit", _box(WOOD_DARK, TRIM, 2, 6, 10))
+	theme.set_stylebox("focus", "LineEdit", _box(WOOD_DARK, GOLD_BRIGHT, 2, 6, 10))
+	theme.set_stylebox("read_only", "LineEdit", _box(WOOD_DARK.darkened(0.3), TRIM.darkened(0.4), 2, 6, 10))
+	theme.set_color("font_color", "LineEdit", TEXT)
+	theme.set_color("font_placeholder_color", "LineEdit", Color(TEXT_DIM, 0.7))
+	theme.set_color("caret_color", "LineEdit", GOLD_BRIGHT)
+	theme.set_color("selection_color", "LineEdit", Color(GOLD, 0.35))
+	var rule := StyleBoxLine.new()
+	rule.color = Color(TRIM, 0.6)
+	rule.thickness = 2
+	theme.set_stylebox("separator", "HSeparator", rule)
+	var upright := rule.duplicate()
+	upright.vertical = true
+	theme.set_stylebox("separator", "VSeparator", upright)
+
 	# Tabs look like folder tabs on top of the panel: the open one joins the
 	# panel below it, the others sit back in darker wood.
 	theme.set_font("font", "TabContainer", serif)
@@ -115,6 +131,23 @@ static func build() -> Theme:
 	theme.set_stylebox("grabber_highlight", "VScrollBar", _box(GOLD, GOLD, 0, 4, 0))
 	theme.set_stylebox("grabber_pressed", "VScrollBar", _box(GOLD_BRIGHT, GOLD_BRIGHT, 0, 4, 0))
 	return theme
+
+
+## The menus' background: a warm glow toward the upper left fading to near
+## black, filling whatever it's added to.
+static func backdrop() -> TextureRect:
+	var background := TextureRect.new()
+	var glow := GradientTexture2D.new()
+	glow.fill = GradientTexture2D.FILL_RADIAL
+	glow.fill_from = Vector2(0.35, 0.4)
+	glow.fill_to = Vector2(1.2, 1.3)
+	glow.gradient = Gradient.new()
+	glow.gradient.set_color(0, Color(0.24, 0.19, 0.24))
+	glow.gradient.set_color(1, Color(0.05, 0.04, 0.06))
+	background.texture = glow
+	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	return background
 
 
 ## A rounded box with a border all round and the same padding on every side.

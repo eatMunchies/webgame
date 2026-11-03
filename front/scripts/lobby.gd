@@ -4,13 +4,17 @@ extends Control
 ## can host a new lobby or type a lobby code to join one. Hosting or joining
 ## asks the game server, and goes to the town once it says yes.
 ##
+## It shares the customizer's look: RpgTheme's wood and gold, the same
+## backdrop, and the same preview (Wardrobe.Stage), showing the player's
+## house with their character in the yard.
+##
 ## The buttons' signals are connected in lobby.tscn (select a button and look
 ## at Node > Signals in the editor), and the nodes this script uses are marked
 ## as unique names, so they're reached with %Name wherever they sit.
 
 const CUSTOMIZER_SCENE := "res://scenes/main/customizer.tscn"
 const TOWN_SCENE := "res://scenes/main/town.tscn"
-const PREVIEW_SCALE := 4.0
+const HOUSE_SCENE := preload("res://scenes/main/house.tscn")
 
 @onready var name_input: LineEdit = %NameInput
 @onready var create_button: Button = %CreateButton
@@ -25,13 +29,12 @@ var _waiting := false
 
 
 func _ready() -> void:
-	# The project renders at 320x180 for pixel art; menus turn that off so
-	# text and buttons draw at full resolution.
-	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+	ScreenScale.for_menus(get_window())
+	theme = RpgTheme.build()
+	add_child(RpgTheme.backdrop())
+	move_child(get_child(-1), 0)
+	_build_stage()
 	preview.appearance = PlayerProfile.appearance
-	preview.scale = Vector2.ONE * PREVIEW_SCALE
-	preview_area.resized.connect(_center_preview)
-	_center_preview()
 	name_input.text = PlayerProfile.username
 	Session.lobby_changed.connect(_on_session_lobby_changed)
 	Session.request_failed.connect(_on_session_request_failed)
@@ -56,10 +59,37 @@ func _follow_launch_options() -> void:
 		_on_join_button_pressed()
 
 
-## The preview is a Node2D, which containers don't lay out, so it's placed by
-## hand at the bottom center of its area. Its origin is the character's feet.
-func _center_preview() -> void:
-	preview.position = Vector2(preview_area.size.x / 2.0, preview_area.size.y - 8.0)
+## Shows the player's house with their character in its yard, the same way
+## the customizer's House tab does. The stage sizes and places both to fit
+## the preview area.
+func _build_stage() -> void:
+	var stage := Wardrobe.Stage.new()
+	stage.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	stage.texture_filter = TEXTURE_FILTER_NEAREST
+	preview_area.add_child(stage)
+	var house: House = HOUSE_SCENE.instantiate()
+	house.appearance = _shown_house()
+	# The yard sits at z_index -1, so lift the house and character above the
+	# panel behind them.
+	house.z_index = 1
+	stage.add_child(house)
+	stage.house = house
+	preview.reparent(stage, false)
+	preview.z_index = 1
+	stage.character = preview
+	stage.show_house = true
+
+
+## The player's house with any unpicked layers filled in, so it can be drawn.
+## An unpicked layer means a random style in each lobby, so the fill goes on
+## a copy and the profile keeps it unpicked.
+func _shown_house() -> HouseAppearance:
+	var shown := PlayerProfile.house.copy()
+	var suggestion := HouseAppearance.random(randi())
+	for layer in HouseCatalog.LAYERS:
+		if shown.style_for(layer) == "":
+			shown.set(layer, suggestion.style_for(layer))
+	return shown
 
 
 func _update_buttons() -> void:

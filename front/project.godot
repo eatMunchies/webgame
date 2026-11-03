@@ -10,7 +10,9 @@ config_version=5
 
 [application]
 
-config/name="webgame"
+config/name="Table of Salem"
+config/use_custom_user_dir=true
+config/custom_user_dir_name="Godot/app_userdata/webgame"
 run/main_scene="res://scenes/main/lobby.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
@@ -23,8 +25,8 @@ Session="*res://scripts/autoload/session.gd"
 
 window/size/viewport_width=320
 window/size/viewport_height=180
-window/size/window_width_override=1280
-window/size/window_height_override=720
+window/size/window_width_override=1920
+window/size/window_height_override=1080
 window/stretch/mode="viewport"
 window/stretch/scale_mode="integer"
 
