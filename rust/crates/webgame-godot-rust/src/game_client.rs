@@ -5,8 +5,8 @@ use godot::prelude::*;
 use webgame_client::{Command, HELP, State};
 use webgame_protocol::{
     Appearance, ClientMessage, FIGHT_HP, Facing, FightMove, Fighter, GameAction, LobbyCode,
-    MAX_COORD, Minigame, MinigamePlay, MinigameResult, Movement, PROTOCOL_VERSION, PlayerSlot,
-    SKILL_CHECK_PRESSES, ServerMessage, decode, encode,
+    MAX_CHANCE, MAX_COORD, Minigame, MinigamePlay, MinigameResult, Movement, PROTOCOL_VERSION,
+    PlayerSlot, ServerMessage, decode, encode,
 };
 
 /// The connection to the game server. Add one to the scene tree (the Session autoload does)
@@ -400,8 +400,7 @@ impl GameClient {
     /// The player's minigame in this stage of the night, or an empty Dictionary when they have
     /// none: `kind` ("skill_check", "fight" or "passive"), `attacking` (in a fight, whether
     /// they are the attacker), `ends_in_ms`, `result` ("" while it is being played, then
-    /// "passed", "failed", "won" or "lost"), `rolled` (whether the server decided it) and
-    /// `presses` (how many presses a skill check takes).
+    /// "passed", "failed", "won" or "lost") and `rolled` (whether the server decided it).
     #[func]
     fn minigame(&self) -> VarDictionary {
         let Some(minigame) = &self.state.minigame else {
@@ -425,7 +424,6 @@ impl GameClient {
             "ends_in_ms" => minigame.ends_at_ms.saturating_sub(unix_ms()) as i64,
             "result" => &text(result),
             "rolled" => minigame.rolled,
-            "presses" => i64::from(SKILL_CHECK_PRESSES),
         }
     }
 
@@ -454,11 +452,13 @@ impl GameClient {
         }
     }
 
-    /// Reports one press in the player's skill check, and whether it hit.
+    /// Reports how the player's skill check is going: the chance it should pass, from 0 to 1,
+    /// and whether they are done, which has the server decide it now.
     #[func]
-    fn press_check(&mut self, hit: bool) {
+    fn report_check(&mut self, chance: f64, done: bool) {
+        let chance = (chance.clamp(0.0, 1.0) * f64::from(MAX_CHANCE)).round() as u8;
         self.send(ClientMessage::Game(GameAction::Minigame(
-            MinigamePlay::Press { hit },
+            MinigamePlay::Check { chance, done },
         )));
     }
 

@@ -6,6 +6,7 @@
 //! deciding who learns what (roles, whispers, night results) happens here and can be tested
 //! without a server. Time is passed in as milliseconds, so tests can run a whole game instantly.
 
+mod check;
 mod duel;
 mod game;
 pub mod night;
@@ -103,7 +104,7 @@ impl Timers {
     };
 
     /// Short phases for trying the game out by hand. Choosing stays long enough for players
-    /// typing commands, and the skill check stages for five presses.
+    /// typing commands, and the skill check stages long enough to play one.
     pub const FAST: Timers = Timers {
         day_zero: 10_000,
         discussion: 15_000,

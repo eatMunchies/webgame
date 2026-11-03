@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/minigame/minigame_overlay.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://scenes/skill_checks/wheel_check.tscn" id="2_wheel"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_panel"]
 content_margin_left = 3.0
@@ -28,6 +29,7 @@ offset_bottom = -4.0
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBox_panel")
 script = ExtResource("1_script")
+skill_checks = Array[PackedScene]([ExtResource("2_wheel")])
 
 [node name="Rows" type="VBoxContainer" parent="."]
 layout_mode = 2

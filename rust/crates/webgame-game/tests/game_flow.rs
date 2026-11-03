@@ -6,8 +6,8 @@ use rand_chacha::ChaCha8Rng;
 use webgame_game::{Audience, Game, Input, Outgoing, Seat, Timers};
 use webgame_protocol::{
     ChatChannel, ChatSender, DayStage, DeathCause, ErrorCode, FIGHT_HP, FIGHT_ROUNDS, FightMove,
-    GameAction, GamePhase, Minigame, MinigamePlay, MinigameResult, NightAction, NightStage, Notice,
-    Outcome, PlayerSlot, Role, SKILL_CHECK_PRESSES, STRIKE_WINDUP_MS, ServerMessage, UserId,
+    GameAction, GamePhase, MAX_CHANCE, Minigame, MinigamePlay, MinigameResult, NightAction,
+    NightStage, Notice, Outcome, PlayerSlot, Role, STRIKE_WINDUP_MS, ServerMessage, UserId,
     Verdict,
 };
 
@@ -28,8 +28,8 @@ fn night(night: u32, stage: NightStage) -> GamePhase {
 
 const STRIKE: GameAction = GameAction::Minigame(MinigamePlay::Move(FightMove::Strike));
 
-fn press(hit: bool) -> GameAction {
-    GameAction::Minigame(MinigamePlay::Press { hit })
+fn check(chance: u8, done: bool) -> GameAction {
+    GameAction::Minigame(MinigamePlay::Check { chance, done })
 }
 
 fn seats(count: usize) -> Vec<Seat> {
@@ -160,9 +160,7 @@ impl Table {
                 .collect();
             for (n, game) in &given {
                 if *game == Minigame::SkillCheck {
-                    for _ in 0..SKILL_CHECK_PRESSES {
-                        self.act(*n, press(true));
-                    }
+                    self.act(*n, check(MAX_CHANCE, true));
                 }
             }
             for _ in 0..if attackers.is_empty() { 0 } else { FIGHT_HP } {
@@ -627,7 +625,7 @@ fn random_games_always_finish() {
                 let other = *all.choose(&mut rng).unwrap();
                 let action = match rng.random_range(0..12) {
                     8 => GameAction::Minigame(MinigamePlay::Roll),
-                    9 => press(rng.random_bool(0.5)),
+                    9 => check(rng.random_range(0..=MAX_CHANCE), rng.random_bool(0.5)),
                     10 => STRIKE,
                     11 => GameAction::Minigame(MinigamePlay::Guard(rng.random_bool(0.5))),
                     0 => GameAction::Vote(Some(pick)),
@@ -851,31 +849,34 @@ fn actions_lock_once_choosing_ends() {
 }
 
 #[test]
-fn a_skill_check_is_decided_after_its_last_press() {
+fn a_skill_check_is_decided_once_done() {
     let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
     table.until_night();
     table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
     assert_eq!(
-        table.try_act(1, press(true)),
+        table.try_act(1, check(MAX_CHANCE, true)),
         Err(ErrorCode::NotAllowedNow),
         "no minigames while choosing"
     );
     table.until(|p| *p == night(1, NightStage::Investigate));
     assert_eq!(table.try_act(2, STRIKE), Err(ErrorCode::BadMessage));
     assert_eq!(
-        table.try_act(2, press(true)),
+        table.try_act(2, check(MAX_CHANCE, true)),
         Ok(()),
         "passive games report nothing"
     );
     table.log.clear();
-    for _ in 1..SKILL_CHECK_PRESSES {
-        table.act(1, press(true));
-    }
-    assert!(over(&table, 1).is_empty(), "a press still to go");
-    table.act(1, press(true));
+    assert_eq!(
+        table.try_act(1, check(MAX_CHANCE + 1, true)),
+        Err(ErrorCode::BadMessage)
+    );
+    table.act(1, check(40, false));
+    table.act(1, check(80, false));
+    assert!(over(&table, 1).is_empty(), "not done yet");
+    table.act(1, check(MAX_CHANCE, true));
     assert_eq!(over(&table, 1), [(MinigameResult::Passed, false)]);
     assert_eq!(
-        table.try_act(1, press(false)),
+        table.try_act(1, check(0, true)),
         Err(ErrorCode::NotAllowedNow)
     );
     table.until_dawn();
@@ -977,8 +978,9 @@ fn a_reconnecting_player_gets_their_minigame_back() {
     );
 }
 
-/// The chance a check passes with this many hits, out of many nights with different seeds.
-fn pass_rate(hits: u8) -> f64 {
+/// How often a check passes when the stage ends on it after it last reported `chance`, if
+/// anything, out of many nights with different seeds.
+fn pass_rate(chance: Option<u8>) -> f64 {
     const NIGHTS: u64 = 200;
     let mut passed = 0;
     for seed in 0..NIGHTS {
@@ -990,11 +992,10 @@ fn pass_rate(hits: u8) -> f64 {
         table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
         table.until(|p| *p == night(1, NightStage::Investigate));
         table.log.clear();
-        // The presses not made count as misses when the stage ends.
-        for _ in 0..hits {
-            table.act(1, press(true));
+        if let Some(chance) = chance {
+            table.act(1, check(MAX_CHANCE, false));
+            table.act(1, check(chance, false));
         }
-        table.act(1, press(false));
         table.next_stage();
         if over(&table, 1) == [(MinigameResult::Passed, false)] {
             passed += 1;
@@ -1004,18 +1005,17 @@ fn pass_rate(hits: u8) -> f64 {
 }
 
 #[test]
-fn a_skill_check_passes_with_a_chance_of_hits_out_of_five() {
-    assert_eq!(pass_rate(0), 0.0);
-    let three = pass_rate(3);
-    assert!((0.45..0.75).contains(&three), "3 hits passed {three}");
-    // Every press a hit always passes.
+fn a_skill_check_passes_with_the_last_chance_it_reported() {
+    assert_eq!(pass_rate(None), 0.0, "reporting nothing fails");
+    assert_eq!(pass_rate(Some(0)), 0.0);
+    let sixty = pass_rate(Some(60));
+    assert!((0.45..0.75).contains(&sixty), "60% passed {sixty}");
+    // A full chance always passes.
     let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
     table.until_night();
     table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
     table.until(|p| *p == night(1, NightStage::Investigate));
     table.log.clear();
-    for _ in 0..SKILL_CHECK_PRESSES {
-        table.act(1, press(true));
-    }
+    table.act(1, check(MAX_CHANCE, true));
     assert_eq!(over(&table, 1), [(MinigameResult::Passed, false)]);
 }

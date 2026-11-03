@@ -26,8 +26,8 @@ pub use messages::{
     ServerError, ServerMessage, TeamMember, VoteEntry, decode, encode,
 };
 pub use minigame::{
-    FIGHT_HP, FIGHT_ROUNDS, FightMove, FightView, Fighter, GRAB_WINDUP_MS, Minigame, MinigamePlay,
-    MinigameResult, SKILL_CHECK_PRESSES, STAGGER_MS, STRIKE_WINDUP_MS,
+    FIGHT_HP, FIGHT_ROUNDS, FightMove, FightView, Fighter, GRAB_WINDUP_MS, MAX_CHANCE, Minigame,
+    MinigamePlay, MinigameResult, STAGGER_MS, STRIKE_WINDUP_MS,
 };
 pub use phase::{DayStage, GamePhase, NightStage};
 pub use roles::{Faction, InvestigatorGroup, Power, Role, RoleCategory, RoleSlot, TargetRule};
@@ -37,7 +37,7 @@ pub use world::{
 
 /// Bumped whenever a message changes shape. The server refuses a client whose version differs,
 /// since postcard can't tell an old message from a garbled one.
-pub const PROTOCOL_VERSION: u32 = 5;
+pub const PROTOCOL_VERSION: u32 = 6;
 
 /// A game can't start with fewer players than this.
 pub const MIN_PLAYERS: usize = 4;
