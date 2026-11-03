@@ -502,12 +502,17 @@ mod tests {
                 stage: NightStage::Investigate,
             },
         );
-        assert_eq!(state.minigame, None);
+        // The decided check stays until the next stage's game replaces it.
+        assert_eq!(state.minigame, Some(minigame));
         let lines = state.apply(ServerMessage::Minigame {
             game: Minigame::Passive,
             ends_at_ms: 10,
         });
         assert!(lines.is_empty());
+        assert_eq!(
+            state.minigame.as_ref().map(|m| m.game),
+            Some(Minigame::Passive)
+        );
         assert!(state.clock(0).starts_with("Night 1 Investigations"));
     }
 
