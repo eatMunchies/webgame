@@ -59,6 +59,33 @@ func test_the_wheel_turns_and_wraps() -> void:
 	assert_float(wheel.angle).is_equal_approx(fposmod(TimingWheel.SPEED * 1.5, TAU), 0.0001)
 
 
+func test_a_wheel_check_takes_its_tuning_from_its_def() -> void:
+	var def: WheelCheckDef = load("res://skill_checks/wheel.tres").duplicate()
+	def.presses = 2
+	def.zone_degrees = 90.0
+	def.turns_per_second = 1.0
+	overlay.skill_checks = [def]
+	overlay.show_minigame({"kind": "skill_check", "ends_in_ms": 5000})
+	var wheel: WheelCheck = overlay.check
+	assert_float(wheel.wheel.zone).is_equal_approx(PI / 2, 0.0001)
+	assert_float(wheel.wheel.speed).is_equal_approx(TAU, 0.0001)
+	press(true)
+	press(false)
+	assert_array(reported).is_equal([["check", 50, false], ["check", 50, true]])
+
+
+func test_skill_checks_are_picked_by_weight() -> void:
+	var never := SkillCheckDef.new()
+	never.weight = 0.0
+	var always := SkillCheckDef.new()
+	var defs: Array[SkillCheckDef] = [never, always]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	for i in 20:
+		assert_object(SkillCheckDef.pick(defs, rng)).is_same(always)
+	assert_object(SkillCheckDef.pick([] as Array[SkillCheckDef], rng)).is_null()
+
+
 ## Presses the wheel check with the needle in the zone or out of it.
 func press(hit: bool) -> void:
 	var wheel: WheelCheck = overlay.check
@@ -70,6 +97,7 @@ func test_a_wheel_check_reports_each_press_then_waits_for_the_server() -> void:
 	overlay.show_minigame({"kind": "skill_check", "ends_in_ms": 5000, "result": ""})
 	assert_bool(overlay.visible).is_true()
 	assert_object(overlay.check).is_instanceof(WheelCheck)
+	assert_str(overlay.check.def.id).is_equal("wheel")
 	press(true)
 	for hit in [false, true, true, false]:
 		press(hit)
@@ -114,12 +142,16 @@ func test_practice_counts_a_streak_and_reports_nothing() -> void:
 func test_any_skill_check_scene_reports_through_the_overlay() -> void:
 	var fake := Control.new()
 	fake.set_script(preload("res://tests/fake_check.gd"))
-	var scene := PackedScene.new()
-	scene.pack(fake)
+	var def := SkillCheckDef.new()
+	def.title = "Fake check"
+	def.scene = PackedScene.new()
+	def.scene.pack(fake)
 	fake.free()
-	overlay.skill_checks = [scene]
+	overlay.skill_checks = [def]
 	overlay.show_minigame({"kind": "skill_check", "ends_in_ms": 5000})
 	assert_object(overlay.check.get_parent()).is_same(overlay.canvas)
+	assert_object(overlay.check.def).is_same(def)
+	assert_str(overlay.title.text).is_equal("Fake check")
 	overlay.check.report(1.5)
 	overlay.check.report(0.7, true)
 	overlay.check.report(0.1, true)

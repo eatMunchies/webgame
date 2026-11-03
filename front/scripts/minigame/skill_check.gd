@@ -2,9 +2,10 @@ class_name SkillCheck
 extends Control
 
 ## One kind of skill check: a small game a player plays for their night
-## action. Each kind is a scene whose root extends this. The MinigameOverlay
-## picks one at random from its `skill_checks`, fills its game area with it,
-## and sends what it reports to the server.
+## action. Each kind is a scene whose root extends this, listed by a
+## SkillCheckDef resource that also holds its tuning. The MinigameOverlay
+## picks one of its `skill_checks`, fills its game area with it, and sends
+## what it reports to the server.
 ##
 ## A skill check works out its own chance of passing, from 0 to 1, and calls
 ## report() as that changes, then once more with `finished` when the player
@@ -17,8 +18,9 @@ extends Control
 ## anyone.
 ##
 ## A kind draws itself and takes its own input (it gets keys and taps before
-## the overlay does), calls report(), fills in title(), hint(), status() and
-## practice_status(), and emits `changed` when what those return changes.
+## the overlay does), calls report(), fills in hint(), status() and
+## practice_status(), and emits `changed` when what those return changes. It
+## reads its numbers from `def`, which is set before it enters the tree.
 
 ## How the check is going: the chance it should pass, from 0 to 1, and
 ## whether the player is done.
@@ -29,6 +31,9 @@ signal changed
 const GOLD := Color(1, 0.8, 0.3)
 const MISS_COLOR := Color(0.92, 0.38, 0.38)
 
+## What kind of check this is and how it's tuned. Null when the scene is run
+## by itself, so a kind falls back on its own defaults.
+var def: SkillCheckDef
 ## Nothing rides on it, so reports go nowhere.
 var practice := false:
 	set(value):
@@ -42,7 +47,7 @@ var chance := 0.0
 
 ## The overlay's title while it's played for real.
 func title() -> String:
-	return "Skill check"
+	return def.title if def != null else "Skill check"
 
 
 ## How to play, shown above the game.

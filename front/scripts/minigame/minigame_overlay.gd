@@ -8,8 +8,8 @@ extends PanelContainer
 ## the town passes those to the GameClient. It never talks to the server
 ## itself, so it can be driven directly in tests.
 ##
-## - A skill check is one of `skill_checks`, picked at random (see
-##   SkillCheck). It works out its own chance of passing, and each report is
+## - A skill check is one of `skill_checks`, picked at random by weight (see
+##   SkillCheckDef and SkillCheck). It works out its own chance of passing, and each report is
 ##   passed on through `check_reported`.
 ## - A fight shows both fighters (the opponent masked) as the server last
 ##   described them, read each frame from `fight_source`. Strike, grab, and
@@ -42,9 +42,8 @@ const RESULT_TEXT := {
 ## How long a hit flashes, in seconds.
 const FLASH_SECONDS := 0.25
 
-## The kinds of skill check to pick from, each a scene whose root is a
-## SkillCheck.
-@export var skill_checks: Array[PackedScene] = []
+## The kinds of skill check to pick from.
+@export var skill_checks: Array[SkillCheckDef] = []
 
 ## Returns the fight as GameClient.fight() describes it. Read every frame
 ## during a fight.
@@ -60,6 +59,7 @@ var rolled := false
 ## The last fight description read from fight_source.
 var fight := {}
 
+var _rng := RandomNumberGenerator.new()
 var _guard_held := false
 var _ends_at_msec := 0
 ## Seconds left on each fighter's hit flash.
@@ -76,6 +76,7 @@ var _hit_flash := {"you": 0.0, "opponent": 0.0}
 func _ready() -> void:
 	visible = false
 	canvas.draw.connect(_draw_canvas)
+	_rng.randomize()
 
 
 ## Shows a minigame as GameClient.minigame() describes it, or hides the
@@ -155,7 +156,11 @@ func _start(new_kind: String) -> void:
 
 ## Fills the game area with a skill check picked from `skill_checks`.
 func _start_check(practice: bool) -> void:
-	check = skill_checks.pick_random().instantiate()
+	var def := SkillCheckDef.pick(skill_checks, _rng)
+	if def == null:
+		push_error("MinigameOverlay: no skill check to pick from")
+		return
+	check = def.instantiate()
 	check.practice = practice
 	check.reported.connect(check_reported.emit)
 	check.changed.connect(_update_text)
