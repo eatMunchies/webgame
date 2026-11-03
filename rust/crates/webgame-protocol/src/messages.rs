@@ -408,6 +408,12 @@ mod tests {
             MinigamePlay::Roll,
         )));
         round_trip(ClientMessage::Game(GameAction::Minigame(
+            MinigamePlay::Check {
+                chance: 60,
+                done: true,
+            },
+        )));
+        round_trip(ClientMessage::Game(GameAction::Minigame(
             MinigamePlay::Move(crate::FightMove::Strike),
         )));
         round_trip(ClientMessage::Move(Movement {

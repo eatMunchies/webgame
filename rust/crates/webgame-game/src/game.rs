@@ -7,11 +7,11 @@ use webgame_protocol::{
     Accepted, ChatChannel, ChatContext, ChatMessage, ChatSender, DayStage, DeathCause, DeathReport,
     ErrorCode, FIGHT_ROUNDS, GameAction, GameOverInfo, GamePhase, GameStart, JailStatus,
     MAX_CHAT_LEN, MAX_PLAYERS, MAX_WILL_LEN, MIN_PLAYERS, Minigame, MinigamePlay, MinigameResult,
-    NightAction, NightStage, Notice, PlayerSlot, PlayerSummary, Role, RoleSlot,
-    SKILL_CHECK_PRESSES, ServerError, ServerMessage, TRIALS_PER_DAY, TargetRule, TeamMember,
-    Verdict, VoteEntry,
+    NightAction, NightStage, Notice, PlayerSlot, PlayerSummary, Role, RoleSlot, ServerError,
+    ServerMessage, TRIALS_PER_DAY, TargetRule, TeamMember, Verdict, VoteEntry,
 };
 
+use crate::check::Check;
 use crate::duel::Duel;
 use crate::night::{self, Jail, Stage};
 use crate::{Audience, Outgoing, Player, Seat, Timers, setup, win};
@@ -71,8 +71,8 @@ pub struct Game {
     rolls: bool,
     /// How tonight's minigames have gone so far.
     results: night::Results,
-    /// Skill check presses so far tonight, as (presses, hits), for checks not yet decided.
-    presses: BTreeMap<PlayerSlot, (u8, u8)>,
+    /// Tonight's skill checks that have been played but not yet decided.
+    checks: BTreeMap<PlayerSlot, Check>,
     /// Each player's minigame in the current stage of the night.
     minigames: BTreeMap<PlayerSlot, Play>,
     /// The fights in the current stage of the night.
@@ -215,7 +215,7 @@ impl Game {
             result: None,
             rolls: false,
             results: night::Results::default(),
-            presses: BTreeMap::new(),
+            checks: BTreeMap::new(),
             minigames: BTreeMap::new(),
             duels: Vec::new(),
             kill_rounds: Vec::new(),
@@ -864,7 +864,7 @@ impl Game {
             })
         });
         self.results = night::Results::default();
-        self.presses.clear();
+        self.checks.clear();
         self.minigames.clear();
         self.duels.clear();
         self.kill_rounds.clear();
@@ -1057,8 +1057,8 @@ impl Game {
         schedule
     }
 
-    /// Ends the stage's minigames: skill checks still going are decided from the presses made,
-    /// the rest counting as misses, and fights still going are won by the victim.
+    /// Ends the stage's minigames: skill checks still going are decided as they stand, and
+    /// fights still going are won by the victim.
     fn close_minigames(&mut self, out: &mut Vec<Outgoing>) {
         let checks: Vec<PlayerSlot> = self
             .minigames
@@ -1120,26 +1120,24 @@ impl Game {
         }
         match (current, play) {
             // Nothing rides on a passive game, so there is nothing to report.
-            (Play::Passive, MinigamePlay::Roll | MinigamePlay::Press { .. }) => {}
-            (Play::Check, MinigamePlay::Roll | MinigamePlay::Press { .. }) => {
+            (Play::Passive, MinigamePlay::Roll | MinigamePlay::Check { .. }) => {}
+            (Play::Check, MinigamePlay::Roll | MinigamePlay::Check { .. }) => {
                 if self.results.checked(from).is_some() {
                     return Err(error(
                         ErrorCode::NotAllowedNow,
                         "You already played your skill check.",
                     ));
                 }
-                match play {
-                    MinigamePlay::Press { hit } => {
-                        let (presses, hits) = self.presses.entry(from).or_default();
-                        *presses += 1;
-                        *hits += u8::from(hit);
-                        if *presses >= SKILL_CHECK_PRESSES {
-                            self.decide_check(from, None, out);
-                        }
-                    }
-                    _ => {
-                        let passed = self.rng.random_bool(ROLL_PASS_CHANCE);
-                        self.decide_check(from, Some(passed), out);
+                if play == MinigamePlay::Roll {
+                    let passed = self.rng.random_bool(ROLL_PASS_CHANCE);
+                    self.decide_check(from, Some(passed), out);
+                } else {
+                    let check = self.checks.entry(from).or_default();
+                    check
+                        .play(play)
+                        .map_err(|message| error(ErrorCode::BadMessage, message))?;
+                    if check.is_done() {
+                        self.decide_check(from, None, out);
                     }
                 }
             }
@@ -1155,7 +1153,7 @@ impl Game {
                     self.send_fight(i, now, out);
                 }
             }
-            (Play::Fight(_), MinigamePlay::Press { .. }) => {
+            (Play::Fight(_), MinigamePlay::Check { .. }) => {
                 return Err(error(
                     ErrorCode::BadMessage,
                     "You're in a fight, not a skill check.",
@@ -1168,14 +1166,11 @@ impl Game {
         Ok(())
     }
 
-    /// Decides a skill check: from a roll when `rolled` is given, otherwise with a chance of
-    /// hits out of [`SKILL_CHECK_PRESSES`], presses not made counting as misses.
+    /// Decides a skill check: from a roll when `rolled` is given, otherwise with the chance it
+    /// has come to (none if it was never played).
     fn decide_check(&mut self, slot: PlayerSlot, rolled: Option<bool>, out: &mut Vec<Outgoing>) {
-        let (_, hits) = self.presses.remove(&slot).unwrap_or_default();
-        let passed = rolled.unwrap_or_else(|| {
-            let chance = f64::from(hits.min(SKILL_CHECK_PRESSES)) / f64::from(SKILL_CHECK_PRESSES);
-            self.rng.random_bool(chance)
-        });
+        let chance = self.checks.remove(&slot).unwrap_or_default().chance();
+        let passed = rolled.unwrap_or_else(|| self.rng.random_bool(chance));
         self.results.check(slot, passed);
         out.push(Outgoing::one(
             slot,

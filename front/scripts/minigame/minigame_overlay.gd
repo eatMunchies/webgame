@@ -8,30 +8,30 @@ extends PanelContainer
 ## the town passes those to the GameClient. It never talks to the server
 ## itself, so it can be driven directly in tests.
 ##
-## - A skill check is a TimingWheel pressed five times (as many as the
-##   server's `presses`): each press hits if the needle is in the gold zone.
-##   Each is reported as it happens; the server then passes the check with a
-##   chance of hits out of presses.
+## - A skill check is one of `skill_checks`, picked at random by weight (see
+##   SkillCheckDef and SkillCheck). It works out its own chance of passing, and each report is
+##   passed on through `check_reported`.
 ## - A fight shows both fighters (the opponent masked) as the server last
 ##   described them, read each frame from `fight_source`. Strike, grab, and
 ##   hold guard.
-## - A passive game is the same wheel for practice, with a score. Once a
-##   skill check or fight is decided, the wheel carries on as practice until
-##   the stage ends, so a finished player looks as busy as anyone.
+## - A passive game is a skill check played for practice. Once a skill check
+##   or fight is decided, a practice game carries on until the stage ends, so
+##   a finished player looks as busy as anyone.
 ##
-## Keys: Space presses the wheel (or guards, held, in a fight); J or Z
-## strikes; K or X grabs; L or C guards. Everything can be tapped as well.
+## Keys in a fight: J or Z strikes; K or X grabs; L, C or Space guards, held.
+## Everything can be tapped as well. A skill check takes its own keys.
 
-## The player pressed in their skill check, and hit or missed.
-signal check_pressed(hit: bool)
+## How the player's skill check is going: the chance it should pass, from 0
+## to 1, and whether they're done.
+signal check_reported(chance: float, done: bool)
 ## The player started a fight move: "strike" or "grab".
 signal fight_move(move: String)
 ## The player raised or lowered their guard.
 signal guard_changed(up: bool)
 
-const GOLD := Color(1, 0.8, 0.3)
+const GOLD := SkillCheck.GOLD
 const YOU_COLOR := Color(0.45, 0.72, 1)
-const OPPONENT_COLOR := Color(0.92, 0.38, 0.38)
+const OPPONENT_COLOR := SkillCheck.MISS_COLOR
 const DAZED_COLOR := Color(0.55, 0.55, 0.6)
 const RESULT_TEXT := {
 	"passed": "Passed!",
@@ -39,12 +39,17 @@ const RESULT_TEXT := {
 	"won": "You won the fight!",
 	"lost": "You lost the fight.",
 }
-## How long a hit or a press flashes, in seconds.
+## How long a hit flashes, in seconds.
 const FLASH_SECONDS := 0.25
+
+## The kinds of skill check to pick from.
+@export var skill_checks: Array[SkillCheckDef] = []
 
 ## Returns the fight as GameClient.fight() describes it. Read every frame
 ## during a fight.
 var fight_source := Callable()
+## The skill check being played, for real or for practice, or null.
+var check: SkillCheck
 ## "", "skill_check", "fight" or "passive".
 var kind := ""
 var attacking := false
@@ -53,19 +58,11 @@ var result := ""
 var rolled := false
 ## The last fight description read from fight_source.
 var fight := {}
-## Practice hits in a row.
-var score := 0
-## How many presses the skill check takes.
-var presses := 5
-## The skill check's presses so far, true for each hit.
-var marks: Array[bool] = []
 
-var _wheel := TimingWheel.new()
+var _rng := RandomNumberGenerator.new()
 var _guard_held := false
 var _ends_at_msec := 0
-## Seconds left on each flash: the wheel, then each fighter.
-var _wheel_flash := 0.0
-var _wheel_flash_color := GOLD
+## Seconds left on each fighter's hit flash.
 var _hit_flash := {"you": 0.0, "opponent": 0.0}
 
 @onready var title: Label = %Title
@@ -79,7 +76,7 @@ var _hit_flash := {"you": 0.0, "opponent": 0.0}
 func _ready() -> void:
 	visible = false
 	canvas.draw.connect(_draw_canvas)
-	canvas.gui_input.connect(_on_canvas_input)
+	_rng.randomize()
 
 
 ## Shows a minigame as GameClient.minigame() describes it, or hides the
@@ -95,51 +92,33 @@ func show_minigame(info: Dictionary) -> void:
 	if new_kind != kind or not visible or (new_result == "" and result != ""):
 		_start(new_kind)
 	attacking = info.get("attacking", false)
-	presses = info.get("presses", presses)
 	rolled = info.get("rolled", false)
 	result = new_result
 	_ends_at_msec = Time.get_ticks_msec() + int(info.get("ends_in_ms", 0))
+	if practicing():
+		if check == null:
+			_start_check(true)
+		else:
+			check.practice = true
 	visible = true
 	_update_text()
 
 
 func hide_minigame() -> void:
 	_set_guard(false)
+	_end_check()
 	kind = ""
 	visible = false
 
 
-## Whether the wheel is being played for practice, with nothing riding on it.
+## Whether the game is being played for practice, with nothing riding on it.
 func practicing() -> bool:
 	return kind == "passive" or (kind != "" and result != "")
 
 
-## Whether the skill check has had all its presses and waits on the server.
+## Whether the skill check is done and waits on the server.
 func rolling() -> bool:
-	return kind == "skill_check" and result == "" and marks.size() >= presses
-
-
-## How many of the skill check's presses hit.
-func hits() -> int:
-	return marks.count(true)
-
-
-## The wheel, pressed: one of the skill check's presses, or a practice hit.
-func press() -> void:
-	if (kind == "fight" and result == "") or rolling():
-		return
-	var hit := _wheel.in_zone()
-	if kind == "skill_check" and result == "":
-		marks.append(hit)
-		check_pressed.emit(hit)
-	elif hit:
-		score += 1
-	else:
-		score = 0
-	_wheel_flash = FLASH_SECONDS
-	_wheel_flash_color = GOLD if hit else OPPONENT_COLOR
-	_wheel.move_zone()
-	_update_text()
+	return kind == "skill_check" and result == "" and check != null and check.waiting()
 
 
 func strike() -> void:
@@ -165,14 +144,34 @@ func _set_guard(up: bool) -> void:
 
 func _start(new_kind: String) -> void:
 	_set_guard(false)
+	_end_check()
 	kind = new_kind
 	result = ""
 	rolled = false
 	fight = {}
-	score = 0
-	marks = []
-	_wheel = TimingWheel.new()
 	_hit_flash = {"you": 0.0, "opponent": 0.0}
+	if kind == "skill_check":
+		_start_check(false)
+
+
+## Fills the game area with a skill check picked from `skill_checks`.
+func _start_check(practice: bool) -> void:
+	var def := SkillCheckDef.pick(skill_checks, _rng)
+	if def == null:
+		push_error("MinigameOverlay: no skill check to pick from")
+		return
+	check = def.instantiate()
+	check.practice = practice
+	check.reported.connect(check_reported.emit)
+	check.changed.connect(_update_text)
+	canvas.add_child(check)
+	check.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+
+func _end_check() -> void:
+	if check != null:
+		check.queue_free()
+		check = null
 
 
 func _process(delta: float) -> void:
@@ -180,8 +179,6 @@ func _process(delta: float) -> void:
 		return
 	if kind == "fight" and fight_source.is_valid():
 		_read_fight(fight_source.call())
-	_wheel.advance(delta)
-	_wheel_flash = maxf(_wheel_flash - delta, 0.0)
 	for side in _hit_flash:
 		_hit_flash[side] = maxf(_hit_flash[side] - delta, 0.0)
 	var left := maxi(_ends_at_msec - Time.get_ticks_msec(), 0)
@@ -203,27 +200,28 @@ func _read_fight(view: Dictionary) -> void:
 func _update_text() -> void:
 	match kind:
 		"skill_check":
-			title.text = "Skill check"
-			hint.text = "Press Space or tap when the needle is in the gold zone, %d times. Each hit is a 1 in %d chance your action works." % [presses, presses]
+			title.text = check.title() if check != null else "Skill check"
 		"fight":
 			title.text = "Fight! You attack." if attacking else "Fight! You're attacked."
-			hint.text = "J strike, K grab, hold L guard. Strike beats open, guard beats strike, grab beats guard."
 		"passive":
 			title.text = "Practice"
-			hint.text = "Nothing rides on this one. Keep the streak going."
+	if check != null:
+		hint.text = check.hint()
+	elif kind == "fight":
+		hint.text = "J strike, K grab, hold L guard. Strike beats open, guard beats strike, grab beats guard."
 	result_label.text = RESULT_TEXT.get(result, "")
+	var status := check.status() if check != null and kind == "skill_check" else ""
 	if result != "" and rolled:
 		result_label.text += " (rolled)"
-	elif kind == "skill_check" and not marks.is_empty():
-		var tally := "%d/%d hits" % [hits(), presses]
+	elif status != "":
 		if result != "":
-			result_label.text += " (%s)" % tally
+			result_label.text += " (%s)" % status
 		elif rolling():
-			result_label.text = "%s, rolling..." % tally
+			result_label.text = "%s, rolling..." % status
 		else:
-			result_label.text = tally
-	if practicing():
-		result_label.text = ("%s  Streak %d" % [result_label.text, score]).strip_edges()
+			result_label.text = status
+	if practicing() and check != null:
+		result_label.text = ("%s  %s" % [result_label.text, check.practice_status()]).strip_edges()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -235,8 +233,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_SPACE:
 			if kind == "fight" and result == "":
 				_set_guard(key.pressed)
-			elif key.pressed:
-				press()
+			else:
+				handled = false
 		KEY_J, KEY_Z:
 			if key.pressed:
 				strike()
@@ -249,15 +247,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			handled = false
 	if handled:
 		get_viewport().set_input_as_handled()
-
-
-func _on_canvas_input(event: InputEvent) -> void:
-	var tapped: bool = (event is InputEventMouseButton and event.pressed
-			and event.button_index == MOUSE_BUTTON_LEFT) \
-			or (event is InputEventScreenTouch and event.pressed)
-	if tapped and (kind != "fight" or result != ""):
-		press()
-		canvas.accept_event()
 
 
 func _on_strike_button_pressed() -> void:
@@ -279,40 +268,10 @@ func _on_guard_button_up() -> void:
 # ----- Drawing -----
 
 
+## The fight, while it goes on. A skill check draws itself.
 func _draw_canvas() -> void:
 	if kind == "fight" and result == "":
 		_draw_fight()
-	else:
-		_draw_wheel()
-
-
-func _draw_wheel() -> void:
-	var size := canvas.size
-	var center := size / 2
-	var radius := minf(size.x, size.y) * 0.4
-	var ring := Color(1, 1, 1, 0.25)
-	if _wheel_flash > 0.0:
-		ring = ring.lerp(_wheel_flash_color, _wheel_flash / FLASH_SECONDS)
-	canvas.draw_arc(center, radius, 0, TAU, 48, ring, 3.0)
-	# Wheel angles start at 12 o'clock; draw_arc's start at 3 o'clock.
-	var start := _wheel.zone_start - PI / 2
-	canvas.draw_arc(center, radius, start, start + TimingWheel.ZONE, 12, GOLD, 5.0)
-	var tip := center + Vector2.from_angle(_wheel.angle - PI / 2) * (radius + 3)
-	canvas.draw_line(center, tip, Color.WHITE, 2.0)
-	canvas.draw_circle(center, 2.5, Color.WHITE)
-	if kind == "skill_check":
-		_draw_marks(Vector2(center.x, center.y + radius + 10))
-
-
-## The skill check's presses as a row of pips: gold for a hit, red for a
-## miss, hollow for one still to come.
-func _draw_marks(middle: Vector2) -> void:
-	for i in presses:
-		var at := middle + Vector2((i - (presses - 1) / 2.0) * 10, 0)
-		if i < marks.size():
-			canvas.draw_circle(at, 3, GOLD if marks[i] else OPPONENT_COLOR)
-		else:
-			canvas.draw_arc(at, 3, 0, TAU, 12, Color(1, 1, 1, 0.4), 1.0)
 
 
 func _draw_fight() -> void:

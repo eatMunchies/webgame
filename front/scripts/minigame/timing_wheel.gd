@@ -7,11 +7,15 @@ extends RefCounted
 ##
 ## Angles are in radians, clockwise from straight up.
 
-## How fast the needle turns, in radians per second.
+## How fast the needle turns by default, in radians per second.
 const SPEED := TAU * 0.75
-## How wide the target zone is.
+## How wide the target zone is by default.
 const ZONE := deg_to_rad(60.0)
 
+## How fast the needle turns, in radians per second.
+var speed := SPEED
+## How wide the target zone is. Takes effect at the next move_zone().
+var zone := ZONE
 var angle := 0.0
 var zone_start := 0.0
 
@@ -30,12 +34,12 @@ func _init(seed_value := -1) -> void:
 ## Puts the zone somewhere new, at least a quarter turn ahead of the needle
 ## so there is time to react.
 func move_zone() -> void:
-	zone_start = fposmod(angle + _rng.randf_range(PI / 2, TAU - ZONE - PI / 4), TAU)
+	zone_start = fposmod(angle + _rng.randf_range(PI / 2, TAU - zone - PI / 4), TAU)
 
 
 func advance(delta: float) -> void:
-	angle = fposmod(angle + SPEED * delta, TAU)
+	angle = fposmod(angle + speed * delta, TAU)
 
 
 func in_zone() -> bool:
-	return fposmod(angle - zone_start, TAU) <= ZONE
+	return fposmod(angle - zone_start, TAU) <= zone

@@ -1,9 +1,10 @@
 //! The night's minigames: what the server hands each player, what they send back, and the
 //! state of a fight.
 //!
-//! A skill check is [`SKILL_CHECK_PRESSES`] presses, each a hit or a miss as the client judges
-//! it. Once they are all in, or the stage ends with presses still to go (counted as misses),
-//! the server rolls once: the check passes with a chance of hits out of presses. Fights are
+//! A skill check is played on the client, which shows it however it likes (a timing dial, a
+//! typing test, ...) and reports the chance it should pass, out of [`MAX_CHANCE`]. The server
+//! rolls once with that chance when the client says it's done, or when the stage ends with the
+//! last chance reported (none counts as 0). Fights are
 //! run by the server, since two players have to agree on them: each side sends its moves and
 //! the server sends both the fight as it stands.
 //!
@@ -16,8 +17,8 @@ use serde::{Deserialize, Serialize};
 /// A minigame given to one player for one stage of the night.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Minigame {
-    /// A one-player skill check of [`SKILL_CHECK_PRESSES`] presses. Failing it means the night
-    /// action does nothing, though the player still visits their target.
+    /// A one-player skill check, played on the client. Failing it means the night action does
+    /// nothing, though the player still visits their target.
     SkillCheck,
     /// A fight between an attacker and their victim. Neither learns who the other is. The
     /// attack only goes ahead if the attacker wins; the victim wins by knocking the attacker
@@ -30,8 +31,10 @@ pub enum Minigame {
 /// Something a player does in their minigame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MinigamePlay {
-    /// One press in a skill check, and whether it hit. Presses past the last are refused.
-    Press { hit: bool },
+    /// How a skill check is going: the chance it should pass, out of [`MAX_CHANCE`], and whether
+    /// the player is done, which decides it now. Each report replaces the last, so a check the
+    /// stage ends on is decided from the latest. Reports after it is decided are refused.
+    Check { chance: u8, done: bool },
     /// Let the server decide this minigame at random. Refused unless the server allows it.
     Roll,
     /// In a fight: start a move, which lands after its windup.
@@ -63,8 +66,8 @@ impl FightMove {
     }
 }
 
-/// A skill check is this many presses. It passes with a chance of hits out of this.
-pub const SKILL_CHECK_PRESSES: u8 = 5;
+/// A skill check's chance of passing is out of this, so it is a percentage.
+pub const MAX_CHANCE: u8 = 100;
 /// Each fighter starts with this many hits to lose.
 pub const FIGHT_HP: u8 = 3;
 pub const STRIKE_WINDUP_MS: u32 = 400;
