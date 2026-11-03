@@ -200,6 +200,8 @@ func _refresh_players() -> void:
 		if member["is_me"]:
 			me = player
 	if joined:
+		# `just clients` reads the host's code from this line.
+		print("Joined lobby %s" % code)
 		send_appearance()
 	lobby_changed.emit()
 
