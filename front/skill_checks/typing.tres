@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="TypingCheckDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/minigame/typing_check_def.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://scenes/skill_checks/typing_check.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"typing"
+title = "Typing test"
+scene = ExtResource("2_scene")

@@ -11,6 +11,8 @@ var reported: Array
 func before_test() -> void:
 	reported = []
 	overlay = auto_free(OVERLAY_SCENE.instantiate())
+	# The wheel stands in for every kind; typing_check_test covers the rest.
+	overlay.skill_checks = [load("res://skill_checks/wheel.tres")]
 	add_child(overlay)
 	overlay.check_reported.connect(func(chance: float, done: bool) -> void:
 		reported.append(["check", roundi(chance * 100), done]))
@@ -72,6 +74,12 @@ func test_a_wheel_check_takes_its_tuning_from_its_def() -> void:
 	press(true)
 	press(false)
 	assert_array(reported).is_equal([["check", 50, false], ["check", 50, true]])
+
+
+func test_the_overlay_offers_every_kind() -> void:
+	var listed: Array[SkillCheckDef] = auto_free(OVERLAY_SCENE.instantiate()).skill_checks
+	var ids := listed.map(func(def: SkillCheckDef) -> StringName: return def.id)
+	assert_array(ids).contains_exactly_in_any_order([&"wheel", &"typing"])
 
 
 func test_skill_checks_are_picked_by_weight() -> void:
