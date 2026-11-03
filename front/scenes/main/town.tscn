@@ -68,26 +68,26 @@ position = Vector2(228, 340)
 [node name="HUD" type="CanvasLayer" parent="." unique_id=1148319304]
 
 [node name="Bar" type="HBoxContainer" parent="HUD" unique_id=647767147]
-anchors_preset = 10
+anchors_preset = 1
+anchor_left = 1.0
 anchor_right = 1.0
-offset_left = 4.0
-offset_top = 4.0
-offset_right = -4.0
-offset_bottom = 18.0
-grow_horizontal = 2
+offset_left = -98.0
+offset_top = 2.0
+offset_right = -2.0
+offset_bottom = 13.0
+grow_horizontal = 0
+theme_override_constants/separation = 2
 
 [node name="LobbyLabel" type="Label" parent="HUD/Bar" unique_id=883569687]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 2
-theme_override_font_sizes/font_size = 8
 text = "Lobby"
 
 [node name="CopyButton" type="Button" parent="HUD/Bar" unique_id=1645745979]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 8
 text = "Copy"
 script = ExtResource("4_dmb82")
 
@@ -102,7 +102,6 @@ size_flags_horizontal = 3
 
 [node name="LeaveButton" type="Button" parent="HUD/Bar" unique_id=277533632]
 layout_mode = 2
-theme_override_font_sizes/font_size = 8
 text = "Leave"
 
 [node name="Joystick" type="VirtualJoystick" parent="HUD"]
