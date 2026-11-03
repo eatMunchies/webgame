@@ -113,7 +113,7 @@ just cli --name Ada --create         # prints a lobby code, like ABC234
 just cli --name Bram --join ABC234   # and the same for Cleo, Dev, ...
 ```
 
-Players can also join from the Godot game (`just run`) by typing the lobby code, and Godot and terminal players can share a lobby. The player who created the lobby types `/start` (or presses Start game in Godot). `/help` lists every command. Players are named by their number from `/players`, so `/vote 3` votes for player 3. Plain text goes to whatever chat you can use right now: the lobby, the town square by day, or by night the jail, the Mafia, or the dead.
+Players can also join from the Godot game (`just run`) by typing the lobby code, and Godot and terminal players can share a lobby. To play several Godot players on one machine, `just clients 4` opens four windows tiled in a grid (up to 15), with Ada hosting and the rest joining her lobby. Press Start game in Ada's window, and Ctrl-C closes them all. A single window takes the same options after `--`: `godot --path front -- --name=Bram --join=ABC234`, or `--create` to host. The player who created the lobby types `/start` (or presses Start game in Godot). `/help` lists every command. Players are named by their number from `/players`, so `/vote 3` votes for player 3. Plain text goes to whatever chat you can use right now: the lobby, the town square by day, or by night the jail, the Mafia, or the dead.
 
 | Command | What it does |
 |---------|-------------|

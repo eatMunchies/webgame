@@ -72,6 +72,41 @@ editor: build
 run: build
     {{ godot }} --path front
 
+# Open COUNT game windows in one lobby, tiled in a grid: Ada hosts, the rest join. Start a
+# server first (`just play`). Ctrl-C closes every window.
+[arg("count", pattern="[1-9]|1[0-5]")]
+clients count="4": build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    names=(Ada Bram Cleo Dax Eve Finn Gus Hana Ivy Jon Kit Lea Moe Nia Otto)
+    width=640 height=360
+    cols=1
+    while (( cols * cols < {{ count }} )); do cols=$((cols + 1)); done
+    trap 'kill $(jobs -p) 2>/dev/null || true' EXIT
+    launch() {
+        # $1 is the window's place in the grid; the title bar takes about 40 pixels.
+        local x=$(( $1 % cols * width )) y=$(( $1 / cols * (height + 40) ))
+        "{{ godot }}" --resolution "${width}x${height}" --position "$x,$y" --path front -- "${@:2}"
+    }
+    host_log=$(mktemp)
+    launch 0 --name=Ada --create > "$host_log" 2>&1 &
+    code=""
+    for _ in $(seq 100); do
+        code=$(sed -n 's/^Joined lobby \([A-Z0-9]*\)$/\1/p' "$host_log" | head -1)
+        [[ -n "$code" ]] && break
+        sleep 0.2
+    done
+    if [[ -z "$code" ]]; then
+        cat "$host_log" >&2
+        echo "Ada never got a lobby. Is the server running (just play)?" >&2
+        exit 1
+    fi
+    echo "Lobby $code. Press Start game in Ada's window."
+    for ((i = 1; i < {{ count }}; i++)); do
+        launch "$i" --name="${names[i]}" --join="$code" > /dev/null 2>&1 &
+    done
+    wait
+
 # Run the game server. Options go to it: --fast (short phases), --seed N (repeatable roles),
 # --port, --db. Its SQLite file defaults to rust/webgame.db.
 [working-directory("rust")]
