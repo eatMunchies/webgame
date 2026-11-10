@@ -15,6 +15,7 @@ func before_test() -> void:
 	# the Card Memory tests cover the rest.
 	overlay.skill_checks = [load("res://skill_checks/wheel.tres")]
 	overlay.practice_checks = overlay.skill_checks
+	overlay.intro_seconds = 0.0
 	add_child(overlay)
 	overlay.check_reported.connect(func(chance: float, done: bool) -> void:
 		reported.append(["check", roundi(chance * 100), done]))
@@ -81,11 +82,14 @@ func test_a_wheel_check_takes_its_tuning_from_its_def() -> void:
 func test_the_overlay_offers_every_kind() -> void:
 	var listed: Array[SkillCheckDef] = auto_free(OVERLAY_SCENE.instantiate()).skill_checks
 	var ids := listed.map(func(def: SkillCheckDef) -> StringName: return def.id)
-	assert_array(ids).contains_exactly_in_any_order([&"wheel", &"typing"])
-	# Practice is random too, but the wheel only ever counts.
+	assert_array(ids).contains_exactly_in_any_order(
+			[&"wheel", &"typing", &"flappy", &"golf", &"fruit", &"blackjack"])
+	# Practice is random too, but the wheel only ever counts and Card Memory
+	# never does.
 	listed = auto_free(OVERLAY_SCENE.instantiate()).practice_checks
 	ids = listed.map(func(def: SkillCheckDef) -> StringName: return def.id)
-	assert_array(ids).contains_exactly_in_any_order([&"typing", &"memory"])
+	assert_array(ids).contains_exactly_in_any_order(
+			[&"typing", &"memory", &"flappy", &"golf", &"fruit", &"blackjack"])
 
 
 func test_skill_checks_are_picked_by_weight() -> void:
@@ -320,17 +324,29 @@ func test_a_skill_check_or_fight_ends_the_practice_game() -> void:
 		overlay.show_minigame({})
 
 
+func test_the_practice_after_a_fight_is_a_different_game() -> void:
+	overlay.practice_checks = [load("res://skill_checks/wheel.tres"), load("res://skill_checks/memory.tres")]
+	for i in 20:
+		overlay.show_minigame({"kind": "passive", "ends_in_ms": 8000})
+		var before: String = overlay.check.title()
+		overlay.show_minigame({})
+		overlay.show_minigame({"kind": "fight", "ends_in_ms": 8000})
+		overlay.show_minigame({"kind": "fight", "ends_in_ms": 5000, "result": "won"})
+		assert_str(overlay.check.title()).is_not_equal(before)
+		overlay.show_minigame({})
+
+
 func test_fights_send_moves_until_decided() -> void:
 	overlay.show_minigame({"kind": "fight", "attacking": true, "ends_in_ms": 8000})
 	assert_str(overlay.title.text).is_equal("Fight")
-	assert_bool(overlay.time_left.visible).is_true()
+	# A fight runs until a knockout, so it shows no clock.
+	assert_bool(overlay.time_left.visible).is_false()
 	key(KEY_J)
 	key(KEY_K)
 	key(KEY_SPACE)
+	# A guard is a tap: letting go sends nothing.
 	key(KEY_SPACE, false)
-	assert_array(reported).is_equal([
-		["move", "strike"], ["move", "grab"], ["guard", true], ["guard", false],
-	])
+	assert_array(reported).is_equal([["move", "strike"], ["move", "grab"], ["guard", true]])
 	reported.clear()
 	overlay.show_minigame({"kind": "fight", "ends_in_ms": 3000, "result": "won", "rolled": true})
 	key(KEY_J)
@@ -352,12 +368,57 @@ func test_a_fight_is_drawn_from_its_source_and_flashes_hits() -> void:
 	assert_bool(overlay.fight_buttons.visible).is_true()
 
 
-func test_an_empty_minigame_hides_the_overlay_and_drops_the_guard() -> void:
+func test_an_empty_minigame_hides_the_overlay() -> void:
 	overlay.show_minigame({"kind": "fight", "ends_in_ms": 8000})
 	key(KEY_L)
 	overlay.show_minigame({})
 	assert_bool(overlay.visible).is_false()
-	assert_array(reported).is_equal([["guard", true], ["guard", false]])
+	assert_array(reported).is_equal([["guard", true]])
+
+
+func test_a_press_while_busy_waits_until_the_fighter_is_free() -> void:
+	var source := {"view": {"you": fighter(3, "strike", 300), "opponent": fighter(3), "max_hp": 3}}
+	overlay.fight_source = func() -> Dictionary: return source["view"]
+	overlay.show_minigame({"kind": "fight", "ends_in_ms": 8000})
+	overlay._process(0.0)
+	overlay.grab()
+	assert_array(reported).is_empty()
+	source["view"] = {"you": fighter(3), "opponent": fighter(3), "max_hp": 3}
+	overlay._process(0.0)
+	assert_array(reported).is_equal([["move", "grab"]])
+
+
+func test_a_guard_pressed_while_cooling_down_waits_and_the_button_greys() -> void:
+	var cooling := fighter(3)
+	cooling["guarding"] = false
+	cooling["guard_cooldown_ms"] = 300
+	var source := {"view": {"you": cooling, "opponent": fighter(3), "max_hp": 3}}
+	overlay.fight_source = func() -> Dictionary: return source["view"]
+	overlay.show_minigame({"kind": "fight", "ends_in_ms": 8000})
+	overlay._process(0.0)
+	assert_bool(overlay.guard_button.disabled).is_true()
+	assert_bool(overlay.time_left.visible).override_failure_message("a fight has no clock").is_false()
+	overlay.guard()
+	assert_array(reported).is_empty()
+	var ready := fighter(3)
+	ready["guard_cooldown_ms"] = 0
+	source["view"] = {"you": ready, "opponent": fighter(3), "max_hp": 3}
+	overlay._process(0.0)
+	assert_array(reported).is_equal([["guard", true]])
+	assert_bool(overlay.guard_button.disabled).is_false()
+
+
+func test_a_blocked_strike_pops_up_over_the_guard() -> void:
+	var dazed := fighter(3)
+	dazed["staggered_ms"] = 600
+	var source := {"view": {"you": fighter(3), "opponent": fighter(3, "strike", 50), "max_hp": 3}}
+	overlay.fight_source = func() -> Dictionary: return source["view"]
+	overlay.show_minigame({"kind": "fight", "ends_in_ms": 8000})
+	overlay._process(0.0)
+	source["view"] = {"you": fighter(3), "opponent": dazed, "max_hp": 3}
+	overlay._process(0.0)
+	assert_array(overlay._popups.map(func(p: Dictionary) -> Array: return [p["text"], p["side"]])) \
+			.is_equal([["BLOCKED!", "you"]])
 
 
 func test_a_second_fight_in_a_row_starts_fresh() -> void:
@@ -368,3 +429,34 @@ func test_a_second_fight_in_a_row_starts_fresh() -> void:
 	assert_object(overlay.check).is_null()
 	key(KEY_J)
 	assert_array(reported).is_equal([["move", "strike"]])
+
+
+func test_a_check_that_counts_waits_out_its_countdown() -> void:
+	overlay.intro_seconds = 3.0
+	overlay.show_minigame({"kind": "skill_check", "ends_in_ms": 8000})
+	assert_bool(overlay.in_intro()).is_true()
+	assert_bool(overlay.check.visible).is_false()
+	assert_int(overlay.check.process_mode).is_equal(Node.PROCESS_MODE_DISABLED)
+	overlay._intro_ends_msec = 0
+	overlay._process(0.0)
+	assert_bool(overlay.in_intro()).is_false()
+	assert_bool(overlay.check.visible).is_true()
+
+
+func test_fight_moves_in_the_countdown_are_dropped() -> void:
+	overlay.intro_seconds = 3.0
+	overlay.show_minigame({"kind": "fight", "ends_in_ms": 8000})
+	overlay.strike()
+	overlay.guard()
+	assert_array(reported).is_empty()
+	overlay._intro_ends_msec = 0
+	overlay._process(0.0)
+	overlay.strike()
+	assert_array(reported).is_equal([["move", "strike"]])
+
+
+func test_practice_has_no_countdown() -> void:
+	overlay.intro_seconds = 3.0
+	overlay.show_minigame({"kind": "passive", "ends_in_ms": 8000})
+	assert_bool(overlay.in_intro()).is_false()
+	assert_bool(overlay.check.visible).is_true()

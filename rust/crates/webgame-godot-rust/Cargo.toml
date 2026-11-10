@@ -8,6 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 godot = "0.5.5"
+webgame-game = { version = "0.1.0", path = "../webgame-game" }
 webgame-client = { version = "0.1.0", path = "../webgame-client" }
 webgame-protocol = { version = "0.1.0", path = "../webgame-protocol" }
 

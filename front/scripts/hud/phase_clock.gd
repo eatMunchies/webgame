@@ -4,6 +4,15 @@ extends PanelContainer
 ## stage under it (Discussion, Voting, Defense: Bram ...), and the time left
 ## in that stage, counting down. Before a game it says how many are in the
 ## lobby, since that is what the host waits on.
+##
+## Past choosing, a night shows only its title: the stages it plays through
+## (roleblocks, fight rounds, protection, investigations) and their timers
+## are hidden, so nobody can tell from the clock what is happening tonight.
+## The minigame overlay shows what the player is doing.
+
+## The night stage whose name and timer still show, since players need to
+## know how long they have to pick.
+const CHOOSING_STAGE := "Choose your action"
 
 ## The countdown turns red with this many seconds or fewer left, so a
 ## closing vote or judgement is hard to miss.
@@ -25,9 +34,12 @@ func _process(_delta: float) -> void:
 	var stage: String = info["stage"]
 	if not Session.in_game() and Session.in_lobby():
 		stage = _lobby_stage() if info["title"] == "Lobby" else "The host can start a new game"
+	var seconds: int = info["seconds_left"]
+	if night and stage != CHOOSING_STAGE:
+		stage = ""
+		seconds = -1
 	stage_label.text = stage
 	stage_label.visible = stage != ""
-	var seconds: int = info["seconds_left"]
 	time_label.visible = seconds >= 0
 	if seconds >= 0:
 		time_label.text = "%d:%02d" % [seconds / 60, seconds % 60]

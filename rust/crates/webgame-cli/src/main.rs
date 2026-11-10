@@ -10,9 +10,16 @@
 //!
 //! It can't show the night's minigames, so it asks the server to roll each skill check and
 //! fight it is given. Servers started with `--fast` allow that; others refuse, and the
-//! minigame fails.
+//! minigame fails. With `--fight-bot` it plays its fights instead (see [`fight_bot`]), so a
+//! player in the Godot client gets a real fight against it.
+
+mod fight_bot;
+
+use std::time::{Duration, Instant};
 
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use fight_bot::FightBot;
 
 use clap::Parser;
 use futures_util::{SinkExt, StreamExt};
@@ -42,6 +49,9 @@ struct Args {
     /// Join the lobby with this code once connected.
     #[arg(long, value_parser = LobbyCode::parse)]
     join: Option<LobbyCode>,
+    /// Play fights as a bot instead of having them rolled.
+    #[arg(long)]
+    fight_bot: bool,
 }
 
 #[tokio::main]
@@ -80,8 +90,23 @@ async fn run(args: Args) -> Result<(), String> {
 
     let mut state = State::default();
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
+    let mut bot = FightBot::new();
+    let mut fight_at = Instant::now();
+    let mut ticks = tokio::time::interval(Duration::from_millis(50));
     loop {
         tokio::select! {
+            _ = ticks.tick(), if args.fight_bot => {
+                let Some(current) = state.minigame.as_ref() else { continue };
+                let (Minigame::Fight { attacking }, Some(view), None) =
+                    (current.game, current.fight.as_ref(), current.result)
+                else {
+                    continue;
+                };
+                let elapsed = u32::try_from(fight_at.elapsed().as_millis()).unwrap_or(u32::MAX);
+                if let Some(play) = bot.think(view, elapsed, attacking) {
+                    send(ClientMessage::Game(GameAction::Minigame(play))).await?;
+                }
+            }
             frame = stream.next() => {
                 let message = match frame {
                     Some(Ok(Message::Binary(bytes))) => decode::<ServerMessage>(&bytes)
@@ -92,10 +117,20 @@ async fn run(args: Args) -> Result<(), String> {
                     Some(Ok(_)) => continue,
                     Some(Err(err)) => return Err(format!("Lost the server: {err}")),
                 };
-                let roll = matches!(
-                    message,
-                    ServerMessage::Minigame { game, .. } if game != Minigame::Passive
-                );
+                let roll = match &message {
+                    ServerMessage::Minigame { game: Minigame::Fight { .. }, .. } if args.fight_bot => {
+                        // Wait out the countdown, then a reaction time, before the first move.
+                        bot.start(Duration::from_millis(
+                            u64::from(webgame_protocol::MINIGAME_INTRO_MS) + 500,
+                        ));
+                        false
+                    }
+                    ServerMessage::Minigame { game, .. } => *game != Minigame::Passive,
+                    _ => false,
+                };
+                if matches!(message, ServerMessage::Fight(_)) {
+                    fight_at = Instant::now();
+                }
                 let lines = state.apply(message);
                 print(&state, lines);
                 if roll {

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="FlappyCheckDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/minigame/flappy_check_def.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://scenes/skill_checks/flappy_check.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"flappy"
+title = "Flappy Bird"
+scene = ExtResource("2_scene")

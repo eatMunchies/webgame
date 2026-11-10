@@ -1,7 +1,8 @@
 extends Control
 
 ## The start screen. The player picks a name, can open the customizer, and
-## can host a new lobby or type a lobby code to join one. Hosting or joining
+## can host a new lobby or type a lobby code to join one. Minigames opens the
+## minigame tester, to try every minigame without a game. Hosting or joining
 ## asks the game server, and goes to the town once it says yes.
 ##
 ## It shares the customizer's look: RpgTheme's wood and gold, the same
@@ -14,6 +15,7 @@ extends Control
 
 const CUSTOMIZER_SCENE := "res://scenes/main/customizer.tscn"
 const TOWN_SCENE := "res://scenes/main/town.tscn"
+const MINIGAME_TESTER_SCENE := "res://scenes/main/minigame_tester.tscn"
 const HOUSE_SCENE := preload("res://scenes/main/house.tscn")
 
 @onready var name_input: LineEdit = %NameInput
@@ -110,6 +112,10 @@ func _begin_request() -> void:
 
 func _on_customize_button_pressed() -> void:
 	get_tree().change_scene_to_file(CUSTOMIZER_SCENE)
+
+
+func _on_minigames_button_pressed() -> void:
+	get_tree().change_scene_to_file(MINIGAME_TESTER_SCENE)
 
 
 func _on_create_button_pressed() -> void:

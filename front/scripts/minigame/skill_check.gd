@@ -81,8 +81,18 @@ func report(new_chance: float, finished := false) -> void:
 	reported.emit(chance, done)
 
 
-## Whether `event` is a tap or left click.
+## Whether `event` is a tap or left click. On a touch screen Godot also
+## turns each touch into a made-up mouse click (and with Emulate Touch From
+## Mouse on, each click into a made-up touch), so made-up events are skipped
+## and one tap counts once.
 static func is_tap(event: InputEvent) -> bool:
+	if is_emulated(event):
+		return false
 	return (event is InputEventMouseButton and event.pressed
 			and event.button_index == MOUSE_BUTTON_LEFT) \
 			or (event is InputEventScreenTouch and event.pressed)
+
+
+## Whether Godot made `event` up from another kind of pointer event.
+static func is_emulated(event: InputEvent) -> bool:
+	return event.device == InputEvent.DEVICE_ID_EMULATION

@@ -15,8 +15,9 @@ pub mod setup;
 pub mod win;
 
 use serde::Serialize;
-use webgame_protocol::{NightStage, PlayerSlot, ServerMessage, UserId};
+use webgame_protocol::{MINIGAME_INTRO_MS, NightStage, PlayerSlot, ServerMessage, UserId};
 
+pub use duel::Duel;
 pub use game::{FIGHT_ROLL_CHANCE, Game, Input, ROLL_PASS_CHANCE};
 pub use player::Player;
 
@@ -85,6 +86,9 @@ pub struct Timers {
     pub fight_round: u64,
     pub protect: u64,
     pub investigate: u64,
+    /// Added to every stage of the night after choosing, for the countdown clients show
+    /// before a skill check or fight, so the stage's own time is all play.
+    pub minigame_intro: u64,
 }
 
 impl Timers {
@@ -98,9 +102,10 @@ impl Timers {
         last_words: 7_000,
         choosing: 15_000,
         roleblock: 10_000,
-        fight_round: 15_000,
+        fight_round: 30_000,
         protect: 20_000,
         investigate: 10_000,
+        minigame_intro: MINIGAME_INTRO_MS as u64,
     };
 
     /// Short phases for trying the game out by hand. Choosing stays long enough for players
@@ -114,12 +119,13 @@ impl Timers {
         last_words: 5_000,
         choosing: 15_000,
         roleblock: 8_000,
-        fight_round: 8_000,
+        fight_round: 24_000,
         protect: 8_000,
         investigate: 8_000,
+        minigame_intro: MINIGAME_INTRO_MS as u64,
     };
 
-    /// Every phase takes the same time. Handy in tests.
+    /// Every phase takes the same time, with no countdown before minigames. Handy in tests.
     pub const fn uniform(ms: u64) -> Timers {
         Timers {
             day_zero: ms,
@@ -133,18 +139,20 @@ impl Timers {
             fight_round: ms,
             protect: ms,
             investigate: ms,
+            minigame_intro: 0,
         }
     }
 
-    /// How long a stage of the night lasts.
+    /// How long a stage of the night lasts, counting the countdown before its minigames.
     pub fn night_stage(&self, stage: NightStage) -> u64 {
-        match stage {
-            NightStage::Choosing => self.choosing,
+        let play = match stage {
+            NightStage::Choosing => return self.choosing,
             NightStage::Roleblock => self.roleblock,
             NightStage::Kill { .. } => self.fight_round,
             NightStage::Protect => self.protect,
             NightStage::Investigate => self.investigate,
-        }
+        };
+        play + self.minigame_intro
     }
 }
 

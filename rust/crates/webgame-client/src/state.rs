@@ -434,7 +434,7 @@ impl State {
                         vec!["* Fight! Win it for your attack to reach your target.".into()]
                     }
                     Minigame::Fight { attacking: false } => {
-                        vec!["* You're attacked! Win the fight, or hold out until it ends.".into()]
+                        vec!["* You're attacked! Knock out your attacker to survive.".into()]
                     }
                     Minigame::Passive => Vec::new(),
                 }
