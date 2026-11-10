@@ -17,21 +17,45 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_hud")
 
-[node name="PlayerList" type="PanelContainer" parent="."]
-layout_mode = 0
+[node name="Shell" type="AspectFlowContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 offset_left = 2.0
 offset_top = 2.0
-offset_right = 64.0
-offset_bottom = 2.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Strip" type="PanelContainer" parent="Shell"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+
+[node name="StripBox" type="BoxContainer" parent="Shell/Strip"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="PlayerList" type="PanelContainer" parent="Shell/Strip/StripBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.2
 mouse_filter = 2
 script = ExtResource("2_players")
 
-[node name="Rows" type="VBoxContainer" parent="PlayerList"]
+[node name="Rows" type="VBoxContainer" parent="Shell/Strip/StripBox/PlayerList"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 0
 
-[node name="Heading" type="Label" parent="PlayerList/Rows"]
+[node name="Heading" type="Label" parent="Shell/Strip/StripBox/PlayerList/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudHeading"
@@ -39,93 +63,103 @@ text = "Players"
 clip_text = true
 text_overrun_behavior = 3
 
-[node name="PlayerRows" type="VBoxContainer" parent="PlayerList/Rows"]
+[node name="PlayerRows" type="VBoxContainer" parent="Shell/Strip/StripBox/PlayerList/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = -1
 
-[node name="RoleLabel" type="Label" parent="PlayerList/Rows"]
+[node name="RoleLabel" type="Label" parent="Shell/Strip/StripBox/PlayerList/Rows"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_type_variation = &"HudHeading"
 autowrap_mode = 3
 
-[node name="PhaseClock" type="PanelContainer" parent="."]
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -46.0
-offset_top = 2.0
-offset_right = 46.0
-offset_bottom = 2.0
-grow_horizontal = 2
+[node name="Side" type="VBoxContainer" parent="Shell/Strip/StripBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="PhaseClock" type="PanelContainer" parent="Shell/Strip/StripBox/Side"]
+layout_mode = 2
 mouse_filter = 2
 script = ExtResource("3_clock")
 
-[node name="Rows" type="VBoxContainer" parent="PhaseClock"]
+[node name="Rows" type="VBoxContainer" parent="Shell/Strip/StripBox/Side/PhaseClock"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = -1
 
-[node name="TitleRow" type="HBoxContainer" parent="PhaseClock/Rows"]
+[node name="TitleRow" type="HBoxContainer" parent="Shell/Strip/StripBox/Side/PhaseClock/Rows"]
 layout_mode = 2
 mouse_filter = 2
 alignment = 1
 
-[node name="Title" type="Label" parent="PhaseClock/Rows/TitleRow"]
+[node name="Title" type="Label" parent="Shell/Strip/StripBox/Side/PhaseClock/Rows/TitleRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudTitle"
 text = "Lobby"
 
-[node name="Time" type="Label" parent="PhaseClock/Rows/TitleRow"]
+[node name="Time" type="Label" parent="Shell/Strip/StripBox/Side/PhaseClock/Rows/TitleRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 8
 text = "0:00"
 
-[node name="Stage" type="Label" parent="PhaseClock/Rows"]
+[node name="Stage" type="Label" parent="Shell/Strip/StripBox/Side/PhaseClock/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
 clip_text = true
 text_overrun_behavior = 3
 
-[node name="ActionBar" type="PanelContainer" parent="."]
+[node name="Focus" type="AspectFlowContainer" parent="Shell"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="WorldSpace" type="Control" parent="Shell/Focus"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="ActionBar" type="PanelContainer" parent="Shell/Focus/WorldSpace"]
 visible = false
 layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
+anchors_preset = 12
 anchor_top = 1.0
-anchor_right = 0.5
+anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -94.0
-offset_top = -2.0
-offset_right = 60.0
-offset_bottom = -2.0
+grow_horizontal = 2
 grow_vertical = 0
 script = ExtResource("4_actions")
 
-[node name="Rows" type="VBoxContainer" parent="ActionBar"]
+[node name="Rows" type="VBoxContainer" parent="Shell/Focus/WorldSpace/ActionBar"]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Scroll" type="ScrollContainer" parent="ActionBar/Rows"]
+[node name="Scroll" type="ScrollContainer" parent="Shell/Focus/WorldSpace/ActionBar/Rows"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 horizontal_scroll_mode = 0
 
-[node name="Groups" type="VBoxContainer" parent="ActionBar/Rows/Scroll"]
+[node name="Groups" type="VBoxContainer" parent="Shell/Focus/WorldSpace/ActionBar/Rows/Scroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 1
 
-[node name="ChoiceRow" type="HFlowContainer" parent="ActionBar/Rows"]
+[node name="ChoiceRow" type="HFlowContainer" parent="Shell/Focus/WorldSpace/ActionBar/Rows"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
@@ -133,57 +167,41 @@ theme_override_constants/h_separation = 2
 theme_override_constants/v_separation = 2
 alignment = 1
 
-[node name="StartButton" type="Button" parent="ActionBar/Rows"]
+[node name="StartButton" type="Button" parent="Shell/Focus/WorldSpace/ActionBar/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 theme_override_font_sizes/font_size = 7
 text = "Start game"
 
-[node name="WillButton" type="Button" parent="."]
+[node name="WillButton" type="Button" parent="Shell/Strip/StripBox/Side"]
 unique_name_in_owner = true
 visible = false
-layout_mode = 1
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 2.0
-offset_top = -2.0
-offset_right = 2.0
-offset_bottom = -2.0
-grow_vertical = 0
+layout_mode = 2
+size_flags_horizontal = 0
 focus_mode = 0
 tooltip_text = "Last will"
 icon = ExtResource("6_will")
 
-[node name="ChatPanel" type="PanelContainer" parent="."]
-layout_mode = 1
-anchors_preset = 11
-anchor_left = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -98.0
-offset_top = 15.0
-offset_right = -2.0
-offset_bottom = -2.0
-grow_horizontal = 0
-grow_vertical = 2
+[node name="ChatPanel" type="PanelContainer" parent="Shell/Focus"]
+unique_name_in_owner = true
+layout_mode = 2
 script = ExtResource("5_chat")
 
-[node name="Rows" type="VBoxContainer" parent="ChatPanel"]
+[node name="Rows" type="VBoxContainer" parent="Shell/Focus/ChatPanel"]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Header" type="HBoxContainer" parent="ChatPanel/Rows"]
+[node name="Header" type="HBoxContainer" parent="Shell/Focus/ChatPanel/Rows"]
 layout_mode = 2
 
-[node name="Heading" type="Label" parent="ChatPanel/Rows/Header"]
+[node name="Heading" type="Label" parent="Shell/Focus/ChatPanel/Rows/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"HudHeading"
 text = "Chat"
 
-[node name="Log" type="RichTextLabel" parent="ChatPanel/Rows"]
+[node name="Log" type="RichTextLabel" parent="Shell/Focus/ChatPanel/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
@@ -191,67 +209,67 @@ focus_mode = 0
 theme_override_font_sizes/normal_font_size = 6
 scroll_following = true
 
-[node name="InputRow" type="HBoxContainer" parent="ChatPanel/Rows"]
+[node name="InputRow" type="HBoxContainer" parent="Shell/Focus/ChatPanel/Rows"]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Channel" type="Label" parent="ChatPanel/Rows/InputRow"]
+[node name="Channel" type="Label" parent="Shell/Focus/ChatPanel/Rows/InputRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "town"
 
-[node name="Input" type="LineEdit" parent="ChatPanel/Rows/InputRow"]
+[node name="Input" type="LineEdit" parent="Shell/Focus/ChatPanel/Rows/InputRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "Enter to chat"
 max_length = 1600
 
-[node name="SendButton" type="Button" parent="ChatPanel/Rows/InputRow"]
+[node name="SendButton" type="Button" parent="Shell/Focus/ChatPanel/Rows/InputRow"]
 layout_mode = 2
 focus_mode = 0
 text = "Send"
 
-[node name="WillEditor" type="VBoxContainer" parent="ChatPanel"]
+[node name="WillEditor" type="VBoxContainer" parent="Shell/Focus/ChatPanel"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Title" type="Label" parent="ChatPanel/WillEditor"]
+[node name="Title" type="Label" parent="Shell/Focus/ChatPanel/WillEditor"]
 layout_mode = 2
 theme_type_variation = &"HudHeading"
 text = "Last will"
 
-[node name="Hint" type="Label" parent="ChatPanel/WillEditor"]
+[node name="Hint" type="Label" parent="Shell/Focus/ChatPanel/WillEditor"]
 layout_mode = 2
 theme_type_variation = &"HudDim"
 text = "Everyone reads this when you die. Keep notes on what you learned."
 autowrap_mode = 3
 
-[node name="WillText" type="TextEdit" parent="ChatPanel/WillEditor"]
+[node name="WillText" type="TextEdit" parent="Shell/Focus/ChatPanel/WillEditor"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 placeholder_text = "N1: checked 3, not suspicious"
 wrap_mode = 1
 
-[node name="Buttons" type="HBoxContainer" parent="ChatPanel/WillEditor"]
+[node name="Buttons" type="HBoxContainer" parent="Shell/Focus/ChatPanel/WillEditor"]
 layout_mode = 2
 alignment = 2
 
-[node name="CloseWillButton" type="Button" parent="ChatPanel/WillEditor/Buttons"]
+[node name="CloseWillButton" type="Button" parent="Shell/Focus/ChatPanel/WillEditor/Buttons"]
 layout_mode = 2
 focus_mode = 0
 text = "Cancel"
 
-[node name="SaveWillButton" type="Button" parent="ChatPanel/WillEditor/Buttons"]
+[node name="SaveWillButton" type="Button" parent="Shell/Focus/ChatPanel/WillEditor/Buttons"]
 layout_mode = 2
 focus_mode = 0
 text = "Save"
 
-[connection signal="pressed" from="ActionBar/Rows/StartButton" to="ActionBar" method="_on_start_button_pressed"]
-[connection signal="text_submitted" from="ChatPanel/Rows/InputRow/Input" to="ChatPanel" method="_on_input_text_submitted"]
-[connection signal="pressed" from="ChatPanel/Rows/InputRow/SendButton" to="ChatPanel" method="_on_send_button_pressed"]
-[connection signal="pressed" from="ChatPanel/WillEditor/Buttons/CloseWillButton" to="ChatPanel" method="_close_will"]
-[connection signal="pressed" from="ChatPanel/WillEditor/Buttons/SaveWillButton" to="ChatPanel" method="_on_save_will_button_pressed"]
+[connection signal="pressed" from="Shell/Focus/WorldSpace/ActionBar/Rows/StartButton" to="Shell/Focus/WorldSpace/ActionBar" method="_on_start_button_pressed"]
+[connection signal="text_submitted" from="Shell/Focus/ChatPanel/Rows/InputRow/Input" to="Shell/Focus/ChatPanel" method="_on_input_text_submitted"]
+[connection signal="pressed" from="Shell/Focus/ChatPanel/Rows/InputRow/SendButton" to="Shell/Focus/ChatPanel" method="_on_send_button_pressed"]
+[connection signal="pressed" from="Shell/Focus/ChatPanel/WillEditor/Buttons/CloseWillButton" to="Shell/Focus/ChatPanel" method="_close_will"]
+[connection signal="pressed" from="Shell/Focus/ChatPanel/WillEditor/Buttons/SaveWillButton" to="Shell/Focus/ChatPanel" method="_on_save_will_button_pressed"]
