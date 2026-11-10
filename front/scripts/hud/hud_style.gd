@@ -90,6 +90,15 @@ static func panel_box() -> StyleBoxFlat:
 	return box
 
 
+## The solid band the strip sits on across the top of a tall screen, where
+## the town would otherwise show through between its panels.
+static func band_box() -> StyleBoxFlat:
+	var box := _box(RpgTheme.WOOD, RpgTheme.TRIM, 0, 2)
+	box.border_width_bottom = 1
+	box.set_corner_radius_all(2)
+	return box
+
+
 ## A box with a border all round and the same padding on every side, a
 ## little less above and below so rows of buttons stay compact.
 static func _box(color: Color, border: Color, border_width: int, padding: int) -> StyleBoxFlat:
