@@ -101,7 +101,7 @@ The game itself (lobbies, roles, days and nights, chat, voting, last wills) runs
 | `webgame-server` | The server: a WebSocket endpoint at `/ws` (and `/health`), one task per lobby that owns its game, and a SQLite file that records users, lobbies, games and every message each game sent. |
 | `webgame-client` | What a client knows about the game, kept up to date from server messages, how each message reads as text, and how a typed line like `/vote 3` becomes a message. Both clients use it, so they agree on the rules and describe the game the same way. |
 | `webgame-cli` | The terminal client. |
-| `webgame-godot-rust` | The GDExtension Godot loads: the `StateMachine`, and `GameClient`, the node that talks to the server over Godot's WebSocketPeer (which also works in the web export) and gives GDScript methods and signals. |
+| `webgame-godot-rust` | The GDExtension Godot loads: the `StateMachine`, `AspectFlowContainer` (a BoxContainer that lays its children out in a row on a wide screen and a column on a tall one), and `GameClient`, the node that talks to the server over Godot's WebSocketPeer (which also works in the web export) and gives GDScript methods and signals. |
 
 ### Playing a test game
 
