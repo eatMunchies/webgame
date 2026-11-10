@@ -40,6 +40,10 @@ func title() -> String:
 	return def.title if def != null else "Card Memory"
 
 
+func hint() -> String:
+	return "Tap two cards to turn them, or move with the arrow keys and press Space. Find the pairs."
+
+
 ## Turns over a card: the first of a try, or the second, which flashes green
 ## for a pair and red for a miss.
 func pick_card(card: int) -> void:

@@ -13,7 +13,7 @@ use webgame_protocol::{
 
 /// Every phase lasts one second, except fight rounds, which leave time for a knockout.
 const PHASE: u64 = 1_000;
-const FIGHT_ROUND: u64 = 2_000;
+const FIGHT_ROUND: u64 = 8_000;
 
 fn timers() -> Timers {
     Timers {
@@ -96,11 +96,15 @@ impl Table {
         Ok(())
     }
 
-    /// Runs the clock to the end of the current phase.
+    /// Runs the clock to the end of the current phase. A fight round with a fight still going
+    /// runs on past its deadline, so this keeps going until the phase changes.
     fn next_phase(&mut self) {
-        self.now = self.game.deadline().expect("game is running");
-        let out = self.game.tick(self.now);
-        self.log.extend(out);
+        let phase = self.game.phase().clone();
+        while *self.game.phase() == phase {
+            self.now = self.game.deadline().expect("game is running");
+            let out = self.game.tick(self.now);
+            self.log.extend(out);
+        }
     }
 
     /// Runs the clock until the phase matches.
@@ -809,6 +813,47 @@ fn a_victim_who_wins_the_fight_survives() {
 }
 
 #[test]
+fn a_fight_runs_past_its_round_until_a_knockout() {
+    let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
+    table.until_night();
+    table.act(0, GameAction::Night(Some(NightAction::Target(slot(2)))));
+    table.next_stage();
+    table.next_stage(); // Kill, round 1
+    let round_end = table.game.deadline().unwrap();
+    table.now = round_end;
+    let out = table.game.tick(table.now);
+    table.log.extend(out);
+    assert!(
+        matches!(
+            table.game.phase(),
+            GamePhase::Night {
+                stage: NightStage::Kill { round: 1 },
+                ..
+            }
+        ),
+        "the round runs on while the fight goes on"
+    );
+    for _ in 0..FIGHT_HP {
+        table.act(0, STRIKE);
+        table.now += u64::from(STRIKE_WINDUP_MS);
+        let out = table.game.tick(table.now);
+        table.log.extend(out);
+    }
+    assert_eq!(over(&table, 0), [(MinigameResult::Won, false)]);
+    // Once it's decided, the round ends within a step.
+    table.now += 1_000;
+    let out = table.game.tick(table.now);
+    table.log.extend(out);
+    assert!(matches!(
+        table.game.phase(),
+        GamePhase::Night {
+            stage: NightStage::Kill { round: 2 },
+            ..
+        }
+    ));
+}
+
+#[test]
 fn a_victim_attacked_twice_fights_each_attacker_in_turn() {
     let mut table = Table::new(&[
         Role::Mafioso,
@@ -1018,4 +1063,23 @@ fn a_skill_check_passes_with_the_last_chance_it_reported() {
     table.log.clear();
     table.act(1, check(MAX_CHANCE, true));
     assert_eq!(over(&table, 1), [(MinigameResult::Passed, false)]);
+}
+
+#[test]
+fn minigame_stages_add_the_countdown_and_choosing_does_not() {
+    let intro = u64::from(webgame_protocol::MINIGAME_INTRO_MS);
+    let fast = Timers::FAST;
+    assert_eq!(fast.night_stage(NightStage::Choosing), fast.choosing);
+    assert_eq!(
+        fast.night_stage(NightStage::Roleblock),
+        fast.roleblock + intro
+    );
+    assert_eq!(
+        fast.night_stage(NightStage::Kill { round: 2 }),
+        fast.fight_round + intro
+    );
+    assert_eq!(
+        Timers::uniform(1_000).night_stage(NightStage::Protect),
+        1_000
+    );
 }

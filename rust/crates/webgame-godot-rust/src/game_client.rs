@@ -5,9 +5,9 @@ use godot::prelude::*;
 use webgame_client::{Command, HELP, State};
 use webgame_protocol::{
     Appearance, ChatChannel, ClientMessage, DayStage, FIGHT_HP, FIGHT_ROUNDS, Facing, FightMove,
-    Fighter, GameAction, GamePhase, LobbyCode, MAX_CHANCE, MAX_COORD, Minigame, MinigamePlay,
-    MinigameResult, Movement, NightStage, PROTOCOL_VERSION, PlayerSlot, ServerMessage, decode,
-    encode,
+    Fighter, GRAB_WINDUP_MS, GUARD_MS, GUARD_RAISE_MS, GameAction, GamePhase, LobbyCode,
+    MAX_CHANCE, MAX_COORD, MINIGAME_INTRO_MS, Minigame, MinigamePlay, MinigameResult, Movement,
+    NightStage, PROTOCOL_VERSION, PlayerSlot, STRIKE_WINDUP_MS, ServerMessage, decode, encode,
 };
 
 /// The connection to the game server. Add one to the scene tree (the Session autoload does)
@@ -56,6 +56,23 @@ impl INode for GameClient {
 
 #[godot_api]
 impl GameClient {
+    /// How long the countdown before a skill check or fight lasts, in milliseconds. The server
+    /// adds it to each night stage, so the overlay shows it without taking from the play time.
+    #[constant]
+    const MINIGAME_INTRO_MS: i64 = MINIGAME_INTRO_MS as i64;
+    /// How long a guard stays up after it's raised, in milliseconds.
+    #[constant]
+    const GUARD_MS: i64 = GUARD_MS as i64;
+    /// How long a guard takes to come up after it's raised, in milliseconds.
+    #[constant]
+    const GUARD_RAISE_MS: i64 = GUARD_RAISE_MS as i64;
+    /// How long a strike takes to land after it's started, in milliseconds.
+    #[constant]
+    const STRIKE_WINDUP_MS: i64 = STRIKE_WINDUP_MS as i64;
+    /// How long a grab takes to land after it's started, in milliseconds.
+    #[constant]
+    const GRAB_WINDUP_MS: i64 = GRAB_WINDUP_MS as i64;
+
     /// The server said hello back: the player is identified and can create or join a lobby.
     #[signal]
     fn connected();
@@ -527,7 +544,9 @@ impl GameClient {
     }
 
     /// The fight the player is in, counted down to now, or an empty Dictionary outside one:
-    /// `you` and `opponent`, each with `hp`, `guarding`, `move` ("", "strike" or "grab"),
+    /// `you` and `opponent`, each with `hp`, `guard_raised` (up or coming up), `guarding` (up
+    /// and blocking), `raising_ms` (until it's up), `guard_ms` (until it drops),
+    /// `guard_cooldown_ms` (until another can be raised), `move` ("", "strike" or "grab"),
     /// `windup_ms` (how long that move takes), `lands_in_ms` and `staggered_ms`; and `max_hp`.
     #[func]
     fn fight(&self) -> VarDictionary {
@@ -733,7 +752,7 @@ fn unix_ms() -> u64 {
 }
 
 /// One side of a fight, `elapsed` milliseconds after the server sent it.
-fn fighter(fighter: &Fighter, elapsed: u32) -> VarDictionary {
+pub(crate) fn fighter(fighter: &Fighter, elapsed: u32) -> VarDictionary {
     let (name, windup, lands_in) = match fighter.winding {
         Some((play, left)) => {
             let name = match play {
@@ -746,7 +765,11 @@ fn fighter(fighter: &Fighter, elapsed: u32) -> VarDictionary {
     };
     vdict! {
         "hp" => i64::from(fighter.hp),
-        "guarding" => fighter.guarding,
+        "guard_raised" => fighter.guard_ms > elapsed,
+        "guarding" => fighter.raising_ms <= elapsed && fighter.guard_ms > elapsed,
+        "raising_ms" => i64::from(fighter.raising_ms.saturating_sub(elapsed)),
+        "guard_ms" => i64::from(fighter.guard_ms.saturating_sub(elapsed)),
+        "guard_cooldown_ms" => i64::from(fighter.guard_cooldown_ms.saturating_sub(elapsed)),
         "move" => &text(name),
         "windup_ms" => i64::from(windup),
         "lands_in_ms" => i64::from(lands_in),

@@ -120,6 +120,12 @@ theme_override_font_sizes/font_size = 24
 disabled = true
 text = "Join"
 
+[node name="MinigamesButton" type="Button" parent="Center/Column/Panel/Columns/Play"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 18
+text = "Minigames"
+
 [node name="StatusLabel" type="Label" parent="Center/Column/Panel/Columns/Play"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -129,6 +135,7 @@ autowrap_mode = 3
 
 [connection signal="text_changed" from="Center/Column/Panel/Columns/You/NameInput" to="." method="_on_name_input_text_changed"]
 [connection signal="pressed" from="Center/Column/Panel/Columns/You/PreviewWell/Corner/CustomizeButton" to="." method="_on_customize_button_pressed"]
+[connection signal="pressed" from="Center/Column/Panel/Columns/Play/MinigamesButton" to="." method="_on_minigames_button_pressed"]
 [connection signal="pressed" from="Center/Column/Panel/Columns/Play/CreateButton" to="." method="_on_create_button_pressed"]
 [connection signal="text_changed" from="Center/Column/Panel/Columns/Play/JoinRow/CodeInput" to="." method="_on_code_input_text_changed"]
 [connection signal="text_submitted" from="Center/Column/Panel/Columns/Play/JoinRow/CodeInput" to="." method="_on_code_input_text_submitted"]

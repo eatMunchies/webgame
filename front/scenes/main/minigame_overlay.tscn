@@ -5,6 +5,10 @@
 [ext_resource type="Script" path="res://scripts/minigame/skill_check_def.gd" id="3_def"]
 [ext_resource type="Resource" path="res://skill_checks/typing.tres" id="4_typing"]
 [ext_resource type="Resource" path="res://skill_checks/memory.tres" id="5_memory"]
+[ext_resource type="Resource" path="res://skill_checks/flappy.tres" id="6_flappy"]
+[ext_resource type="Resource" path="res://skill_checks/golf.tres" id="7_golf"]
+[ext_resource type="Resource" path="res://skill_checks/fruit.tres" id="8_fruit"]
+[ext_resource type="Resource" path="res://skill_checks/blackjack.tres" id="9_blackjack"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_panel"]
 content_margin_left = 3.0
@@ -34,8 +38,8 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBox_panel")
 script = ExtResource("1_script")
-skill_checks = Array[ExtResource("3_def")]([ExtResource("2_wheel"), ExtResource("4_typing")])
-practice_checks = Array[ExtResource("3_def")]([ExtResource("4_typing"), ExtResource("5_memory")])
+skill_checks = Array[ExtResource("3_def")]([ExtResource("2_wheel"), ExtResource("4_typing"), ExtResource("6_flappy"), ExtResource("7_golf"), ExtResource("8_fruit"), ExtResource("9_blackjack")])
+practice_checks = Array[ExtResource("3_def")]([ExtResource("4_typing"), ExtResource("5_memory"), ExtResource("6_flappy"), ExtResource("7_golf"), ExtResource("8_fruit"), ExtResource("9_blackjack")])
 
 [node name="Rows" type="VBoxContainer" parent="."]
 layout_mode = 2
@@ -100,4 +104,3 @@ text = "Guard (L)"
 [connection signal="pressed" from="Rows/FightButtons/StrikeButton" to="." method="_on_strike_button_pressed"]
 [connection signal="pressed" from="Rows/FightButtons/GrabButton" to="." method="_on_grab_button_pressed"]
 [connection signal="button_down" from="Rows/FightButtons/GuardButton" to="." method="_on_guard_button_down"]
-[connection signal="button_up" from="Rows/FightButtons/GuardButton" to="." method="_on_guard_button_up"]

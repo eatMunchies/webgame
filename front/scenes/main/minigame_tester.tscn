@@ -1,0 +1,149 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/minigame/minigame_tester.gd" id="1_script"]
+
+[node name="MinigameTester" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.09, 0.07, 0.06, 1)
+
+[node name="Menu" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = 82.0
+offset_bottom = -4.0
+grow_vertical = 2
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="Menu"]
+layout_mode = 2
+theme_type_variation = &"HudTitle"
+text = "Minigames"
+
+[node name="List" type="VBoxContainer" parent="Menu"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 1
+
+[node name="PracticeToggle" type="CheckBox" parent="Menu"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Practice"
+
+[node name="AgainButton" type="Button" parent="Menu"]
+layout_mode = 2
+focus_mode = 0
+text = "Again"
+
+[node name="Spacer" type="Control" parent="Menu"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="BackButton" type="Button" parent="Menu"]
+layout_mode = 2
+focus_mode = 0
+text = "Back"
+
+[node name="Stage" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -73.0
+offset_top = 16.0
+offset_right = 81.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Summary" type="Label" parent="Stage"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_right = -8.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"HudTitle"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="StageLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -73.0
+offset_top = 2.0
+offset_right = 81.0
+offset_bottom = 15.0
+grow_horizontal = 2
+theme_type_variation = &"HudHeading"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Info" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -76.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = -4.0
+grow_horizontal = 0
+grow_vertical = 2
+theme_override_constants/separation = 4
+
+[node name="ControlsHeading" type="Label" parent="Info"]
+layout_mode = 2
+theme_type_variation = &"HudHeading"
+text = "Controls"
+
+[node name="Controls" type="Label" parent="Info"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+theme_type_variation = &"HudDim"
+autowrap_mode = 3
+
+[node name="LogHeading" type="Label" parent="Info"]
+layout_mode = 2
+theme_type_variation = &"HudHeading"
+text = "Log"
+
+[node name="Log" type="Label" parent="Info"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+size_flags_vertical = 3
+autowrap_mode = 3
+clip_text = true
+
+[connection signal="toggled" from="Menu/PracticeToggle" to="." method="_on_practice_toggle_toggled"]
+[connection signal="pressed" from="Menu/AgainButton" to="." method="_on_again_button_pressed"]
+[connection signal="pressed" from="Menu/BackButton" to="." method="_on_back_button_pressed"]

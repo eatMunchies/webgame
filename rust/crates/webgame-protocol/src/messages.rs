@@ -461,13 +461,17 @@ mod tests {
         round_trip(ServerMessage::Fight(FightView {
             you: crate::Fighter {
                 hp: 2,
-                guarding: true,
+                guard_ms: 300,
+                raising_ms: 100,
+                guard_cooldown_ms: 0,
                 winding: None,
                 staggered_ms: 0,
             },
             opponent: crate::Fighter {
                 hp: 3,
-                guarding: false,
+                guard_ms: 0,
+                raising_ms: 0,
+                guard_cooldown_ms: 900,
                 winding: Some((crate::FightMove::Grab, 120)),
                 staggered_ms: 0,
             },

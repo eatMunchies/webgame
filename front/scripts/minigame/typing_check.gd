@@ -123,6 +123,20 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
+## Brings up the on-screen keyboard on phones and tablets while the test
+## shows, since there's no text box to tap.
+func _notification(what: int) -> void:
+	if not DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+		return
+	if what == NOTIFICATION_VISIBILITY_CHANGED or what == NOTIFICATION_READY:
+		if is_visible_in_tree():
+			DisplayServer.virtual_keyboard_show("")
+		else:
+			DisplayServer.virtual_keyboard_hide()
+	elif what == NOTIFICATION_EXIT_TREE:
+		DisplayServer.virtual_keyboard_hide()
+
+
 func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if not is_visible_in_tree() or key == null or not key.pressed:

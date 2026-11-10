@@ -20,6 +20,12 @@ use crate::{Audience, Outgoing, Player, Seat, Timers, setup, win};
 pub const ROLL_PASS_CHANCE: f64 = 0.75;
 /// How likely the attacker is to win a rolled fight.
 pub const FIGHT_ROLL_CHANCE: f64 = 0.5;
+/// A fight isn't decided by the clock: while one is still going when its round runs out, the
+/// round runs on, a step at a time, until a knockout.
+const FIGHT_OVERTIME_STEP_MS: u64 = 1_000;
+/// The longest a round runs on for its fights, so two fighters who both stop playing can't
+/// stall the night. A fight still going then is the victim's.
+const FIGHT_OVERTIME_CAP_MS: u64 = 120_000;
 
 /// Something a player does in a game: chat, or one of the game actions.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,7 +45,8 @@ pub enum Input {
 /// Each night runs the [`NightStage`]s. Actions are picked while Choosing and locked after. At
 /// the start of every later stage each living player is given a minigame for it, from
 /// [`night::plan`]: a skill check, a fight, or a passive game. A skill check nobody reports by
-/// the end of its stage fails, and a fight still going then is the victim's. The night is
+/// the end of its stage fails. A fight goes on until a knockout: the round runs past its time
+/// while any fight is still going, up to [`FIGHT_OVERTIME_CAP_MS`]. The night is
 /// resolved after the last stage, from those results.
 pub struct Game {
     players: Vec<Player>,
@@ -81,6 +88,8 @@ pub struct Game {
     kill_rounds: Vec<Vec<Assigned>>,
     /// The latest time the game has been given, for timing fight views.
     last_tick: u64,
+    /// The latest a fight round can run on to, while its fights go on.
+    fight_overtime_cap: u64,
 }
 
 /// A player's minigame in the current stage of the night.
@@ -220,6 +229,7 @@ impl Game {
             duels: Vec::new(),
             kill_rounds: Vec::new(),
             last_tick: now,
+            fight_overtime_cap: 0,
         };
         let mut out: Vec<Outgoing> = game
             .players
@@ -331,6 +341,9 @@ impl Game {
             match self.deadline {
                 // The next phase is timed from when this one was due to end, not from `now`,
                 // so a late tick doesn't stretch the game.
+                Some(deadline) if now >= deadline && self.fights_run_on(deadline) => {
+                    self.deadline = Some(deadline + FIGHT_OVERTIME_STEP_MS);
+                }
                 Some(deadline) if now >= deadline => self.advance(deadline, &mut out),
                 _ => break,
             }
@@ -976,6 +989,7 @@ impl Game {
         };
         self.minigames.clear();
         self.duels.clear();
+        self.fight_overtime_cap = self.deadline.unwrap_or(at) + FIGHT_OVERTIME_CAP_MS;
         for assigned in assigned {
             match assigned {
                 Assigned::Check(player) => {
@@ -1058,7 +1072,7 @@ impl Game {
     }
 
     /// Ends the stage's minigames: skill checks still going are decided as they stand, and
-    /// fights still going are won by the victim.
+    /// fights still going (only once a round has run on to its cap) are won by the victim.
     fn close_minigames(&mut self, out: &mut Vec<Outgoing>) {
         let checks: Vec<PlayerSlot> = self
             .minigames
@@ -1183,6 +1197,20 @@ impl Game {
                 rolled: rolled.is_some(),
             },
         ));
+    }
+
+    /// Whether a round due to end at `deadline` runs on, because a fight in it is still going
+    /// and it hasn't hit its cap. Running on is silent: nobody is told a new end time, since
+    /// fighters have no clock and the stage is hidden from everyone else.
+    fn fights_run_on(&self, deadline: u64) -> bool {
+        matches!(
+            self.phase,
+            GamePhase::Night {
+                stage: NightStage::Kill { .. },
+                ..
+            }
+        ) && deadline < self.fight_overtime_cap
+            && self.duels.iter().any(|duel| !duel.is_over())
     }
 
     fn next_landing(&self) -> Option<u64> {
