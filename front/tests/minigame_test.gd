@@ -460,3 +460,14 @@ func test_practice_has_no_countdown() -> void:
 	overlay.show_minigame({"kind": "passive", "ends_in_ms": 8000})
 	assert_bool(overlay.in_intro()).is_false()
 	assert_bool(overlay.check.visible).is_true()
+
+
+func test_practice_carries_on_into_the_next_passive_stage() -> void:
+	overlay.show_minigame({"kind": "passive", "ends_in_ms": 5000})
+	var practice := overlay.check
+	# Between stages the client keeps the last stage's game until the next
+	# one's arrives, so the overlay isn't hidden in between.
+	overlay.show_minigame({"kind": "passive", "ends_in_ms": 0})
+	overlay.show_minigame({"kind": "passive", "ends_in_ms": 5000})
+	assert_object(overlay.check).is_same(practice)
+	assert_bool(overlay.visible).is_true()

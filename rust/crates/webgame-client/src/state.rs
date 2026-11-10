@@ -29,7 +29,8 @@ pub struct State {
     pub positions: BTreeMap<PlayerSlot, Movement>,
     /// What this player has chosen so far in the current phase, so buttons can show it.
     pub choices: Choices,
-    /// This player's minigame in the current stage of the night.
+    /// This player's minigame in the current stage of the night. Between stages it's the last
+    /// stage's, until the next one's arrives.
     pub minigame: Option<CurrentMinigame>,
     /// The roles of players whose role is public: the dead (revealed when they died) and,
     /// once the game is over, everyone.
@@ -330,7 +331,10 @@ impl State {
                     self.choices.night = None;
                     self.choices.copy_from = None;
                 }
-                if changed {
+                // The night's next stage sends its own minigame right after its phase, so the
+                // last one stays until then. A practice game shown for it keeps going rather
+                // than closing and starting over between stages.
+                if changed && !same_night {
                     self.minigame = None;
                     self.votes.clear();
                 }
@@ -866,5 +870,32 @@ mod tests {
             roles: vec![(PlayerSlot(1), Role::Mafioso)],
         }));
         assert_eq!(state.revealed.get(&PlayerSlot(1)), Some(&Role::Mafioso));
+    }
+
+    fn night(stage: NightStage) -> ServerMessage {
+        ServerMessage::Phase {
+            phase: GamePhase::Night { night: 1, stage },
+            ends_at_ms: 0,
+        }
+    }
+
+    #[test]
+    fn a_minigame_lasts_until_the_next_stage_sends_one_and_ends_at_dawn() {
+        let mut state = game();
+        state.apply(night(NightStage::Roleblock));
+        state.apply(ServerMessage::Minigame {
+            game: Minigame::Passive,
+            ends_at_ms: 10,
+        });
+        state.apply(night(NightStage::Kill { round: 1 }));
+        let kept = state.minigame.as_ref().map(|m| (m.game, m.ends_at_ms));
+        assert_eq!(kept, Some((Minigame::Passive, 10)));
+        state.apply(ServerMessage::Minigame {
+            game: Minigame::Passive,
+            ends_at_ms: 20,
+        });
+        assert_eq!(state.minigame.as_ref().map(|m| m.ends_at_ms), Some(20));
+        state.apply(day(DayStage::Discussion));
+        assert_eq!(state.minigame, None);
     }
 }
