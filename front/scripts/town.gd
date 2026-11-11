@@ -3,9 +3,12 @@ extends Node2D
 ## The town the player walks around after hosting or joining a lobby: a
 ## cul-de-sac with one lot per lobby player around a podium. Each player's
 ## house is built on their lot and the player starts in front of their own.
-## The HUD (scenes/main/hud.tscn) puts the players at the top left, the day
-## and time left at the top middle, the chat on the right under the lobby
-## code and Leave button, and what the player can do at the bottom middle.
+## The HUD (scenes/main/hud.tscn) lays the players, clock, chat and actions
+## out around a part of the screen it leaves for the town (its world_space),
+## and the camera keeps the player in the middle of that part, at a zoom
+## that keeps the pixel art square (ScreenScale.world_zoom). The town hands
+## the HUD its lobby bar (code, Copy, Leave) and puts its touch joystick in
+## that part, so dragging anywhere on the town walks.
 ##
 ## Houses are rebuilt whenever the lobby changes: when someone joins or
 ## leaves, and when someone dies, whose house goes grey. Each house is labeled
@@ -16,9 +19,8 @@ extends Node2D
 ## goes to the server a few times a second (only when it changes), and each
 ## other player is a RemotePlayer that follows what the server relays.
 ##
-## At night the MinigameOverlay takes the HUD's middle column, between the
-## players and the chat, while the player has a minigame, and its moves go to
-## the server.
+## At night the MinigameOverlay covers the town's part of the screen while
+## the player has a minigame, and its moves go to the server.
 
 const LOBBY_SCENE := "res://scenes/main/lobby.tscn"
 const HOUSE_SCENE := preload("res://scenes/main/house.tscn")
@@ -48,7 +50,14 @@ const DAY_FADE_SECONDS := 1.5
 @onready var copy_button: Button = %CopyButton
 
 @onready var copy_reset_timer: Timer = %CopyResetTimer
+@onready var camera: Camera2D = $World/Player/Camera2D
+@onready var joystick: Control = $HUD/Joystick
 
+## The camera's place on the player, from the scene: a little above their
+## feet, so the player is centered rather than their feet.
+@onready var _camera_lift := camera.position
+## The HUD, while in a lobby.
+var _hud: Control
 var _sky := CanvasModulate.new()
 var _minigame: MinigameOverlay
 ## The other players' characters, by lot.
@@ -60,11 +69,6 @@ func _ready() -> void:
 	ScreenScale.for_world(get_window())
 	player.character.appearance = PlayerProfile.appearance
 
-	var camera: Camera2D = player.get_node("Camera2D")
-	camera.limit_left = 0
-	camera.limit_top = 0
-	camera.limit_right = CulDeSac.SIZE.x
-	camera.limit_bottom = CulDeSac.SIZE.y
 	# The walls along the right and bottom edges, and the podium, follow the
 	# map's size so resizing the cul-de-sac needs no scene edits.
 	$Bounds/Right.position.x = CulDeSac.SIZE.x
@@ -83,7 +87,12 @@ func _ready() -> void:
 	bar.theme = HudStyle.build()
 	_update_label()
 	if Session.in_lobby():
-		$HUD.add_child(HUD_SCENE.instantiate())
+		_hud = HUD_SCENE.instantiate()
+		$HUD.add_child(_hud)
+		_hud.add_lobby_bar(bar)
+		joystick.reparent(_hud.world_space, false)
+		_hud.world_space.move_child(joystick, 0)
+		joystick.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_add_minigame_overlay()
 	Session.lobby_changed.connect(_on_session_lobby_changed)
 	Session.phase_changed.connect(_update_sky)
@@ -97,7 +106,8 @@ func _ready() -> void:
 
 func _add_minigame_overlay() -> void:
 	_minigame = MINIGAME_SCENE.instantiate()
-	$HUD.add_child(_minigame)
+	_hud.world_space.add_child(_minigame)
+	_minigame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_minigame.fight_source = Session.client.fight
 	_minigame.check_reported.connect(Session.client.report_check)
 	_minigame.fight_move.connect(Session.client.fight_move)
@@ -111,9 +121,31 @@ func _on_session_minigame_changed() -> void:
 
 
 func _process(delta: float) -> void:
+	_frame_camera()
 	_since_move_sent += delta
 	if _since_move_sent >= 1.0 / MOVES_PER_SECOND:
 		_send_movement()
+
+
+## Keeps the player in the middle of the town's part of the screen, and the
+## map's edges at that part's edges, so nothing of the town hides under the
+## HUD unless the player walks to the map's edge. Run every frame, since the
+## part moves when the chat opens or the window turns.
+func _frame_camera() -> void:
+	var zoom := ScreenScale.world_zoom(get_viewport())
+	camera.zoom = Vector2(zoom, zoom)
+	var view := get_viewport().get_visible_rect().size
+	var area := Rect2(Vector2.ZERO, view)
+	if _hud != null:
+		area = _hud.world_space.get_global_rect()
+	# Seen through the camera, the middle of the screen is this far, in
+	# world pixels, from the middle of the town's part.
+	var shift := (view / 2.0 - area.get_center()) / zoom
+	camera.position = _camera_lift + shift
+	camera.limit_left = floori(-area.position.x / zoom)
+	camera.limit_top = floori(-area.position.y / zoom)
+	camera.limit_right = ceili(CulDeSac.SIZE.x + (view.x - area.end.x) / zoom)
+	camera.limit_bottom = ceili(CulDeSac.SIZE.y + (view.y - area.end.y) / zoom)
 
 
 func _send_movement() -> void:
