@@ -4,14 +4,14 @@ extends RefCounted
 ## How each screen scales to fit the window, so the game looks the same at
 ## any window size (the window opens at 1920x1080; see project.godot).
 ##
-## - Menus (the start screen and the customizer) are laid out for 1280x720
+## - Menus (the customizer) are laid out for 1280x720
 ##   and scaled smoothly to the window. They use canvas_items scaling, which
 ##   draws text at the window's own resolution, so it stays sharp.
-## - The town and its HUD are laid out in units where the window's short
+## - The start screen, the town and their HUDs are laid out in units where the window's short
 ##   side is WORLD_SHORT_SIDE (180) units, so a 16:9 landscape window is
 ##   320x180 units (6 pixels each at 1080p) and a portrait phone is 180
 ##   units wide and as tall as it is. canvas_items keeps the HUD text sharp
-##   at any scale. The town's pixel art is drawn by its camera at a whole
+##   at any scale. Their pixel art is drawn by the camera at a whole
 ##   number of screen pixels per art pixel (world_zoom), so it stays square.
 ##
 ## Each screen sets its own scale in _ready, since the window keeps whatever
