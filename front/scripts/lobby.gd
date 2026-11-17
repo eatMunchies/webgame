@@ -37,8 +37,6 @@ const EDGE_SIDES := 48
 const HOUSE_RECT := Rect2(-32, -72, 64, 72)
 ## The house's tint while the player is at its door.
 const DOOR_GLOW := Color(1.2, 1.2, 1.12)
-## The floor is clearest a little above the player's feet, around their body.
-const FOCUS_LIFT := Vector2(0, -12)
 
 @onready var name_input: LineEdit = %NameInput
 @onready var create_button: Button = %CreateButton
@@ -81,7 +79,7 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	_frame_camera()
-	floor_rect.focus = player.position + FOCUS_LIFT
+	floor_rect.focus = player.position + PlazaFloor.FOCUS_LIFT
 	house.modulate = DOOR_GLOW if near_door() else Color.WHITE
 
 
@@ -207,9 +205,18 @@ func _on_join_button_pressed() -> void:
 		_on_session_request_failed(error)
 
 
-## The server put the player in a lobby: go to the town.
+## Where the player stands, from their house's ground point.
+func arrival_spot() -> Vector2:
+	return player.position - house.position
+
+
+## The server put the player in a lobby: go to the town, where they appear
+## in the same spot by their house, facing the same way, and the plaza's
+## floor dissolves into the town around them.
 func _on_session_lobby_changed() -> void:
 	if _waiting and Session.in_lobby():
+		Session.arrival_spot = arrival_spot()
+		Session.arrival_facing = player.facing
 		get_tree().change_scene_to_file(TOWN_SCENE)
 
 

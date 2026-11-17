@@ -13,6 +13,9 @@ const SHADER := preload("res://shaders/plaza_floor.gdshader")
 ## How far past the view's edges to draw, in world pixels, so a frame where
 ## the camera moves before this does shows no gap.
 const MARGIN := 32.0
+## Where to put `focus` from the player's feet: a little above, around their
+## body.
+const FOCUS_LIFT := Vector2(0, -12)
 
 var _shader := ShaderMaterial.new()
 

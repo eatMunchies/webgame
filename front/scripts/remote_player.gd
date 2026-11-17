@@ -21,7 +21,13 @@ var target_position := Vector2.ZERO
 var facing := Character.Facing.DOWN
 var walking := false
 var _walk_time := 0.0
-var _placed := false
+## False until the first position arrives. Until then the character is
+## hidden, so it doesn't show somewhere they aren't.
+var placed := false
+
+
+func _ready() -> void:
+	visible = placed
 
 
 ## Shows a player's name, look, and whether they are alive. Call whenever
@@ -34,14 +40,15 @@ func show_player(player: LobbyPlayer) -> void:
 
 
 ## Moves toward a reported position. The first report places the character
-## there directly.
+## there directly and shows it.
 func move_to(new_position: Vector2, new_facing: Character.Facing, is_walking: bool) -> void:
 	target_position = new_position
 	facing = new_facing
 	walking = is_walking
-	if not _placed or position.distance_to(new_position) > TELEPORT_DISTANCE:
+	if not placed or position.distance_to(new_position) > TELEPORT_DISTANCE:
 		position = new_position
-		_placed = true
+		placed = true
+		visible = true
 
 
 func _process(delta: float) -> void:
