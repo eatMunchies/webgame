@@ -274,9 +274,22 @@ async fn a_player_who_reconnects_gets_their_seat_back() {
         unreachable!()
     };
 
-    // Cleo's connection drops, and they come back under the same name.
+    // While Cleo is still connected, nobody else can take the name.
+    let mut impostor = Client::connect(addr, "cleo").await;
+    impostor
+        .send(ClientMessage::JoinLobby { code: code.clone() })
+        .await;
+    assert_eq!(impostor.error().await, ErrorCode::NameTaken);
+
+    // Cleo's connection drops, and once the lobby sees it, they come back under the same name.
     let cleo = clients.remove(2);
     drop(cleo);
+    clients[0]
+        .wait(|m| match m {
+            ServerMessage::Lobby(info) => info.members.iter().any(|m| !m.connected),
+            _ => false,
+        })
+        .await;
     let mut cleo = Client::connect(addr, "cleo").await;
     cleo.join(&code).await;
     let ServerMessage::GameStarted(after) = cleo
@@ -292,6 +305,35 @@ async fn a_player_who_reconnects_gets_their_seat_back() {
     let mut late = Client::connect(addr, "Edie").await;
     late.send(ClientMessage::JoinLobby { code }).await;
     assert_eq!(late.error().await, ErrorCode::GameInProgress);
+    let _ = std::fs::remove_file(path);
+}
+
+#[tokio::test]
+async fn a_second_player_with_the_same_name_is_turned_away() {
+    let (addr, _db, path) = start_server(Timers::uniform(60_000), 3).await;
+    let mut ada = Client::connect(addr, "Ada").await;
+    let code = ada.create().await;
+    let mut other = Client::connect(addr, "ada").await;
+    other
+        .send(ClientMessage::JoinLobby { code: code.clone() })
+        .await;
+    assert_eq!(other.error().await, ErrorCode::NameTaken);
+
+    // The first Ada keeps their seat, and the lobby still has just the one of them.
+    ada.send(ClientMessage::Chat {
+        channel: ChatChannel::Lobby,
+        text: "still here".into(),
+    })
+    .await;
+    ada.wait(|m| matches!(m, ServerMessage::Chat(_))).await;
+    let mut bram = Client::connect(addr, "Bram").await;
+    bram.send(ClientMessage::JoinLobby { code }).await;
+    let ServerMessage::Lobby(info) = bram.wait(|m| matches!(m, ServerMessage::Lobby(_))).await
+    else {
+        unreachable!()
+    };
+    let names: Vec<_> = info.members.iter().map(|m| m.name.as_str()).collect();
+    assert_eq!(names, ["Ada", "Bram"]);
     let _ = std::fs::remove_file(path);
 }
 

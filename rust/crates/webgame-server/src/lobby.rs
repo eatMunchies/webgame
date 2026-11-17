@@ -166,13 +166,16 @@ impl Lobby {
         connection: Connection,
     ) -> Result<(), ServerError> {
         if let Some(member) = self.members.iter_mut().find(|m| m.user == user) {
-            // The same user again, probably reconnecting: give them their seat back.
-            if let Some(old) = member.connection.replace(connection) {
-                let _ = old.outbox.send(ServerMessage::Error(ServerError::new(
-                    ErrorCode::ConnectedElsewhere,
-                    "You connected from somewhere else.",
-                )));
+            // Names are the only identity, so a second connection under a name that is still
+            // connected is someone else (or another window) and would share the seat.
+            if member.connection.is_some() {
+                return Err(ServerError::new(
+                    ErrorCode::NameTaken,
+                    format!("Someone named {} is already in that lobby.", member.name),
+                ));
             }
+            // A player whose connection dropped, coming back: give them their seat back.
+            member.connection = Some(connection);
             let slot = member.slot;
             self.broadcast_lobby();
             self.send_positions(slot);
