@@ -1,13 +1,22 @@
-extends Control
+extends Node2D
 
-## The start screen. The player picks a name, can open the customizer, and
-## can host a new lobby or type a lobby code to join one. Minigames opens the
-## minigame tester, to try every minigame without a game. Hosting or joining
-## asks the game server, and goes to the town once it says yes.
+## The start screen: a plaza where the player walks around their own house
+## on an endless checkerboard floor (PlazaFloor) that fades into haze, with
+## a panel to pick a name, host a new lobby or type a lobby code to join one.
+## Minigames opens the minigame tester, to try every minigame without a game.
+## Hosting or joining asks the game server, and goes to the town once it
+## says yes.
 ##
-## It shares the customizer's look: RpgTheme's wood and gold, the same
-## backdrop, and the same preview (Wardrobe.Stage), showing the player's
-## house with their character in the yard.
+## Walking up to the house's door and pressing E (the interact action), or
+## tapping or clicking the house, opens the customizer. The house brightens
+## while the player is at its door. Walking is the
+## town's: WASD or the arrow keys, or dragging on a touch screen. Clicking
+## the plaza takes the focus off the text boxes, so the keys walk again.
+##
+## The panel sits beside the plaza on a wide screen and under it on a tall
+## one (an AspectFlowContainer, like the town's HUD), and the camera keeps
+## the player in the middle of the part the panel leaves, at the town's
+## pixel-perfect zoom. An invisible ring keeps them near their house.
 ##
 ## The buttons' signals are connected in lobby.tscn (select a button and look
 ## at Node > Signals in the editor), and the nodes this script uses are marked
@@ -16,28 +25,49 @@ extends Control
 const CUSTOMIZER_SCENE := "res://scenes/main/customizer.tscn"
 const TOWN_SCENE := "res://scenes/main/town.tscn"
 const MINIGAME_TESTER_SCENE := "res://scenes/main/minigame_tester.tscn"
-const HOUSE_SCENE := preload("res://scenes/main/house.tscn")
+## Where the player stands in front of the door, from the house's ground
+## point. They start here, and E opens the wardrobe within DOOR_REACH of it.
+const DOOR_SPOT := Vector2(0, 12)
+const DOOR_REACH := 16.0
+## How far from the house the player can walk, in world pixels.
+const EDGE_RADIUS := 140.0
+const EDGE_SIDES := 48
+## The part of the house a tap or click opens the wardrobe from, from its
+## ground point: the facade and roof, not the yard.
+const HOUSE_RECT := Rect2(-32, -72, 64, 72)
+## The house's tint while the player is at its door.
+const DOOR_GLOW := Color(1.2, 1.2, 1.12)
 
 @onready var name_input: LineEdit = %NameInput
 @onready var create_button: Button = %CreateButton
 @onready var code_input: LineEdit = %CodeInput
 @onready var join_button: Button = %JoinButton
 @onready var status_label: Label = %StatusLabel
-@onready var preview_area: Control = %PreviewArea
-@onready var preview: Character = %Preview
+@onready var house: House = %House
+@onready var player: CharacterBody2D = %Player
+@onready var camera: Camera2D = $World/Player/Camera2D
+@onready var floor_rect: PlazaFloor = $Floor
+@onready var world_space: Control = %WorldSpace
+@onready var panel: Control = %Panel
 
+## The camera's place on the player, from the scene.
+@onready var _camera_lift := camera.position
 ## True while waiting for the server to answer a create or join.
 var _waiting := false
 
 
 func _ready() -> void:
-	ScreenScale.for_menus(get_window())
-	theme = RpgTheme.build()
-	add_child(RpgTheme.backdrop())
-	move_child(get_child(-1), 0)
-	_build_stage()
-	preview.appearance = PlayerProfile.appearance
+	ScreenScale.for_world(get_window())
+	# The panel's flow was picked when it entered the tree, before the
+	# scaling above changed the screen's shape in units.
+	$UI/Shell.refresh()
+	$UI/Shell.theme = HudStyle.build()
+	house.appearance = _shown_house()
+	player.character.appearance = PlayerProfile.appearance
+	player.position = house.position + DOOR_SPOT
+	_build_edge()
 	name_input.text = PlayerProfile.username
+	house.owner_name = PlayerProfile.username
 	Session.lobby_changed.connect(_on_session_lobby_changed)
 	Session.request_failed.connect(_on_session_request_failed)
 	_update_buttons()
@@ -45,6 +75,70 @@ func _ready() -> void:
 	status_label.text = Session.last_error
 	Session.last_error = ""
 	_follow_launch_options()
+
+
+func _process(_delta: float) -> void:
+	_frame_camera()
+	floor_rect.focus = player.position + PlazaFloor.FOCUS_LIFT
+	house.modulate = DOOR_GLOW if near_door() else Color.WHITE
+
+
+## Keeps the player in the middle of the part of the screen the panel leaves.
+func _frame_camera() -> void:
+	var zoom := ScreenScale.world_zoom(get_viewport())
+	camera.zoom = Vector2(zoom, zoom)
+	var view := get_viewport().get_visible_rect().size
+	var area := world_space.get_global_rect()
+	camera.position = _camera_lift + (view / 2.0 - area.get_center()) / zoom
+
+
+## Whether the player is close enough to the door to go in.
+func near_door() -> bool:
+	return player.position.distance_to(house.position + DOOR_SPOT) <= DOOR_REACH
+
+
+## Whether a point in the world is on the house, where a tap opens the
+## wardrobe.
+func on_house(point: Vector2) -> bool:
+	return Rect2(house.position + HOUSE_RECT.position, HOUSE_RECT.size).has_point(point)
+
+
+func _input(event: InputEvent) -> void:
+	# A tap or click on the house goes in. This runs before the joystick,
+	# which would otherwise take the touch.
+	var tap := event as InputEventMouseButton
+	if tap == null or not tap.pressed or tap.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if panel.get_global_rect().has_point(tap.position):
+		return
+	# Clicking the plaza leaves the text boxes, so the keys walk again.
+	get_viewport().gui_release_focus()
+	if on_house(get_global_mouse_position()):
+		get_viewport().set_input_as_handled()
+		_open_wardrobe()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("interact") and near_door():
+		get_viewport().set_input_as_handled()
+		_open_wardrobe()
+	elif event.is_action_pressed("ui_cancel"):
+		get_viewport().gui_release_focus()
+
+
+## A ring of walls around the house, so the player can't wander off into the
+## haze and lose it.
+func _build_edge() -> void:
+	var ring := PackedVector2Array()
+	for i in EDGE_SIDES:
+		var from := Vector2.from_angle(TAU * i / EDGE_SIDES) * EDGE_RADIUS
+		var to := Vector2.from_angle(TAU * (i + 1) / EDGE_SIDES) * EDGE_RADIUS
+		ring.append_array([house.position + from, house.position + to])
+	var shape := ConcavePolygonShape2D.new()
+	shape.segments = ring
+	var collision := CollisionShape2D.new()
+	collision.shape = shape
+	%Edge.add_child(collision)
 
 
 ## Hosts or joins straight away when the game was started with `--create`
@@ -59,27 +153,6 @@ func _follow_launch_options() -> void:
 	elif code != "":
 		code_input.text = Session.normalize_code(code)
 		_on_join_button_pressed()
-
-
-## Shows the player's house with their character in its yard, the same way
-## the customizer's House tab does. The stage sizes and places both to fit
-## the preview area.
-func _build_stage() -> void:
-	var stage := Wardrobe.Stage.new()
-	stage.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	stage.texture_filter = TEXTURE_FILTER_NEAREST
-	preview_area.add_child(stage)
-	var house: House = HOUSE_SCENE.instantiate()
-	house.appearance = _shown_house()
-	# The yard sits at z_index -1, so lift the house and character above the
-	# panel behind them.
-	house.z_index = 1
-	stage.add_child(house)
-	stage.house = house
-	preview.reparent(stage, false)
-	preview.z_index = 1
-	stage.character = preview
-	stage.show_house = true
 
 
 ## The player's house with any unpicked layers filled in, so it can be drawn.
@@ -110,7 +183,9 @@ func _begin_request() -> void:
 	_update_buttons()
 
 
-func _on_customize_button_pressed() -> void:
+func _open_wardrobe() -> void:
+	if _waiting:
+		return
 	get_tree().change_scene_to_file(CUSTOMIZER_SCENE)
 
 
@@ -130,9 +205,18 @@ func _on_join_button_pressed() -> void:
 		_on_session_request_failed(error)
 
 
-## The server put the player in a lobby: go to the town.
+## Where the player stands, from their house's ground point.
+func arrival_spot() -> Vector2:
+	return player.position - house.position
+
+
+## The server put the player in a lobby: go to the town, where they appear
+## in the same spot by their house, facing the same way, and the plaza's
+## floor dissolves into the town around them.
 func _on_session_lobby_changed() -> void:
 	if _waiting and Session.in_lobby():
+		Session.arrival_spot = arrival_spot()
+		Session.arrival_facing = player.facing
 		get_tree().change_scene_to_file(TOWN_SCENE)
 
 
@@ -144,8 +228,9 @@ func _on_session_request_failed(message: String) -> void:
 	_update_buttons()
 
 
-func _on_name_input_text_changed(_new_text: String) -> void:
+func _on_name_input_text_changed(new_text: String) -> void:
 	status_label.text = ""
+	house.owner_name = new_text.strip_edges()
 	_update_buttons()
 
 

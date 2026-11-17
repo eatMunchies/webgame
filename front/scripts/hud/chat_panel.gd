@@ -1,6 +1,6 @@
 extends PanelContainer
 
-## The chat on the right of the town: a log of everything that happens
+## The chat beside the town (under it on a tall screen): a log of everything that happens
 ## (chat, votes, night results, deaths) and a box to type in, with the
 ## channel plain text goes to right now shown beside it (town, jail, mafia,
 ## dead, or whisper while a `/w` line is typed). Typing works like the
@@ -21,6 +21,12 @@ extends PanelContainer
 ## nightfall, and in the lobby. While collapsed, the tab counts unread
 ## whispers and private notices, and the player can open it themselves (or
 ## press Enter to type).
+##
+## The panel only shows or hides its log; the HUD sizes it, on
+## expanded_changed, since how much room it takes depends on the screen.
+
+## The log was shown or hidden.
+signal expanded_changed(expanded: bool)
 
 ## Line colors, by how a line starts.
 const COLORS := {
@@ -63,14 +69,9 @@ var _toggle := Button.new()
 ## Whether the panel was open before the will editor opened it, to put it
 ## back when the editor closes.
 var _expanded_before_will := true
-## The panel's bottom edge when expanded, from the scene.
-var _full_anchor_bottom := 0.0
-var _full_offset_bottom := 0.0
 
 
 func _ready() -> void:
-	_full_anchor_bottom = anchor_bottom
-	_full_offset_bottom = offset_bottom
 	_toggle.focus_mode = FOCUS_NONE
 	_toggle.pressed.connect(func() -> void: _set_expanded(not expanded))
 	$Rows/Header.add_child(_toggle)
@@ -83,6 +84,7 @@ func _ready() -> void:
 	Session.phase_changed.connect(_update)
 	# Dying or being jailed changes the channel without a new phase.
 	Session.actions_changed.connect(_update_channel)
+	Session.minigame_changed.connect(_update_toggle)
 	input.text_changed.connect(func(_text: String) -> void: _update_channel())
 	_update()
 
@@ -116,8 +118,7 @@ func _update() -> void:
 	if open_time != _was_open_time and not will_editor.visible:
 		_set_expanded(open_time)
 	_was_open_time = open_time
-	# At chat time the panel stays open for everyone, so it can't be hidden.
-	_toggle.visible = not open_time
+	_update_toggle()
 	_update_channel()
 
 
@@ -134,19 +135,17 @@ func _set_expanded(open: bool) -> void:
 		part.visible = open
 	if open:
 		_unread = 0
-		anchor_bottom = _full_anchor_bottom
-		offset_bottom = _full_offset_bottom
-		grow_vertical = GROW_DIRECTION_BOTH
 	else:
 		input.release_focus()
-		# Shrink to the header, hanging from the top edge.
-		grow_vertical = GROW_DIRECTION_END
-		anchor_bottom = anchor_top
-		offset_bottom = offset_top
 	_update_toggle()
+	expanded_changed.emit(open)
 
 
 func _update_toggle() -> void:
+	# At chat time the panel stays open for everyone, so it can't be hidden,
+	# except during a minigame, which it would cover on a tall screen. It can
+	# always be opened once something (a minigame) collapsed it.
+	_toggle.visible = not expanded or not chat_time() or Session.in_minigame()
 	if expanded:
 		_toggle.text = "Hide"
 	elif _unread > 0:
@@ -165,6 +164,12 @@ func _update_channel() -> void:
 	var shown: Array = CHANNELS.get(channel, CHANNELS[""])
 	channel_label.text = shown[0]
 	channel_label.add_theme_color_override("font_color", shown[1])
+
+
+## Collapses the log to the tab, unless the will editor is open over it.
+func collapse() -> void:
+	if not will_editor.visible:
+		_set_expanded(false)
 
 
 func open_will() -> void:

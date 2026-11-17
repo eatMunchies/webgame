@@ -24,7 +24,7 @@ extends StaticBody2D
 @onready var _facade: Sprite2D = $Facade
 @onready var _roof: Sprite2D = $Roof
 @onready var _name_label: Label = $NameLabel
-@onready var _walls: CollisionShape2D = $CollisionShape2D
+@onready var walls: CollisionShape2D = $CollisionShape2D
 
 
 func _ready() -> void:
@@ -49,7 +49,7 @@ func refresh() -> void:
 	_name_label.position.y = _drawing_top() - _name_label.size.y
 	# An empty lot has no walls to bump into. Collision changes have to wait
 	# until the physics step is done, hence set_deferred.
-	_walls.set_deferred("disabled", empty)
+	walls.set_deferred("disabled", empty)
 
 
 ## The highest drawn pixel of the house, as a y relative to the node's

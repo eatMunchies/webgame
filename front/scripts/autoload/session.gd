@@ -57,6 +57,13 @@ var last_error := ""
 ## Whether the lobby screen already acted on `--create` or `--join=`, so it
 ## doesn't rejoin after the player leaves.
 var launch_request_done := false
+## Where the player stood by their house on the start screen, in world
+## pixels from its ground point, so the town can put them in the same spot by
+## their house on its lot, and phase in around them. The town uses it once
+## and clears it. A Vector2, or null.
+var arrival_spot: Variant = null
+## Which way the player faced on the start screen, for the town to match.
+var arrival_facing := Character.Facing.DOWN
 
 ## The name the connection was opened with, to reconnect if it changes.
 var _connected_as := ""
