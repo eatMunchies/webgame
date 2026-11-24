@@ -28,6 +28,8 @@ build-web profile="debug":
 
 # Build the release wasm, then export the game to front/build/web
 export-web: (build-web "release")
+    # Godot won't create the export folder itself, and it's gitignored, so a fresh checkout lacks it.
+    mkdir -p front/build/web
     {{ godot }} --headless --path front --export-release Web
 
 # Run tests: `unit` (cargo test), `godot` (GdUnit4 suites in front/tests), or `all`. Extra

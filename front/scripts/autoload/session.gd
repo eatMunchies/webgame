@@ -147,16 +147,22 @@ func normalize_code(raw_code: String) -> String:
 
 
 ## Where the game server is. Run with `-- --server=ws://host:port/ws` to
-## choose one. In a browser it is the host that served the page, on
-## DEFAULT_PORT; otherwise this machine.
+## choose one. In a browser served over https it is `/ws` on the page's own
+## origin, since a proxy in front (like a Cloudflare Tunnel) routes that path
+## to the server and only answers on the standard port. Over plain http, as
+## when testing an export locally, it is the page's host on DEFAULT_PORT.
+## Otherwise it is this machine.
 func server_url() -> String:
 	var chosen := LaunchOptions.value("server")
 	if chosen != "":
 		return chosen
 	if OS.has_feature("web"):
-		var host: String = JavaScriptBridge.eval("window.location.hostname")
 		var secure: bool = JavaScriptBridge.eval("window.location.protocol") == "https:"
-		return "%s://%s:%d/ws" % ["wss" if secure else "ws", host, DEFAULT_PORT]
+		if secure:
+			var origin_host: String = JavaScriptBridge.eval("window.location.host")
+			return "wss://%s/ws" % origin_host
+		var host: String = JavaScriptBridge.eval("window.location.hostname")
+		return "ws://%s:%d/ws" % [host, DEFAULT_PORT]
 	return "ws://127.0.0.1:%d/ws" % DEFAULT_PORT
 
 

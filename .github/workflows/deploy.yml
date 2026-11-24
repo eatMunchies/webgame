@@ -1,0 +1,160 @@
+name: Deploy
+
+# Builds the two images the home server runs and publishes them to GitHub Container Registry:
+#   ghcr.io/eatmunchies/webgame-server  the Rust game server (rust/Dockerfile)
+#   ghcr.io/eatmunchies/webgame-web     the Godot web export behind nginx (deploy/web/Dockerfile)
+# Each gets a `latest` tag and a tag of the commit it was built from. The server pulls `latest`
+# on its own schedule; nothing here reaches the server.
+#
+# It runs after Tests passes on main, so a red build never ships, or by hand from the Actions tab.
+# workflow_run only fires for workflow files on the default branch, so this starts working once
+# it is merged to main.
+
+on:
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write   # push to ghcr.io with the built-in GITHUB_TOKEN
+
+# One deploy at a time; a newer push replaces a deploy that hasn't finished.
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  GODOT_VERSION: 4.7.2-stable
+  EMSCRIPTEN_VERSION: 3.1.74
+  # Registry names must be lowercase, and the owner name has capitals, so it is spelled out.
+  IMAGE_PREFIX: ghcr.io/eatmunchies
+  # The commit Tests ran on, or the branch head for a manual run.
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  server:
+    name: Server image
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: rust
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/webgame-server:latest
+            ${{ env.IMAGE_PREFIX }}/webgame-server:${{ env.SHA }}
+          # Reuse compiled dependency layers between runs.
+          cache-from: type=gha,scope=server
+          cache-to: type=gha,scope=server,mode=max
+
+  web:
+    name: Web image
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.SHA }}
+
+      # Stable builds the native extension Godot loads while importing; nightly (with rust-src
+      # for -Zbuild-std) builds the wasm one the export ships.
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+          targets: wasm32-unknown-emscripten
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          key: web
+
+      - uses: extractions/setup-just@v4
+
+      - name: Cache emsdk
+        id: cache-emsdk
+        uses: actions/cache@v6
+        with:
+          path: ~/emsdk
+          key: emsdk-${{ env.EMSCRIPTEN_VERSION }}
+
+      - name: Install emsdk
+        if: steps.cache-emsdk.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
+          ~/emsdk/emsdk install "$EMSCRIPTEN_VERSION"
+          ~/emsdk/emsdk activate "$EMSCRIPTEN_VERSION"
+
+      - name: Point just at emsdk
+        run: echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
+
+      # Godot and only the web templates this export uses (extensions on, threads off, so the
+      # dlink + nothreads build), not the whole 1 GB template bundle.
+      - name: Cache Godot
+        id: cache-godot
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-web-${{ env.GODOT_VERSION }}
+
+      - name: Download Godot and web export templates
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}"
+          mkdir -p ~/godot
+          curl -fsSL -o /tmp/godot.zip "$base/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d ~/godot
+          templates=~/.local/share/godot/export_templates/${GODOT_VERSION/-/.}
+          mkdir -p "$templates"
+          curl -fsSL -o /tmp/templates.tpz "$base/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q -j /tmp/templates.tpz 'templates/web_*' 'templates/version.txt' -d "$templates"
+          ls "$templates"
+
+      - name: Point just at Godot
+        run: echo "GODOT=$HOME/godot/Godot_v${GODOT_VERSION}_linux.x86_64" >> "$GITHUB_ENV"
+
+      # A fresh checkout has no .godot import cache. Build the native extension so the import can
+      # load it, the same as `just test godot` does, then import, then export.
+      - name: Import project
+        run: |
+          just build
+          "$GODOT" --headless --path front --import
+
+      - name: Export web build
+        run: just export-web
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/web/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/webgame-web:latest
+            ${{ env.IMAGE_PREFIX }}/webgame-web:${{ env.SHA }}
