@@ -1,0 +1,4 @@
+# Only the web image builds from the repo root; send it just what it copies.
+*
+!deploy/web/
+!front/build/web/
