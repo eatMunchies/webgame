@@ -20,6 +20,11 @@ use crate::registry::{LobbyHandle, Registry};
 
 static NEXT_CONNECTION: AtomicU64 = AtomicU64::new(1);
 
+/// How often the server pings each client. Proxies such as Cloudflare close a WebSocket
+/// that stays silent for about 100 seconds, and a player idling in a lobby may send nothing,
+/// so a ping well inside that keeps the connection open. Browsers answer pings on their own.
+const KEEPALIVE_EVERY: std::time::Duration = std::time::Duration::from_secs(30);
+
 struct Session {
     registry: Arc<Registry>,
     connection: Connection,
@@ -32,12 +37,18 @@ pub async fn run(socket: WebSocket, registry: Arc<Registry>) {
     let (mut sink, mut stream) = socket.split();
     let (outbox, mut outgoing) = mpsc::unbounded_channel::<ServerMessage>();
     let writer = tokio::spawn(async move {
-        while let Some(message) = outgoing.recv().await {
-            if sink
-                .send(Message::Binary(encode(&message).into()))
-                .await
-                .is_err()
-            {
+        let mut keepalive = tokio::time::interval(KEEPALIVE_EVERY);
+        // The first tick fires at once; skip it so the first ping waits a full interval.
+        keepalive.tick().await;
+        loop {
+            let frame = tokio::select! {
+                message = outgoing.recv() => match message {
+                    Some(message) => Message::Binary(encode(&message).into()),
+                    None => break,
+                },
+                _ = keepalive.tick() => Message::Ping(Vec::new().into()),
+            };
+            if sink.send(frame).await.is_err() {
                 break;
             }
         }
