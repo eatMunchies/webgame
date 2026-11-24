@@ -168,8 +168,8 @@ pub enum ErrorCode {
     InvalidTarget,
     NoUsesLeft,
     TooLong,
-    /// The same user connected again somewhere else, so this connection was dropped.
-    ConnectedElsewhere,
+    /// Someone with that name is already connected to the lobby.
+    NameTaken,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
