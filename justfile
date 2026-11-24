@@ -109,14 +109,15 @@ clients count="4": build
     done
     wait
 
-# Run the game server. Options go to it: --fast (short phases), --seed N (repeatable roles),
+# Run the game server. Options go to it: --fast (short phases), --rolls (minigames may be
+# rolled, so terminal clients can play at normal speed), --seed N (repeatable roles),
 # --port, --db. Its SQLite file defaults to rust/webgame.db.
 [working-directory("rust")]
 server *args:
     cargo run -p webgame-server -- {{ args }}
 
 # Run the game server with short phases, for playing a test game from terminals. Terminal
-# clients roll their night minigames, which only --fast allows.
+# clients roll their night minigames, which only --rolls (or --fast) allows.
 play: (server "--fast")
 
 # Play from a terminal: `just cli --name Ada --create`, then `just cli --name Bram --join CODE`

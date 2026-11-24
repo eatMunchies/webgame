@@ -9,8 +9,8 @@
 //! ```
 //!
 //! It can't show the night's minigames, so it asks the server to roll each skill check and
-//! fight it is given. Servers started with `--fast` allow that; others refuse, and the
-//! minigame fails. With `--fight-bot` it plays its fights instead (see [`fight_bot`]), so a
+//! fight it is given. Servers started with `--rolls` (or `--fast`) allow that; others refuse,
+//! and the minigame fails. With `--fight-bot` it plays its fights instead (see [`fight_bot`]), so a
 //! player in the Godot client gets a real fight against it.
 
 mod fight_bot;

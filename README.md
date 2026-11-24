@@ -137,11 +137,11 @@ Players can also join from the Godot game (`just run`) by typing the lobby code,
 | `/target N M` | (Copycat) use player N's night ability on player M. Or pick in two steps, like the buttons do: `/copy N`, then `/target M`. |
 | `/alert`, `/vest`, `/ignite`, `/execute` | Night abilities with no target: Veteran, Survivor, Arsonist, Jailer. |
 | `/cancel` | Take back tonight's action, while actions are still being chosen. |
-| `/roll` | Have the server decide your minigame at random (a skill check passes 75% of the time, a fight is a coin flip). The terminal client does this by itself, since it can't show minigames; only `--fast` servers allow it. |
+| `/roll` | Have the server decide your minigame at random (a skill check passes 75% of the time, a fight is a coin flip). The terminal client does this by itself, since it can't show minigames; only servers run with `--rolls` (or `--fast`) allow it. |
 | `/will text` | Set your last will, shown to everyone when you die. Write `\n` for a new line. `/will` alone shows it. |
 | `/role`, `/roles`, `/players` | Your role and team, the game's role list, and who is alive. |
 
-The server takes `--fast` (short phases, and minigames may be rolled, which the terminal client does), `--seed N` (the same roles every game, given the same players), `--port` (default 9090), `--host` (default 127.0.0.1) and `--db` (default `webgame.db` in the directory it runs from, which is `rust/` under `just`; gitignored). `just server` runs it with normal phase lengths. To look at what a game recorded: `sqlite3 rust/webgame.db 'select * from games'`.
+The server takes `--fast` (short phases, and turns on `--rolls`), `--rolls` (minigames may be rolled, which the terminal client does, so CLI bots can play on a server with normal phase lengths: `just server --rolls`; any client may roll, so only use it where you trust the players), `--seed N` (the same roles every game, given the same players), `--port` (default 9090), `--host` (default 127.0.0.1) and `--db` (default `webgame.db` in the directory it runs from, which is `rust/` under `just`; gitignored). `just server` runs it with normal phase lengths. To look at what a game recorded: `sqlite3 rust/webgame.db 'select * from games'`.
 
 There is no authentication yet. A username is the whole identity: the same name always gets the same user id, which is how a player who drops reconnects to their seat (join the same code with the same name). While a name is connected to a lobby, nobody else can join it under that name. The server only listens on localhost by default, and doesn't check the `Origin` of WebSocket connections, so don't expose it to the internet as it is.
 

@@ -17,10 +17,16 @@ struct Args {
     #[arg(long, default_value = "webgame.db")]
     db: PathBuf,
     /// Short phases (15s discussion, under a minute of night) for trying the game out. Also
-    /// lets players have the server roll their minigames at random, which the terminal client
-    /// does since it can't show them.
+    /// turns on --rolls.
     #[arg(long)]
     fast: bool,
+    /// Let players have the server roll their minigames at random (a skill check passes 75% of
+    /// the time, a fight is a coin flip), at normal phase lengths. Terminal clients, and so CLI
+    /// bots, roll every minigame since they can't show them; without this their skill checks
+    /// fail and their fights hang. Any client may roll, so only turn it on where you trust the
+    /// players.
+    #[arg(long)]
+    rolls: bool,
     /// Seed every game the same way, to replay one.
     #[arg(long)]
     seed: Option<u64>,
@@ -37,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Timers::NORMAL
         },
         seed: args.seed,
-        rolls: args.fast,
+        rolls: args.fast || args.rolls,
     };
     let listener = tokio::net::TcpListener::bind((args.host, args.port)).await?;
     println!(
