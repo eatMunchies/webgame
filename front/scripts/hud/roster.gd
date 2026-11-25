@@ -177,10 +177,11 @@ func _row(member: Dictionary, in_game: bool, voting: bool, aimed: Array,
 		name_label.add_theme_color_override("font_color", HudStyle.YOU_COLOR)
 	row.add_child(name_label)
 
+	# The note is never clipped; the name gives way instead. A clipped label in
+	# a row is sized to its minimum, which is a pixel, so votes, deaths and
+	# the host never showed.
 	var note := Label.new()
 	note.theme_type_variation = "HudDim"
-	note.clip_text = true
-	note.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	var votes: int = member["votes"]
 	if not alive:
 		# Struck through as well as greyed, so it reads without color too.
@@ -189,7 +190,7 @@ func _row(member: Dictionary, in_game: bool, voting: bool, aimed: Array,
 		name_label.draw.connect(_strike.bind(name_label))
 		note.text = member["role"] if member["role"] != "" else "dead"
 	elif voting and votes > 0:
-		note.text = str(votes)
+		note.text = "%d vote%s" % [votes, "" if votes == 1 else "s"]
 		note.theme_type_variation = "HudHeading"
 	elif member["role"] != "":
 		# After the game everyone's role is public, the living included.
