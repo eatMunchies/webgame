@@ -27,10 +27,13 @@ const WIDTH_SHARE := 0.92
 ## How tall the multiline box is, in units.
 const MULTILINE_HEIGHT := 84.0
 const BACKDROP := Color(0, 0, 0, 0.55)
-## The text size in the boxes, and the room between a multiline box's lines:
-## bigger than the HUD's, so a click or tap lands the caret where it's meant.
+## The text size in the boxes, and the room between a multiline box's lines.
 const TEXT_SIZE := 8
 const LINE_SPACING := 3
+## The caret is thick and doesn't blink, so it's always clear where typing
+## goes; a multiline box also tints the line the caret is on.
+const CARET_WIDTH := 2
+const CURRENT_LINE := Color(1, 1, 1, 0.07)
 ## How long after opening a tap on the backdrop is ignored. One tap on a
 ## phone arrives as a touch and a made-up mouse click; when the first opens
 ## the prompt, the second would land on the backdrop and close it again.
@@ -96,6 +99,12 @@ func _ready() -> void:
 	_multi.custom_minimum_size.y = MULTILINE_HEIGHT
 	for box: Control in [_line, _multi]:
 		box.add_theme_font_size_override("font_size", TEXT_SIZE)
+		box.add_theme_constant_override("caret_width", CARET_WIDTH)
+		box.add_theme_color_override("caret_color", RpgTheme.GOLD_BRIGHT)
+	_line.caret_blink = false
+	_multi.caret_blink = false
+	_multi.highlight_current_line = true
+	_multi.add_theme_color_override("current_line_color", CURRENT_LINE)
 	_multi.add_theme_constant_override("line_spacing", LINE_SPACING)
 	_multi.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	rows.add_child(_multi)
