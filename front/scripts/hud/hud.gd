@@ -23,12 +23,12 @@ extends Control
 ## RoleCard, which also opens on its own when a game starts).
 ##
 ## On a tall screen the chat is a sheet over the town, open by default, with
-## a Chat tab on its top edge. Drag the tab down to uncover the town and walk
-## around, and up to bring the chat back; a tap does either. While the chat
-## is down, the tab counts new lines. When a night minigame begins the sheet
-## slides down and the roster steps aside, so the minigame has the room; the
-## tab stays, so the chat can be pulled up over the minigame to read what
-## happened. Both come back when the minigame ends.
+## a tab on its top edge: a small rounded grip with three bars. Drag the tab
+## down to uncover the town and walk around, and up to bring the chat back; a
+## tap does either. While the chat is down, a dot on the tab says new lines
+## came in. During a night minigame the game takes the bottom half of the
+## town's part (MinigameSpace) and the roster steps aside; the chat sheet sits
+## above the game, so what happened the night before stays a pull away.
 ##
 ## Typing goes through one TextPrompt, a box in the upper middle of the
 ## screen, clear of a phone's keyboard: whispering from the roster, writing
@@ -46,8 +46,12 @@ const ROSTER_SHARE := 1.0 / 3.0
 const SHEET_SECONDS := 0.2
 ## How far the handle must be dragged, in units, to count as a drag.
 const DRAG_THRESHOLD := 6.0
-## The tall screen's Chat tab, in units.
-const TAB_SIZE := Vector2(56, 12)
+## The tall screen's chat tab, in units, and the radius of its top corners.
+const TAB_SIZE := Vector2(30, 13)
+const TAB_RADIUS := 6
+## On a tall screen, the share of the town's part a night minigame takes,
+## at the bottom, under the chat.
+const MINIGAME_SHARE := 0.5
 const WILL_TITLE := "Last will"
 const WILL_PLACEHOLDER := "Everyone reads this when you die. N1: checked 3, not suspicious"
 
@@ -61,6 +65,9 @@ const WILL_PLACEHOLDER := "Everyone reads this when you die. N1: checked 3, not 
 @onready var will_button: Button = %WillButton
 ## Where the town shows through, for the town's camera and its overlays.
 @onready var world_space: Control = %WorldSpace
+## Where the town puts the night's MinigameOverlay: all of WorldSpace, or on a
+## tall screen its bottom half.
+@onready var minigame_space: Control = %MinigameSpace
 
 var prompt: TextPrompt
 var role_card: RoleCard
@@ -145,19 +152,34 @@ func _apply_layout() -> void:
 	_update_side()
 
 
-## The roster gives a tall screen's room to a night minigame.
+## The roster gives a tall screen's room to a night minigame, which takes
+## the bottom of the town's part there, under the chat.
 func _update_side() -> void:
-	roster.visible = not (shell.vertical and Session.in_minigame())
+	var tall_minigame := shell.vertical and Session.in_minigame()
+	roster.visible = not tall_minigame
+	minigame_space.anchor_top = 1.0 - MINIGAME_SHARE if tall_minigame else 0.0
+	minigame_space.offset_top = 0.0
 	_update_will_button()
+	_place_sheet()
 
 
-## Sizes the tall screen's chat sheet: anchored to the bottom of the town's
-## part, covering `_sheet` of it (all but the tab's height, open), with the
-## tab on its top edge.
+## How much of the bottom of the town's part the chat sheet stays above: the
+## minigame's share during a tall screen's night minigame, or none.
+func _sheet_floor() -> float:
+	if shell.vertical and Session.in_minigame():
+		return roundf(middle.size.y * MINIGAME_SHARE)
+	return 0.0
+
+
+## Sizes the tall screen's chat sheet: resting on the bottom of the town's
+## part (or on a night minigame's top), covering `_sheet` of the room above
+## (all but the tab's height, open), with the tab on its top edge.
 func _place_sheet() -> void:
 	if not shell.vertical:
 		return
-	var height := roundf((middle.size.y - TAB_SIZE.y) * _sheet)
+	var floor_height := _sheet_floor()
+	var room := middle.size.y - floor_height - TAB_SIZE.y
+	var height := roundf(room * _sheet)
 	chat_panel.visible = height >= 1.0
 	chat_panel.anchor_left = 0.0
 	chat_panel.anchor_right = 1.0
@@ -165,16 +187,16 @@ func _place_sheet() -> void:
 	chat_panel.anchor_bottom = 1.0
 	chat_panel.offset_left = 0.0
 	chat_panel.offset_right = 0.0
-	chat_panel.offset_top = -height
-	chat_panel.offset_bottom = 0.0
+	chat_panel.offset_top = -floor_height - height
+	chat_panel.offset_bottom = -floor_height
 	chat_tab.size = TAB_SIZE
 	chat_tab.position = Vector2(roundf((middle.size.x - TAB_SIZE.x) / 2.0),
-			middle.size.y - height - TAB_SIZE.y)
+			middle.size.y - floor_height - height - TAB_SIZE.y)
 	_update_handle()
 
 
 func _update_handle() -> void:
-	chat_tab.text = "Chat (%d)" % _unread if _unread > 0 and _sheet <= 0.5 else "Chat"
+	chat_tab.queue_redraw()
 
 
 func _slide_sheet(to: float) -> void:
@@ -188,21 +210,28 @@ func _slide_sheet(to: float) -> void:
 		_place_sheet(), _sheet, to, SHEET_SECONDS)
 
 
-## The Chat tab: a button-like tab, rounded on top, with a grip line, that
-## rides on the sheet's top edge.
+## The chat tab: a small tab, well rounded on top, with three stacked bars
+## to grab, riding on the sheet's top edge. A gold dot on its corner says
+## new lines came in while the chat was down.
 func _add_chat_tab() -> void:
 	chat_tab.focus_mode = Control.FOCUS_NONE
-	chat_tab.add_theme_font_size_override("font_size", HudStyle.FONT_SIZE)
+	chat_tab.tooltip_text = "Chat"
 	for state in ["normal", "hover", "pressed", "hover_pressed"]:
 		var box := HudStyle.panel_box()
+		box.corner_radius_top_left = TAB_RADIUS
+		box.corner_radius_top_right = TAB_RADIUS
 		box.corner_radius_bottom_left = 0
 		box.corner_radius_bottom_right = 0
-		box.content_margin_top = 3
-		box.content_margin_bottom = 0
+		box.border_width_bottom = 0
+		if state.begins_with("hover"):
+			box.border_color = RpgTheme.GOLD_BRIGHT
 		chat_tab.add_theme_stylebox_override(state, box)
 	chat_tab.draw.connect(func() -> void:
-		var middle_x := roundf(chat_tab.size.x / 2.0)
-		chat_tab.draw_line(Vector2(middle_x - 6, 1.5), Vector2(middle_x + 6, 1.5), RpgTheme.TRIM, 1.0))
+		var x := roundf(chat_tab.size.x / 2.0)
+		for y in [4.5, 7.5, 10.5]:
+			chat_tab.draw_line(Vector2(x - 6, y), Vector2(x + 6, y), RpgTheme.TEXT, 1.0)
+		if _unread > 0 and _sheet <= 0.5:
+			chat_tab.draw_circle(Vector2(chat_tab.size.x - 5, 4), 2.0, RpgTheme.GOLD_BRIGHT))
 	chat_tab.gui_input.connect(_on_handle_input)
 	middle.add_child(chat_tab)
 
@@ -253,8 +282,9 @@ func _on_handle_input(event: InputEvent) -> void:
 		var moved := motion.global_position.y - _drag_from.y
 		if absf(moved) >= DRAG_THRESHOLD:
 			_dragging = true
-		if _dragging and middle.size.y > 0.0:
-			_sheet = clampf(_drag_sheet - moved / middle.size.y, 0.0, 1.0)
+		var room := middle.size.y - _sheet_floor() - TAB_SIZE.y
+		if _dragging and room > 0.0:
+			_sheet = clampf(_drag_sheet - moved / room, 0.0, 1.0)
 			_place_sheet()
 		chat_tab.accept_event()
 
@@ -268,9 +298,9 @@ func _on_chat_line_added() -> void:
 func _on_minigame_changed() -> void:
 	var in_minigame := Session.in_minigame()
 	if shell.vertical and in_minigame != _in_minigame:
-		# A minigame takes the sheet's place; the player's choice comes back
-		# after it.
-		_slide_sheet(0.0 if in_minigame else (1.0 if _sheet_wanted else 0.0))
+		# The chat opens above the game, so the night before is in view; the
+		# player's own choice comes back after it.
+		_slide_sheet(1.0 if in_minigame else (1.0 if _sheet_wanted else 0.0))
 	_in_minigame = in_minigame
 	_update_side()
 

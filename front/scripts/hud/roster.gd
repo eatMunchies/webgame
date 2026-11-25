@@ -12,11 +12,15 @@ extends PanelContainer
 ## - a heading with how many are alive, or while voting how many votes put
 ##   someone on trial;
 ## - a row per player, in lot order: their number in a circle of their
-##   seat's color (NumberBadge; what commands like `/vote 3` take), name, a note (their votes while voting, the role their
-##   death revealed, away, host), and that player's buttons: the action
-##   aimed at them (Vote, Jail, or your night ability like Heal), and
-##   Whisper by day, except to or from someone on trial. You are in blue; the dead are greyed and struck through;
-## - your role.
+##   seat's color (NumberBadge; what commands like `/vote 3` take), name, a
+##   note (their votes while voting, the role their death revealed, away,
+##   host), and that player's buttons: the action aimed at them (Vote, Jail,
+##   or your night ability like Heal), and Whisper by day, except to or from
+##   someone on trial. You are in blue; the dead are greyed and struck
+##   through.
+##
+## Your own role isn't written here, so nobody reads it over your shoulder;
+## the role card (the ID card button) has it.
 ##
 ## Action buttons come from client.actions() and submit the same command
 ## typing would, so the server's answer shows in the chat log either way. The
@@ -48,7 +52,6 @@ const WHISPER := "Whisper"
 @onready var heading: Label = %Heading
 @onready var scroll: ScrollContainer = %RosterScroll
 @onready var rows: VBoxContainer = %PlayerRows
-@onready var role_label: Label = %RoleLabel
 
 ## What the panel was last built from, to skip rebuilding when nothing
 ## changed: actions_changed fires for every server message.
@@ -103,8 +106,6 @@ func _update() -> void:
 		heading.text = "Players: %d/%d alive" % [alive, members.size()]
 	else:
 		heading.text = "Players %d/%d" % [members.size(), Session.MAX_PLAYERS]
-	role_label.text = "Role: %s" % role
-	role_label.visible = role != "" and in_game
 
 	var aimed := {}
 	for action in actions:
