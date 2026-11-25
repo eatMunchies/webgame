@@ -186,12 +186,6 @@ impl Lobby {
             }
             return Ok(());
         }
-        if self.in_game() {
-            return Err(ServerError::new(
-                ErrorCode::GameInProgress,
-                "That lobby is in the middle of a game.",
-            ));
-        }
         if self.members.len() >= MAX_PLAYERS {
             return Err(ServerError::new(
                 ErrorCode::LobbyFull,
@@ -205,15 +199,25 @@ impl Lobby {
             .expect("checked the lobby isn't full");
         self.members.push(Member {
             user,
-            name,
+            name: name.clone(),
             slot,
             connection: Some(connection),
             appearance: None,
             movement: None,
         });
         self.members.sort_by_key(|m| m.slot);
+        // Joining a game in progress seats them as a spectator: dead, watching with the dead.
+        let spectating = self.in_game();
+        if spectating && let Some(running) = &mut self.running {
+            running.game.add_spectator(slot, user, name);
+        }
         self.broadcast_lobby();
         self.send_positions(slot);
+        if spectating && let Some(running) = &self.running {
+            for message in running.game.snapshot(slot) {
+                self.send_to_slot(slot, message);
+            }
+        }
         Ok(())
     }
 

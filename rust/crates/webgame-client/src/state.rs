@@ -16,6 +16,8 @@ pub struct State {
     pub lobby: Option<LobbyInfo>,
     pub me: Option<PlayerSlot>,
     pub role: Option<Role>,
+    /// Joined the current game after it started: dead from the start, with no role.
+    pub spectator: bool,
     pub players: Vec<PlayerSummary>,
     pub role_list: Vec<RoleSlot>,
     pub team: Vec<TeamMember>,
@@ -77,6 +79,7 @@ impl Default for State {
             lobby: None,
             me: None,
             role: None,
+            spectator: false,
             players: Vec::new(),
             role_list: Vec::new(),
             team: Vec::new(),
@@ -227,6 +230,9 @@ impl State {
     }
 
     pub fn role_text(&self) -> String {
+        if self.spectator {
+            return "You're a spectator: you joined after the game started.".into();
+        }
         let Some(role) = self.role else {
             return "You don't have a role until the game starts.".into();
         };
@@ -471,6 +477,7 @@ impl State {
     fn reset_game(&mut self) {
         self.me = None;
         self.role = None;
+        self.spectator = false;
         self.players.clear();
         self.role_list.clear();
         self.team.clear();
@@ -488,7 +495,8 @@ impl State {
 
     fn start(&mut self, start: GameStart) -> Vec<String> {
         self.me = Some(start.you);
-        self.role = Some(start.role);
+        self.spectator = start.spectator;
+        self.role = (!start.spectator).then_some(start.role);
         self.players = start.players;
         self.role_list = start.role_list;
         self.team = start.team;
@@ -496,6 +504,14 @@ impl State {
         self.will = start.last_will;
         self.revealed.clear();
         self.votes.clear();
+        if self.spectator {
+            return vec![
+                "=== You joined a game in progress ===".into(),
+                "You're a spectator: dead from the start. Watch, and talk with the dead.".into(),
+                self.roles_text(),
+                self.players_text(),
+            ];
+        }
         vec![
             "=== The game begins ===".into(),
             self.roles_text(),
@@ -812,6 +828,7 @@ mod tests {
             .collect();
         state.apply(ServerMessage::GameStarted(GameStart {
             you: PlayerSlot(0),
+            spectator: false,
             role: Role::Sheriff,
             players,
             role_list: Vec::new(),

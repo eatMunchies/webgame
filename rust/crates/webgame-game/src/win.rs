@@ -15,7 +15,9 @@ pub const DRAW_AFTER_QUIET_CYCLES: u32 = 3;
 ///   the Mafia can't be outvoted, a lone Neutral Killer once it can't be outvoted;
 /// - or no killers are left at all, which is a Town win if any Town survive.
 pub fn check(players: &[Player], quiet_cycles: u32) -> Option<GameOverInfo> {
-    let alive: Vec<&Player> = players.iter().filter(|p| p.alive).collect();
+    // Spectators (see [`Player::spectator`]) are never alive and aren't in the results.
+    let players: Vec<&Player> = players.iter().filter(|p| !p.spectator).collect();
+    let alive: Vec<&Player> = players.iter().copied().filter(|p| p.alive).collect();
     let town = alive
         .iter()
         .filter(|p| p.faction() == Faction::Town)
@@ -86,6 +88,20 @@ mod tests {
                 p
             })
             .collect()
+    }
+
+    #[test]
+    fn spectators_are_left_out_of_the_results() {
+        let mut game = players(&[
+            (Role::Mafioso, false),
+            (Role::Doctor, true),
+            (Role::Survivor, false),
+        ]);
+        game[2].spectator = true;
+        let result = check(&game, 0).expect("the Mafia is gone");
+        assert_eq!(result.outcome, Outcome::Town);
+        assert!(!result.roles.iter().any(|(slot, _)| *slot == PlayerSlot(2)));
+        assert!(!result.winners.contains(&PlayerSlot(2)));
     }
 
     #[test]

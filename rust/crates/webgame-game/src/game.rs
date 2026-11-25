@@ -8,7 +8,7 @@ use webgame_protocol::{
     ErrorCode, FIGHT_ROUNDS, GameAction, GameOverInfo, GamePhase, GameStart, JailStatus,
     MAX_CHAT_LEN, MAX_PLAYERS, MAX_WILL_LEN, MIN_PLAYERS, Minigame, MinigamePlay, MinigameResult,
     NightAction, NightStage, Notice, PlayerSlot, PlayerSummary, Role, RoleSlot, ServerError,
-    ServerMessage, TRIALS_PER_DAY, TargetRule, TeamMember, Verdict, VoteEntry,
+    ServerMessage, TRIALS_PER_DAY, TargetRule, TeamMember, UserId, Verdict, VoteEntry,
 };
 
 use crate::check::Check;
@@ -278,6 +278,23 @@ impl Game {
 
     pub fn player(&self, slot: PlayerSlot) -> Option<&Player> {
         self.players.iter().find(|p| p.slot == slot)
+    }
+
+    /// Seats someone who joined after the game started, as a spectator: dead from the start, so
+    /// they can watch and talk in the dead chat, with no role and no part in the results. The
+    /// others' clients already show a seat that isn't in their game as dead. Does nothing if the
+    /// slot is already in the game.
+    pub fn add_spectator(&mut self, slot: PlayerSlot, user_id: UserId, name: String) {
+        if self.player(slot).is_some() {
+            return;
+        }
+        // Some role is needed; nobody sees it, the Amnesiac can't remember it, and it's left
+        // out of the results.
+        let mut player = Player::new(slot, user_id, name, Role::Survivor);
+        player.alive = false;
+        player.spectator = true;
+        self.players.push(player);
+        self.players.sort_by_key(|p| p.slot);
     }
 
     pub fn result(&self) -> Option<&GameOverInfo> {
@@ -660,7 +677,7 @@ impl Game {
                 }
             }
             (TargetRule::Dead, NightAction::Target(t))
-                if self.player(t).is_some_and(|p| !p.alive) =>
+                if self.player(t).is_some_and(|p| !p.alive && !p.spectator) =>
             {
                 if player.uses == 0 {
                     Err(no_uses())
@@ -1461,9 +1478,11 @@ impl Game {
         GameStart {
             you: slot,
             role: me.role,
+            spectator: me.spectator,
             players: self
                 .players
                 .iter()
+                .filter(|p| !p.spectator || p.slot == slot)
                 .map(|p| PlayerSummary {
                     slot: p.slot,
                     name: p.name.clone(),

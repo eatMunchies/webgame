@@ -11,6 +11,7 @@ config_version=5
 [application]
 
 config/name="Table of Salem"
+config/icon="res://icon.png"
 run/main_scene="res://scenes/main/lobby.tscn"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="Godot/app_userdata/webgame"

@@ -301,10 +301,20 @@ async fn a_player_who_reconnects_gets_their_seat_back() {
     assert_eq!(after.you, before.you);
     assert_eq!(after.role, before.role);
 
-    // Someone new can't join mid-game.
+    // Someone new who joins mid-game is seated as a spectator: dead, with no role, and left
+    // out of the game's players for everyone else.
     let mut late = Client::connect(addr, "Edie").await;
     late.send(ClientMessage::JoinLobby { code }).await;
-    assert_eq!(late.error().await, ErrorCode::GameInProgress);
+    let ServerMessage::GameStarted(watching) = late
+        .wait(|m| matches!(m, ServerMessage::GameStarted(_)))
+        .await
+    else {
+        unreachable!()
+    };
+    assert!(watching.spectator);
+    let me = watching.players.iter().find(|p| p.slot == watching.you);
+    assert!(me.is_some_and(|p| !p.alive));
+    assert!(!after.players.iter().any(|p| p.slot == watching.you));
     let _ = std::fs::remove_file(path);
 }
 

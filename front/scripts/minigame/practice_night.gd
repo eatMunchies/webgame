@@ -36,8 +36,9 @@ signal finished(summary: String)
 ## How long the stages last, in seconds, as the server's fast timers.
 const CHOOSING_SECONDS := 4.0
 const STAGE_SECONDS := 8.0
-## Fight rounds last longer, as on the server, to leave room for a few exchanges.
-const FIGHT_SECONDS := 24.0
+## Fight rounds last a little longer, as on the server. A fight that outlasts
+## its round still runs on until a knockout.
+const FIGHT_SECONDS := 10.0
 ## How many fights a fights-only practice plays.
 const FIGHT_PRACTICE := 3
 const FIGHT_HINT := "Strike (J) to hit them. Guard (L) as soon as they start a strike: it takes a moment to come up, blocks, and leaves them dazed, then strike. A guard can't be raised again right away. Grab (K) when they guard. First to lose 3 hits loses."

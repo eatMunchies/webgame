@@ -274,6 +274,7 @@ mod tests {
             .collect();
         state.apply(ServerMessage::GameStarted(GameStart {
             you: PlayerSlot(0),
+            spectator: false,
             role,
             players,
             role_list: Vec::new(),

@@ -100,11 +100,14 @@ impl Timers {
         defense: 20_000,
         judgement: 20_000,
         last_words: 7_000,
-        choosing: 15_000,
-        roleblock: 10_000,
-        fight_round: 30_000,
-        protect: 20_000,
-        investigate: 10_000,
+        // A night is about 84 seconds: 12 choosing, 8 for each skill check stage, 10 for each
+        // of the three fight rounds, and the 3 second countdown before each of the six stages.
+        // A fight that outlasts its round still runs on until a knockout.
+        choosing: 12_000,
+        roleblock: 8_000,
+        fight_round: 10_000,
+        protect: 8_000,
+        investigate: 8_000,
         minigame_intro: MINIGAME_INTRO_MS as u64,
     };
 
@@ -119,7 +122,7 @@ impl Timers {
         last_words: 5_000,
         choosing: 15_000,
         roleblock: 8_000,
-        fight_round: 24_000,
+        fight_round: 10_000,
         protect: 8_000,
         investigate: 8_000,
         minigame_intro: MINIGAME_INTRO_MS as u64,

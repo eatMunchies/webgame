@@ -495,6 +495,9 @@ impl GameClient {
     /// The player's role, like "Sheriff", or "" before a game starts.
     #[func]
     fn role_name(&self) -> GString {
+        if self.state.spectator {
+            return "Spectator".into();
+        }
         self.state
             .role
             .map(|role| GString::from(role.name()))

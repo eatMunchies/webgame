@@ -37,6 +37,14 @@ const EDGE_SIDES := 48
 const HOUSE_RECT := Rect2(-32, -72, 64, 72)
 ## The house's tint while the player is at its door.
 const DOOR_GLOW := Color(1.2, 1.2, 1.12)
+## The hint over the house saying how to go in: a key at the door, or on a
+## touch screen a tap anywhere on the house, shown all the time and pulsing
+## since there's no door to walk up to first.
+const KEY_HINT := "Press E to customize"
+const TAP_HINT := "Tap your house to customize"
+## How far above the owner's name the hint sits, in world pixels.
+const HINT_GAP := 2.0
+const HINT_PULSE_SPEED := 4.0
 
 @onready var name_input: LineEdit = %NameInput
 @onready var create_button: Button = %CreateButton
@@ -54,6 +62,9 @@ const DOOR_GLOW := Color(1.2, 1.2, 1.12)
 @onready var _camera_lift := camera.position
 ## True while waiting for the server to answer a create or join.
 var _waiting := false
+## The hint over the house; see KEY_HINT.
+var _hint := Label.new()
+var _touch := DisplayServer.is_touchscreen_available()
 
 
 func _ready() -> void:
@@ -71,6 +82,7 @@ func _ready() -> void:
 	Session.lobby_changed.connect(_on_session_lobby_changed)
 	Session.request_failed.connect(_on_session_request_failed)
 	_update_buttons()
+	_add_hint()
 	# Say why the player is back here, if they were dropped from a lobby.
 	status_label.text = Session.last_error
 	Session.last_error = ""
@@ -81,6 +93,33 @@ func _process(_delta: float) -> void:
 	_frame_camera()
 	floor_rect.focus = player.position + PlazaFloor.FOCUS_LIFT
 	house.modulate = DOOR_GLOW if near_door() else Color.WHITE
+	_update_hint()
+
+
+func _add_hint() -> void:
+	_hint.text = TAP_HINT if _touch else KEY_HINT
+	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hint.z_index = 2
+	_hint.add_theme_font_size_override("font_size", 8)
+	_hint.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
+	_hint.add_theme_color_override("font_outline_color", Color.BLACK)
+	_hint.add_theme_constant_override("outline_size", 2)
+	house.get_parent().add_child(_hint)
+
+
+## Shows the hint over the owner's name: always on a touch screen, pulsing,
+## and with keys only while the player is at the door.
+func _update_hint() -> void:
+	_hint.visible = _touch or near_door()
+	if not _hint.visible:
+		return
+	_hint.reset_size()
+	var name_label: Control = house.get_node("NameLabel")
+	var top := house.position.y + name_label.position.y
+	_hint.position = Vector2(house.position.x - _hint.size.x / 2.0, top - _hint.size.y - HINT_GAP)
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * HINT_PULSE_SPEED)
+	_hint.modulate.a = lerpf(0.55, 1.0, pulse) if _touch else 1.0
 
 
 ## Keeps the player in the middle of the part of the screen the panel leaves.
@@ -217,6 +256,7 @@ func _on_session_lobby_changed() -> void:
 	if _waiting and Session.in_lobby():
 		Session.arrival_spot = arrival_spot()
 		Session.arrival_facing = player.facing
+		Session.arrival_view_center = world_space.get_global_rect().get_center()
 		get_tree().change_scene_to_file(TOWN_SCENE)
 
 

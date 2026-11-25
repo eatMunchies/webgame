@@ -24,17 +24,24 @@ var _walk_time := 0.0
 ## False until the first position arrives. Until then the character is
 ## hidden, so it doesn't show somewhere they aren't.
 var placed := false
+## True while they're dead and the one watching is alive, during a game:
+## the living can't see the dead.
+var ghost_hidden := false
 
 
 func _ready() -> void:
-	visible = placed
+	_update_visible()
 
 
 ## Shows a player's name, look, and whether they are alive. Call whenever
-## the lobby changes.
-func show_player(player: LobbyPlayer) -> void:
+## the lobby or the phase changes. The dead are faded, and hidden from the
+## living while a game runs; `viewer_sees_dead` says whether the one watching
+## can see them (they're dead too, or no game is running).
+func show_player(player: LobbyPlayer, viewer_sees_dead := true) -> void:
 	name_label.text = "%d %s" % [player.number, player.display_name]
 	modulate.a = 1.0 if player.alive else DEAD_ALPHA
+	ghost_hidden = not player.alive and not viewer_sees_dead
+	_update_visible()
 	if player.appearance != null and not _same_look(player.appearance):
 		character.appearance = player.appearance
 
@@ -48,7 +55,11 @@ func move_to(new_position: Vector2, new_facing: Character.Facing, is_walking: bo
 	if not placed or position.distance_to(new_position) > TELEPORT_DISTANCE:
 		position = new_position
 		placed = true
-		visible = true
+		_update_visible()
+
+
+func _update_visible() -> void:
+	visible = placed and not ghost_hidden
 
 
 func _process(delta: float) -> void:
