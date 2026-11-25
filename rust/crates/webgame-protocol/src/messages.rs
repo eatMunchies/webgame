@@ -210,6 +210,9 @@ pub struct TeamMember {
 pub struct GameStart {
     pub you: PlayerSlot,
     pub role: Role,
+    /// Joined after the game started: dead from the start, with no real role (`role` means
+    /// nothing). They watch and talk with the dead.
+    pub spectator: bool,
     pub players: Vec<PlayerSummary>,
     pub role_list: Vec<RoleSlot>,
     /// Fellow Mafia members, for a Mafia player; empty for everyone else.
@@ -450,7 +453,7 @@ mod tests {
         round_trip(ServerMessage::Phase {
             phase: GamePhase::Night {
                 night: 3,
-                stage: crate::NightStage::Kill { round: 2 },
+                stage: crate::NightStage::Actions { round: 2 },
             },
             ends_at_ms: 9,
         });

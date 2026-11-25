@@ -64,6 +64,10 @@ var launch_request_done := false
 var arrival_spot: Variant = null
 ## Which way the player faced on the start screen, for the town to match.
 var arrival_facing := Character.Facing.DOWN
+## Where on screen the start screen centered the player (the middle of the
+## part its panel leaves), so the town's camera can start there and glide to
+## its own center. A Vector2, or null. The town uses it once and clears it.
+var arrival_view_center: Variant = null
 
 ## The name the connection was opened with, to reconnect if it changes.
 var _connected_as := ""

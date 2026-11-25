@@ -274,6 +274,7 @@ mod tests {
             .collect();
         state.apply(ServerMessage::GameStarted(GameStart {
             you: PlayerSlot(0),
+            spectator: false,
             role,
             players,
             role_list: Vec::new(),
@@ -478,7 +479,7 @@ mod tests {
             &mut state,
             GamePhase::Night {
                 night: 1,
-                stage: NightStage::Protect,
+                stage: NightStage::Actions { round: 1 },
             },
         );
         let lines = state.apply(ServerMessage::Minigame {
@@ -499,7 +500,7 @@ mod tests {
             &mut state,
             GamePhase::Night {
                 night: 1,
-                stage: NightStage::Investigate,
+                stage: NightStage::Actions { round: 2 },
             },
         );
         // The decided check stays until the next stage's game replaces it.
@@ -513,7 +514,7 @@ mod tests {
             state.minigame.as_ref().map(|m| m.game),
             Some(Minigame::Passive)
         );
-        assert!(state.clock(0).starts_with("Night 1 Investigations"));
+        assert!(state.clock(0).starts_with("Night 1 Actions 2/2"));
     }
 
     #[test]

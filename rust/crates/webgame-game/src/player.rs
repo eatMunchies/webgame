@@ -5,6 +5,9 @@ use webgame_protocol::{Faction, PlayerSlot, Role, UserId};
 pub struct Player {
     pub slot: PlayerSlot,
     pub user_id: UserId,
+    /// Joined after the game started: dead from the start, with no real role. They watch and
+    /// talk with the dead, and are left out of the results.
+    pub spectator: bool,
     pub name: String,
     pub role: Role,
     pub alive: bool,
@@ -33,6 +36,7 @@ impl Player {
             user_id,
             name,
             role,
+            spectator: false,
             alive: true,
             will: String::new(),
             uses: role.starting_uses().unwrap_or(0),

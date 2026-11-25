@@ -4,7 +4,7 @@ use godot::classes::{INode, Node, Time, WebSocketPeer};
 use godot::prelude::*;
 use webgame_client::{Command, HELP, State};
 use webgame_protocol::{
-    Appearance, ChatChannel, ClientMessage, DayStage, FIGHT_HP, FIGHT_ROUNDS, Facing, FightMove,
+    ACTION_ROUNDS, Appearance, ChatChannel, ClientMessage, DayStage, FIGHT_HP, Facing, FightMove,
     Fighter, GRAB_WINDUP_MS, GUARD_MS, GUARD_RAISE_MS, GameAction, GamePhase, LobbyCode,
     MAX_CHANCE, MAX_COORD, MINIGAME_INTRO_MS, Minigame, MinigamePlay, MinigameResult, Movement,
     NightStage, PROTOCOL_VERSION, PlayerSlot, STRIKE_WINDUP_MS, ServerMessage, decode, encode,
@@ -431,9 +431,7 @@ impl GameClient {
                 let stage = match stage {
                     NightStage::Choosing => "Choose your action".to_string(),
                     NightStage::Roleblock => "Roleblocks".to_string(),
-                    NightStage::Kill { round } => format!("Fights {round}/{FIGHT_ROUNDS}"),
-                    NightStage::Protect => "Protection".to_string(),
-                    NightStage::Investigate => "Investigations".to_string(),
+                    NightStage::Actions { round } => format!("Actions {round}/{ACTION_ROUNDS}"),
                 };
                 (format!("Night {night}"), stage)
             }
@@ -495,6 +493,9 @@ impl GameClient {
     /// The player's role, like "Sheriff", or "" before a game starts.
     #[func]
     fn role_name(&self) -> GString {
+        if self.state.spectator {
+            return "Spectator".into();
+        }
         self.state
             .role
             .map(|role| GString::from(role.name()))

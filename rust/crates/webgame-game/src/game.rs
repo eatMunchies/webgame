@@ -4,11 +4,11 @@ use rand::seq::IndexedRandom;
 use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use webgame_protocol::{
-    Accepted, ChatChannel, ChatContext, ChatMessage, ChatSender, DayStage, DeathCause, DeathReport,
-    ErrorCode, FIGHT_ROUNDS, GameAction, GameOverInfo, GamePhase, GameStart, JailStatus,
+    ACTION_ROUNDS, Accepted, ChatChannel, ChatContext, ChatMessage, ChatSender, DayStage,
+    DeathCause, DeathReport, ErrorCode, GameAction, GameOverInfo, GamePhase, GameStart, JailStatus,
     MAX_CHAT_LEN, MAX_PLAYERS, MAX_WILL_LEN, MIN_PLAYERS, Minigame, MinigamePlay, MinigameResult,
     NightAction, NightStage, Notice, PlayerSlot, PlayerSummary, Role, RoleSlot, ServerError,
-    ServerMessage, TRIALS_PER_DAY, TargetRule, TeamMember, Verdict, VoteEntry,
+    ServerMessage, TRIALS_PER_DAY, TargetRule, TeamMember, UserId, Verdict, VoteEntry,
 };
 
 use crate::check::Check;
@@ -84,8 +84,8 @@ pub struct Game {
     minigames: BTreeMap<PlayerSlot, Play>,
     /// The fights in the current stage of the night.
     duels: Vec<Duel>,
-    /// Tonight's Kill stage minigames, by round, worked out when it starts.
-    kill_rounds: Vec<Vec<Assigned>>,
+    /// Tonight's Actions stage minigames, by round, worked out when it starts.
+    action_rounds: Vec<Vec<Assigned>>,
     /// The latest time the game has been given, for timing fight views.
     last_tick: u64,
     /// The latest a fight round can run on to, while its fights go on.
@@ -227,7 +227,7 @@ impl Game {
             checks: BTreeMap::new(),
             minigames: BTreeMap::new(),
             duels: Vec::new(),
-            kill_rounds: Vec::new(),
+            action_rounds: Vec::new(),
             last_tick: now,
             fight_overtime_cap: 0,
         };
@@ -278,6 +278,23 @@ impl Game {
 
     pub fn player(&self, slot: PlayerSlot) -> Option<&Player> {
         self.players.iter().find(|p| p.slot == slot)
+    }
+
+    /// Seats someone who joined after the game started, as a spectator: dead from the start, so
+    /// they can watch and talk in the dead chat, with no role and no part in the results. The
+    /// others' clients already show a seat that isn't in their game as dead. Does nothing if the
+    /// slot is already in the game.
+    pub fn add_spectator(&mut self, slot: PlayerSlot, user_id: UserId, name: String) {
+        if self.player(slot).is_some() {
+            return;
+        }
+        // Some role is needed; nobody sees it, the Amnesiac can't remember it, and it's left
+        // out of the results.
+        let mut player = Player::new(slot, user_id, name, Role::Survivor);
+        player.alive = false;
+        player.spectator = true;
+        self.players.push(player);
+        self.players.sort_by_key(|p| p.slot);
     }
 
     pub fn result(&self) -> Option<&GameOverInfo> {
@@ -660,7 +677,7 @@ impl Game {
                 }
             }
             (TargetRule::Dead, NightAction::Target(t))
-                if self.player(t).is_some_and(|p| !p.alive) =>
+                if self.player(t).is_some_and(|p| !p.alive && !p.spectator) =>
             {
                 if player.uses == 0 {
                     Err(no_uses())
@@ -880,7 +897,7 @@ impl Game {
         self.checks.clear();
         self.minigames.clear();
         self.duels.clear();
-        self.kill_rounds.clear();
+        self.action_rounds.clear();
         self.set_phase(
             GamePhase::Night {
                 night,
@@ -975,17 +992,15 @@ impl Game {
         let assigned = match stage {
             NightStage::Choosing => Vec::new(),
             NightStage::Roleblock => self.planned(night, Stage::Roleblock),
-            NightStage::Kill { round } => {
+            NightStage::Actions { round } => {
                 if round == 1 {
-                    self.kill_rounds = self.schedule_kill(night);
+                    self.action_rounds = self.schedule_actions(night);
                 }
-                self.kill_rounds
+                self.action_rounds
                     .get(usize::from(round) - 1)
                     .cloned()
                     .unwrap_or_default()
             }
-            NightStage::Protect => self.planned(night, Stage::Protect),
-            NightStage::Investigate => self.planned(night, Stage::Investigate),
         };
         self.minigames.clear();
         self.duels.clear();
@@ -1042,12 +1057,20 @@ impl Game {
             .collect()
     }
 
-    /// Spreads the Kill stage's minigames over its rounds so nobody plays two at once: each
-    /// fight, then each skill check, goes in the first round where its players are free. Any
-    /// that don't fit are decided at random, as if rolled.
-    fn schedule_kill(&mut self, night: u32) -> Vec<Vec<Assigned>> {
-        let wanted = self.planned(night, Stage::Kill);
-        let rounds = usize::from(FIGHT_ROUNDS);
+    /// Spreads the Actions stage's minigames over its rounds so nobody plays two at once. Every
+    /// action after the roleblocks is played here (the kill, protect and investigate parts of
+    /// the night calculator; see [`night::STAGES`]): all of them resolve together at dawn, so
+    /// none needs another's result first. Skill checks go first, so they all land in round 1
+    /// (each player has at most one); then each fight goes in the first round where both its
+    /// players are free. Any that don't fit are decided at random, as if rolled.
+    fn schedule_actions(&mut self, night: u32) -> Vec<Vec<Assigned>> {
+        let mut wanted: Vec<Assigned> = [Stage::Kill, Stage::Protect, Stage::Investigate]
+            .into_iter()
+            .flat_map(|stage| self.planned(night, stage))
+            .collect();
+        // Stable, so fights keep the calculator's order.
+        wanted.sort_by_key(|assigned| matches!(assigned, Assigned::Fight { .. }));
+        let rounds = usize::from(ACTION_ROUNDS);
         let mut schedule: Vec<Vec<Assigned>> = vec![Vec::new(); rounds];
         let mut busy: Vec<BTreeSet<PlayerSlot>> = vec![BTreeSet::new(); rounds];
         for assigned in wanted {
@@ -1206,7 +1229,7 @@ impl Game {
         matches!(
             self.phase,
             GamePhase::Night {
-                stage: NightStage::Kill { .. },
+                stage: NightStage::Actions { .. },
                 ..
             }
         ) && deadline < self.fight_overtime_cap
@@ -1461,9 +1484,11 @@ impl Game {
         GameStart {
             you: slot,
             role: me.role,
+            spectator: me.spectator,
             players: self
                 .players
                 .iter()
+                .filter(|p| !p.spectator || p.slot == slot)
                 .map(|p| PlayerSummary {
                     slot: p.slot,
                     name: p.name.clone(),

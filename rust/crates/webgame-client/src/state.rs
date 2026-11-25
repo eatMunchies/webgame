@@ -4,8 +4,8 @@
 use std::collections::BTreeMap;
 
 use webgame_protocol::{
-    Accepted, ChatChannel, ChatContext, ChatSender, DayStage, DeathCause, DeathReport,
-    FIGHT_ROUNDS, FightView, GameOverInfo, GamePhase, GameStart, JailStatus, LobbyInfo, Minigame,
+    ACTION_ROUNDS, Accepted, ChatChannel, ChatContext, ChatSender, DayStage, DeathCause,
+    DeathReport, FightView, GameOverInfo, GamePhase, GameStart, JailStatus, LobbyInfo, Minigame,
     MinigameResult, Movement, NightAction, NightStage, Notice, Outcome, PlayerSlot, PlayerSummary,
     Role, RoleSlot, SaveReason, ServerMessage, TeamMember, UserId, Verdict, VoteEntry,
 };
@@ -16,6 +16,8 @@ pub struct State {
     pub lobby: Option<LobbyInfo>,
     pub me: Option<PlayerSlot>,
     pub role: Option<Role>,
+    /// Joined the current game after it started: dead from the start, with no role.
+    pub spectator: bool,
     pub players: Vec<PlayerSummary>,
     pub role_list: Vec<RoleSlot>,
     pub team: Vec<TeamMember>,
@@ -77,6 +79,7 @@ impl Default for State {
             lobby: None,
             me: None,
             role: None,
+            spectator: false,
             players: Vec::new(),
             role_list: Vec::new(),
             team: Vec::new(),
@@ -161,9 +164,7 @@ impl State {
                 let stage = match stage {
                     NightStage::Choosing => "Choosing".to_string(),
                     NightStage::Roleblock => "Roleblocks".to_string(),
-                    NightStage::Kill { round } => format!("Fights {round}/{FIGHT_ROUNDS}"),
-                    NightStage::Protect => "Protection".to_string(),
-                    NightStage::Investigate => "Investigations".to_string(),
+                    NightStage::Actions { round } => format!("Actions {round}/{ACTION_ROUNDS}"),
                 };
                 format!("Night {night} {stage}")
             }
@@ -227,6 +228,9 @@ impl State {
     }
 
     pub fn role_text(&self) -> String {
+        if self.spectator {
+            return "You're a spectator: you joined after the game started.".into();
+        }
         let Some(role) = self.role else {
             return "You don't have a role until the game starts.".into();
         };
@@ -471,6 +475,7 @@ impl State {
     fn reset_game(&mut self) {
         self.me = None;
         self.role = None;
+        self.spectator = false;
         self.players.clear();
         self.role_list.clear();
         self.team.clear();
@@ -488,7 +493,8 @@ impl State {
 
     fn start(&mut self, start: GameStart) -> Vec<String> {
         self.me = Some(start.you);
-        self.role = Some(start.role);
+        self.spectator = start.spectator;
+        self.role = (!start.spectator).then_some(start.role);
         self.players = start.players;
         self.role_list = start.role_list;
         self.team = start.team;
@@ -496,6 +502,14 @@ impl State {
         self.will = start.last_will;
         self.revealed.clear();
         self.votes.clear();
+        if self.spectator {
+            return vec![
+                "=== You joined a game in progress ===".into(),
+                "You're a spectator: dead from the start. Watch, and talk with the dead.".into(),
+                self.roles_text(),
+                self.players_text(),
+            ];
+        }
         vec![
             "=== The game begins ===".into(),
             self.roles_text(),
@@ -812,6 +826,7 @@ mod tests {
             .collect();
         state.apply(ServerMessage::GameStarted(GameStart {
             you: PlayerSlot(0),
+            spectator: false,
             role: Role::Sheriff,
             players,
             role_list: Vec::new(),
@@ -887,7 +902,7 @@ mod tests {
             game: Minigame::Passive,
             ends_at_ms: 10,
         });
-        state.apply(night(NightStage::Kill { round: 1 }));
+        state.apply(night(NightStage::Actions { round: 1 }));
         let kept = state.minigame.as_ref().map(|m| (m.game, m.ends_at_ms));
         assert_eq!(kept, Some((Minigame::Passive, 10)));
         state.apply(ServerMessage::Minigame {

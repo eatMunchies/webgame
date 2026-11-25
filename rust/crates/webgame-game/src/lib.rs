@@ -82,10 +82,9 @@ pub struct Timers {
     /// The start of the night, while players pick their actions.
     pub choosing: u64,
     pub roleblock: u64,
-    /// Each of the Kill stage's rounds.
-    pub fight_round: u64,
-    pub protect: u64,
-    pub investigate: u64,
+    /// Each of the Actions stage's rounds. A fight that outlasts its round runs on until a
+    /// knockout.
+    pub action_round: u64,
     /// Added to every stage of the night after choosing, for the countdown clients show
     /// before a skill check or fight, so the stage's own time is all play.
     pub minigame_intro: u64,
@@ -100,11 +99,11 @@ impl Timers {
         defense: 20_000,
         judgement: 20_000,
         last_words: 7_000,
-        choosing: 15_000,
-        roleblock: 10_000,
-        fight_round: 30_000,
-        protect: 20_000,
-        investigate: 10_000,
+        // A night is about 49 seconds: 12 choosing, 8 for roleblocks, 10 for each of the two
+        // action rounds, and the 3 second countdown before each of those three stages.
+        choosing: 12_000,
+        roleblock: 8_000,
+        action_round: 10_000,
         minigame_intro: MINIGAME_INTRO_MS as u64,
     };
 
@@ -119,9 +118,7 @@ impl Timers {
         last_words: 5_000,
         choosing: 15_000,
         roleblock: 8_000,
-        fight_round: 24_000,
-        protect: 8_000,
-        investigate: 8_000,
+        action_round: 10_000,
         minigame_intro: MINIGAME_INTRO_MS as u64,
     };
 
@@ -136,9 +133,7 @@ impl Timers {
             last_words: ms,
             choosing: ms,
             roleblock: ms,
-            fight_round: ms,
-            protect: ms,
-            investigate: ms,
+            action_round: ms,
             minigame_intro: 0,
         }
     }
@@ -148,9 +143,7 @@ impl Timers {
         let play = match stage {
             NightStage::Choosing => return self.choosing,
             NightStage::Roleblock => self.roleblock,
-            NightStage::Kill { .. } => self.fight_round,
-            NightStage::Protect => self.protect,
-            NightStage::Investigate => self.investigate,
+            NightStage::Actions { .. } => self.action_round,
         };
         play + self.minigame_intro
     }

@@ -20,8 +20,10 @@
 //!
 //! # Minigames
 //!
-//! Each action that goes ahead is played out as a minigame during the night, in [`STAGES`]
-//! order. Direct attacks (the Mafia's kill, a Serial Killer, a Vigilante, a Jester's haunt) are
+//! Each action that goes ahead is played out as a minigame during the night. The game plays
+//! the [`Stage::Roleblock`] minigames first, then everything else together over the protocol's
+//! Actions rounds (see `Game::schedule_actions`); [`STAGES`] is the order [`plan`] reads results
+//! in. Direct attacks (the Mafia's kill, a Serial Killer, a Vigilante, a Jester's haunt) are
 //! a [`Fight`] between attacker and victim; every other action, Jailer executions and Arsonist
 //! ignitions included, is a one-player [`SkillCheck`]. [`plan`] says who plays what, and
 //! [`resolve`] takes the [`Results`]:

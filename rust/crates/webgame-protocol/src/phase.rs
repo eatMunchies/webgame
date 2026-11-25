@@ -38,17 +38,16 @@ pub enum DayStage {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NightStage {
     Choosing,
-    /// Barkeeps and Escorts.
+    /// Barkeeps and Escorts. First, since a roleblock that works takes away its target's
+    /// minigames for the rest of the night.
     Roleblock,
-    /// Fights and the other killing actions, over [`crate::FIGHT_ROUNDS`] rounds (from 1), so
-    /// a player attacked twice fights each attacker in turn.
-    Kill {
+    /// Every other action, over [`crate::ACTION_ROUNDS`] rounds (from 1). All skill checks
+    /// are played at once in round 1, along with the fights of players who have none; a fight
+    /// whose players are busy then, like a Doctor's who is attacked, or a second attack on the
+    /// same victim, goes in a later round.
+    Actions {
         round: u8,
     },
-    /// Heals, guards, traps, alerts and vests.
-    Protect,
-    /// Investigations.
-    Investigate,
 }
 
 impl NightStage {
@@ -56,13 +55,11 @@ impl NightStage {
     pub fn next(self) -> Option<NightStage> {
         Some(match self {
             NightStage::Choosing => NightStage::Roleblock,
-            NightStage::Roleblock => NightStage::Kill { round: 1 },
-            NightStage::Kill { round } if round < crate::FIGHT_ROUNDS => {
-                NightStage::Kill { round: round + 1 }
+            NightStage::Roleblock => NightStage::Actions { round: 1 },
+            NightStage::Actions { round } if round < crate::ACTION_ROUNDS => {
+                NightStage::Actions { round: round + 1 }
             }
-            NightStage::Kill { .. } => NightStage::Protect,
-            NightStage::Protect => NightStage::Investigate,
-            NightStage::Investigate => return None,
+            NightStage::Actions { .. } => return None,
         })
     }
 }

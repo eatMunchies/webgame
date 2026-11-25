@@ -5,19 +5,19 @@ use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use webgame_game::{Audience, Game, Input, Outgoing, Seat, Timers};
 use webgame_protocol::{
-    ChatChannel, ChatSender, DayStage, DeathCause, ErrorCode, FIGHT_HP, FIGHT_ROUNDS, FightMove,
+    ACTION_ROUNDS, ChatChannel, ChatSender, DayStage, DeathCause, ErrorCode, FIGHT_HP, FightMove,
     GameAction, GamePhase, MAX_CHANCE, Minigame, MinigamePlay, MinigameResult, NightAction,
     NightStage, Notice, Outcome, PlayerSlot, Role, STRIKE_WINDUP_MS, ServerMessage, UserId,
     Verdict,
 };
 
-/// Every phase lasts one second, except fight rounds, which leave time for a knockout.
+/// Every phase lasts one second, except action rounds, which leave time for a knockout.
 const PHASE: u64 = 1_000;
-const FIGHT_ROUND: u64 = 8_000;
+const ACTION_ROUND: u64 = 8_000;
 
 fn timers() -> Timers {
     Timers {
-        fight_round: FIGHT_ROUND,
+        action_round: ACTION_ROUND,
         ..Timers::uniform(PHASE)
     }
 }
@@ -209,8 +209,7 @@ fn phases_go_day_zero_then_night_one_then_day_one() {
     table.next_phase();
     assert_eq!(table.game.phase(), &night(1, NightStage::Choosing));
     let mut stages = vec![NightStage::Roleblock];
-    stages.extend((1..=FIGHT_ROUNDS).map(|round| NightStage::Kill { round }));
-    stages.extend([NightStage::Protect, NightStage::Investigate]);
+    stages.extend((1..=ACTION_ROUNDS).map(|round| NightStage::Actions { round }));
     for stage in stages {
         table.next_phase();
         assert_eq!(table.game.phase(), &night(1, stage));
@@ -738,7 +737,7 @@ fn every_living_player_gets_one_minigame_a_stage() {
     table.act(2, target(3));
     table.act(3, target(0));
     let stages = minigames_by_stage(&mut table);
-    assert_eq!(stages.len(), 1 + usize::from(FIGHT_ROUNDS) + 2);
+    assert_eq!(stages.len(), 1 + usize::from(ACTION_ROUNDS));
     let only = |given: &[(u8, Minigame)]| -> Vec<(u8, Minigame)> {
         given
             .iter()
@@ -749,18 +748,20 @@ fn every_living_player_gets_one_minigame_a_stage() {
     for (_, given) in &stages {
         assert_eq!(given.len(), 5, "everyone plays something every stage");
     }
+    // Roleblocks first; then every other skill check at once. The Sheriff is busy with theirs
+    // in round 1, so the Mafioso's fight with them waits for round 2.
     assert_eq!(only(&stages[0].1), [(1, Minigame::SkillCheck)]);
     assert_eq!(
         only(&stages[1].1),
+        [(2, Minigame::SkillCheck), (3, Minigame::SkillCheck)]
+    );
+    assert_eq!(
+        only(&stages[2].1),
         [
             (0, Minigame::Fight { attacking: true }),
             (3, Minigame::Fight { attacking: false })
         ]
     );
-    assert_eq!(only(&stages[2].1), []);
-    assert_eq!(only(&stages[3].1), []);
-    assert_eq!(only(&stages[4].1), [(2, Minigame::SkillCheck)]);
-    assert_eq!(only(&stages[5].1), [(3, Minigame::SkillCheck)]);
 }
 
 #[test]
@@ -776,8 +777,8 @@ fn unplayed_minigames_fail_and_spare_the_victim() {
     assert_eq!(
         over(&table, 1),
         [
-            (MinigameResult::Won, false),
-            (MinigameResult::Failed, false)
+            (MinigameResult::Failed, false),
+            (MinigameResult::Won, false)
         ]
     );
     let sheriff_learned = table
@@ -827,7 +828,7 @@ fn a_fight_runs_past_its_round_until_a_knockout() {
         matches!(
             table.game.phase(),
             GamePhase::Night {
-                stage: NightStage::Kill { round: 1 },
+                stage: NightStage::Actions { round: 1 },
                 ..
             }
         ),
@@ -847,7 +848,7 @@ fn a_fight_runs_past_its_round_until_a_knockout() {
     assert!(matches!(
         table.game.phase(),
         GamePhase::Night {
-            stage: NightStage::Kill { round: 2 },
+            stage: NightStage::Actions { round: 2 },
             ..
         }
     ));
@@ -877,7 +878,6 @@ fn a_victim_attacked_twice_fights_each_attacker_in_turn() {
     let mut rounds = [fights(1), fights(2)];
     rounds.sort();
     assert_eq!(rounds, [vec![0, 2], vec![1, 2]]);
-    assert_eq!(fights(3), Vec::<u8>::new());
 }
 
 #[test]
@@ -903,7 +903,7 @@ fn a_skill_check_is_decided_once_done() {
         Err(ErrorCode::NotAllowedNow),
         "no minigames while choosing"
     );
-    table.until(|p| *p == night(1, NightStage::Investigate));
+    table.until(|p| *p == night(1, NightStage::Actions { round: 1 }));
     assert_eq!(table.try_act(2, STRIKE), Err(ErrorCode::BadMessage));
     assert_eq!(
         table.try_act(2, check(MAX_CHANCE, true)),
@@ -945,7 +945,7 @@ fn rolls_are_only_for_servers_that_allow_them() {
         matches!(
             p,
             GamePhase::Night {
-                stage: NightStage::Kill { .. },
+                stage: NightStage::Actions { .. },
                 ..
             }
         )
@@ -960,17 +960,19 @@ fn rolls_are_only_for_servers_that_allow_them() {
     table.until_night();
     table.act(0, GameAction::Night(Some(NightAction::Target(slot(1)))));
     table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
-    table.until(|p| {
-        matches!(
-            p,
-            GamePhase::Night {
-                stage: NightStage::Kill { .. },
-                ..
-            }
-        )
-    });
+    // The Sheriff plays their skill check in round 1, and rolls it.
+    table.until(|p| *p == night(1, NightStage::Actions { round: 1 }));
     table.log.clear();
-    // The victim rolls; the fight is decided for both of them.
+    table.act(1, roll.clone());
+    assert!(matches!(over(&table, 1)[..], [(_, true)]));
+    // Rolling a passive game does nothing.
+    table.act(2, roll.clone());
+    assert!(over(&table, 2).is_empty());
+
+    // That kept them busy, so their fight is in round 2. The victim rolls; the fight is
+    // decided for both of them.
+    table.until(|p| *p == night(1, NightStage::Actions { round: 2 }));
+    table.log.clear();
     table.act(1, roll.clone());
     let attacker = over(&table, 0);
     let victim = over(&table, 1);
@@ -978,17 +980,10 @@ fn rolls_are_only_for_servers_that_allow_them() {
     assert!(attacker[0].1 && victim[0].1, "both are told it was rolled");
     assert_ne!(attacker[0].0, victim[0].0);
     // The other fighter rolling too changes nothing.
-    table.act(0, roll.clone());
+    table.act(0, roll);
     assert_eq!(over(&table, 0).len(), 1);
     let sheriff_died = attacker[0].0 == MinigameResult::Won;
 
-    table.until(|p| *p == night(1, NightStage::Investigate));
-    table.log.clear();
-    table.act(1, roll.clone());
-    assert!(matches!(over(&table, 1)[..], [(_, true)]));
-    // Rolling a passive game does nothing.
-    table.act(2, roll);
-    assert!(over(&table, 2).is_empty());
     table.until_dawn();
     assert_eq!(table.game.player(slot(1)).unwrap().alive, !sheriff_died);
 }
@@ -1002,7 +997,7 @@ fn a_reconnecting_player_gets_their_minigame_back() {
         matches!(
             p,
             GamePhase::Night {
-                stage: NightStage::Kill { .. },
+                stage: NightStage::Actions { .. },
                 ..
             }
         )
@@ -1035,7 +1030,7 @@ fn pass_rate(chance: Option<u8>) -> f64 {
         );
         table.until_night();
         table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
-        table.until(|p| *p == night(1, NightStage::Investigate));
+        table.until(|p| *p == night(1, NightStage::Actions { round: 1 }));
         table.log.clear();
         if let Some(chance) = chance {
             table.act(1, check(MAX_CHANCE, false));
@@ -1059,7 +1054,7 @@ fn a_skill_check_passes_with_the_last_chance_it_reported() {
     let mut table = Table::new(&[Role::Mafioso, Role::Sheriff, Role::Doctor, Role::Lookout]);
     table.until_night();
     table.act(1, GameAction::Night(Some(NightAction::Target(slot(0)))));
-    table.until(|p| *p == night(1, NightStage::Investigate));
+    table.until(|p| *p == night(1, NightStage::Actions { round: 1 }));
     table.log.clear();
     table.act(1, check(MAX_CHANCE, true));
     assert_eq!(over(&table, 1), [(MinigameResult::Passed, false)]);
@@ -1075,11 +1070,11 @@ fn minigame_stages_add_the_countdown_and_choosing_does_not() {
         fast.roleblock + intro
     );
     assert_eq!(
-        fast.night_stage(NightStage::Kill { round: 2 }),
-        fast.fight_round + intro
+        fast.night_stage(NightStage::Actions { round: 2 }),
+        fast.action_round + intro
     );
     assert_eq!(
-        Timers::uniform(1_000).night_stage(NightStage::Protect),
+        Timers::uniform(1_000).night_stage(NightStage::Actions { round: 1 }),
         1_000
     );
 }

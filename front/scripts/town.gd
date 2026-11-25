@@ -45,6 +45,9 @@ const ENTRANCE := Vector2(CulDeSac.CENTER.x, CulDeSac.SIZE.y - 20)
 ## Where the podium stands relative to the middle of the plaza.
 const PODIUM_OFFSET := Vector2(0, 8)
 const DEAD_HOUSE_COLOR := Color(0.55, 0.55, 0.6)
+## How see-through a dead player's own character is, as RemotePlayer draws
+## other dead players.
+const DEAD_ALPHA := RemotePlayer.DEAD_ALPHA
 const NIGHT_COLOR := Color(0.42, 0.45, 0.7)
 const DAY_FADE_SECONDS := 1.5
 ## How long the start screen's floor takes to dissolve into the town, after
@@ -58,6 +61,9 @@ const PHASE_Z := 4
 ## before they're shown in front of their house. A Godot client sends one as
 ## soon as its town loads; a terminal client never does.
 const UNPLACED_WAIT_SECONDS := 1.0
+## How long the camera takes to glide from where the start screen had the
+## player to the middle of the town's part of the screen.
+const ARRIVAL_PAN_SECONDS := 0.9
 
 @onready var player: CharacterBody2D = $World/Player
 @onready var houses: Node2D = %Houses
@@ -90,9 +96,18 @@ var _passing_through: Array[House] = []
 var _phase_floor: PlazaFloor
 ## Where the player's house stands while the floor dissolves.
 var _phase_home := Vector2.ZERO
+## Where on screen the start screen had the player, until the camera's glide
+## from there starts. A Vector2, or null.
+var _arrival_view_center: Variant = null
+## Added to the camera while it glides in from the start screen's framing,
+## in world pixels; tweened to zero.
+var _arrival_offset := Vector2.ZERO
+## The frame the town loaded in.
+var _ready_frame := 0
 
 
 func _ready() -> void:
+	_ready_frame = Engine.get_process_frames()
 	ScreenScale.for_world(get_window())
 	player.character.appearance = PlayerProfile.appearance
 
@@ -115,6 +130,8 @@ func _ready() -> void:
 			player.facing = Session.arrival_facing
 			_phase_in(home)
 	Session.arrival_spot = null
+	_arrival_view_center = Session.arrival_view_center
+	Session.arrival_view_center = null
 	_let_out_of_houses()
 
 	copy_button.visible = Session.in_lobby()
@@ -131,6 +148,8 @@ func _ready() -> void:
 		_add_minigame_overlay()
 	Session.lobby_changed.connect(_on_session_lobby_changed)
 	Session.phase_changed.connect(_update_sky)
+	# The dead show again once the game is over.
+	Session.phase_changed.connect(_sync_remote_players)
 	Session.player_moved.connect(_on_session_player_moved)
 	_update_sky()
 	_sync_remote_players()
@@ -178,11 +197,24 @@ func _frame_camera() -> void:
 	# Seen through the camera, the middle of the screen is this far, in
 	# world pixels, from the middle of the town's part.
 	var shift := (view / 2.0 - area.get_center()) / zoom
-	camera.position = _camera_lift + shift
+	_start_arrival_pan(area, zoom)
+	camera.position = _camera_lift + shift + _arrival_offset
 	camera.limit_left = floori(-area.position.x / zoom)
 	camera.limit_top = floori(-area.position.y / zoom)
 	camera.limit_right = ceili(CulDeSac.SIZE.x + (view.x - area.end.x) / zoom)
 	camera.limit_bottom = ceili(CulDeSac.SIZE.y + (view.y - area.end.y) / zoom)
+
+
+## Starts the camera where the start screen had the player, and glides it
+## to the middle of the town's part of the screen, so joining doesn't jump.
+## Waits for the HUD's first layout, so the part is where it will stay.
+func _start_arrival_pan(area: Rect2, zoom: float) -> void:
+	if _arrival_view_center == null or (_hud != null and Engine.get_process_frames() == _ready_frame):
+		return
+	_arrival_offset = (area.get_center() - (_arrival_view_center as Vector2)) / zoom
+	_arrival_view_center = null
+	create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT) \
+			.tween_property(self, "_arrival_offset", Vector2.ZERO, ARRIVAL_PAN_SECONDS)
 
 
 func _physics_process(_delta: float) -> void:
@@ -302,7 +334,13 @@ func _on_session_lobby_changed() -> void:
 ## left. Each stays hidden until their first position arrives, so nobody
 ## shows somewhere they aren't; anyone who sends none (a terminal player)
 ## shows in front of their house after UNPLACED_WAIT_SECONDS.
+##
+## The dead are ghosts: see-through, and while a game runs only the dead see
+## them, the player's own character included.
 func _sync_remote_players() -> void:
+	var me_dead := Session.me != null and not Session.me.alive
+	var sees_dead := me_dead or not Session.in_game()
+	player.modulate.a = DEAD_ALPHA if me_dead else 1.0
 	var present: Array[int] = []
 	for resident in Session.players:
 		if resident == Session.me:
@@ -318,7 +356,7 @@ func _sync_remote_players() -> void:
 			get_tree().create_timer(UNPLACED_WAIT_SECONDS).timeout.connect(func() -> void:
 				if is_instance_valid(remote) and not remote.placed:
 					remote.move_to(home, Character.Facing.DOWN, false))
-		remote.show_player(resident)
+		remote.show_player(resident, sees_dead)
 	for lot in _remote_players.keys():
 		if lot not in present:
 			_remote_players[lot].queue_free()
