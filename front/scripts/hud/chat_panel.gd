@@ -49,7 +49,14 @@ const CHANNELS := {
 var prompt: TextPrompt:
 	set(value):
 		prompt = value
-		prompt.attach(input, "Chat", true)
+		prompt.attach(input, "Chat", true, {"placeholder": "Type a message"})
+
+
+func _process(_delta: float) -> void:
+	# Enter is how a keyboard starts typing; a phone taps the box.
+	var hint := "Tap to chat" if TextPrompt.touch else "Enter to chat"
+	if input.placeholder_text != hint:
+		input.placeholder_text = hint
 
 
 func _ready() -> void:

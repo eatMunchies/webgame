@@ -25,12 +25,27 @@ const TOP_SHARE := 0.14
 const WIDTH := 220.0
 const WIDTH_SHARE := 0.92
 ## How tall the multiline box is, in units.
-const MULTILINE_HEIGHT := 72.0
+const MULTILINE_HEIGHT := 84.0
 const BACKDROP := Color(0, 0, 0, 0.55)
+## The text size in the boxes, and the room between a multiline box's lines:
+## bigger than the HUD's, so a click or tap lands the caret where it's meant.
+const TEXT_SIZE := 8
+const LINE_SPACING := 3
+## How long after opening a tap on the backdrop is ignored. One tap on a
+## phone arrives as a touch and a made-up mouse click; when the first opens
+## the prompt, the second would land on the backdrop and close it again.
+const BACKDROP_GRACE_MSEC := 400
 
 ## Whether this device has a touch screen, where tapped text fields open the
-## prompt.
-static var touch := DisplayServer.is_touchscreen_available()
+## prompt. A browser doesn't always say so up front, so a phone's browser
+## (Godot's web_android and web_ios features) counts too, and the first real
+## touch on any screen with a prompt switches it on (see _input).
+static var touch := _detect_touch()
+
+
+static func _detect_touch() -> bool:
+	return DisplayServer.is_touchscreen_available() or OS.has_feature("mobile") \
+			or OS.has_feature("web_android") or OS.has_feature("web_ios")
 
 var _panel := PanelContainer.new()
 var _title := Label.new()
@@ -39,6 +54,8 @@ var _multi := TextEdit.new()
 var _paste := Button.new()
 var _confirm := Button.new()
 var _on_done := Callable()
+## When the prompt last opened, for BACKDROP_GRACE_MSEC.
+var _opened_msec := 0
 var _backdrop := ColorRect.new()
 ## Kept while the browser reads the clipboard, which calls it back later.
 var _paste_callback: JavaScriptObject
@@ -77,6 +94,9 @@ func _ready() -> void:
 	_line.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_DEFAULT
 	rows.add_child(_line)
 	_multi.custom_minimum_size.y = MULTILINE_HEIGHT
+	for box: Control in [_line, _multi]:
+		box.add_theme_font_size_override("font_size", TEXT_SIZE)
+	_multi.add_theme_constant_override("line_spacing", LINE_SPACING)
 	_multi.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	rows.add_child(_multi)
 
@@ -117,6 +137,7 @@ func ask(title: String, text: String, on_done: Callable, options := {}) -> void:
 	box.set("text", text)
 	box.set("placeholder_text", options.get("placeholder", ""))
 	visible = true
+	_opened_msec = Time.get_ticks_msec()
 	_place()
 	box.grab_focus()
 	if multiline:
@@ -138,17 +159,19 @@ func close() -> void:
 ## the text in the field; with `submit` it also submits it, as pressing Enter
 ## in the field would. Options: `always` (on every screen; otherwise only on
 ## a touch screen, and the field works as it is elsewhere), `paste` (a
-## Paste button) and `confirm` (the confirm button's text).
+## Paste button), `confirm` (the confirm button's text) and `placeholder`
+## (the box's, if not the field's).
 func attach(field: LineEdit, title: String, submit := false, options := {}) -> void:
-	if not touch and not options.get("always", false):
-		return
-	# The field never takes the keyboard itself; the prompt does.
-	field.virtual_keyboard_enabled = false
+	var always: bool = options.get("always", false)
+	# Decided at each tap, since a touch screen may only make itself known
+	# with its first touch.
 	field.gui_input.connect(func(event: InputEvent) -> void:
 		var pressed: bool = (event is InputEventMouseButton and event.pressed) \
 				or (event is InputEventScreenTouch and event.pressed)
-		if not pressed or visible:
+		if not pressed or visible or not (touch or always):
 			return
+		# The field never takes the keyboard itself; the prompt does.
+		field.virtual_keyboard_enabled = false
 		field.accept_event()
 		field.release_focus()
 		ask(title, field.text, func(text: String) -> void:
@@ -156,7 +179,7 @@ func attach(field: LineEdit, title: String, submit := false, options := {}) -> v
 			field.text_changed.emit(text)
 			if submit:
 				field.text_submitted.emit(text),
-			{"placeholder": field.placeholder_text,
+			{"placeholder": options.get("placeholder", field.placeholder_text),
 				"confirm": options.get("confirm", "Send" if submit else "Done"),
 				"paste": options.get("paste", false)}))
 
@@ -190,12 +213,16 @@ func _finish() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		touch = true
 	if visible and event.is_action_pressed("ui_cancel"):
 		close()
 		get_viewport().set_input_as_handled()
 
 
 func _on_backdrop_input(event: InputEvent) -> void:
+	if Time.get_ticks_msec() - _opened_msec < BACKDROP_GRACE_MSEC:
+		return
 	if (event is InputEventMouseButton and event.pressed) \
 			or (event is InputEventScreenTouch and event.pressed):
 		close()
