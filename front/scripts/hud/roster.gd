@@ -11,11 +11,11 @@ extends PanelContainer
 ##   Alert, Ignite, Unvote, Cancel), and before a game the host's Start game;
 ## - a heading with how many are alive, or while voting how many votes put
 ##   someone on trial;
-## - a row per player, in lot order: their number (what commands like
-##   `/vote 3` take), name, a note (their votes while voting, the role their
+## - a row per player, in lot order: their number in a circle of their
+##   seat's color (NumberBadge; what commands like `/vote 3` take), name, a note (their votes while voting, the role their
 ##   death revealed, away, host), and that player's buttons: the action
 ##   aimed at them (Vote, Jail, or your night ability like Heal), and
-##   Whisper by day. You are in blue; the dead are greyed and struck through;
+##   Whisper by day, except to or from someone on trial. You are in blue; the dead are greyed and struck through;
 ## - your role.
 ##
 ## Action buttons come from client.actions() and submit the same command
@@ -79,15 +79,18 @@ func _update() -> void:
 	var voting: bool = info["voting"]
 	var needed: int = Session.client.votes_needed()
 	var role := Session.client.role_name()
-	var whispering := _can_whisper(info)
 	var host_can_start := Session.is_host and not in_game
 	# Only what the panel shows, so a change elsewhere (like a new look)
 	# doesn't rebuild it.
-	var summary: Array = [in_game, voting, needed, role, whispering, host_can_start,
+	var summary: Array = [in_game, voting, needed, role, host_can_start,
 			Session.players.size(), actions]
+	var whisperable := {}
 	for member in members:
+		var lot: int = member["number"] - 1
+		whisperable[lot] = Session.client.can_whisper(lot)
 		summary.append([member["number"], member["name"], member["alive"], member["is_me"],
-				member["role"], member["votes"], member["connected"], member["is_host"]])
+				member["role"], member["votes"], member["connected"], member["is_host"],
+				whisperable[lot]])
 	if summary == _shown:
 		return
 	_shown = summary
@@ -114,8 +117,7 @@ func _update() -> void:
 		child.queue_free()
 	for member in members:
 		var lot: int = member["number"] - 1
-		var can_whisper: bool = whispering and member["alive"] and not member["is_me"]
-		rows.add_child(_row(member, in_game, voting, aimed.get(lot, []), can_whisper))
+		rows.add_child(_row(member, in_game, voting, aimed.get(lot, []), whisperable[lot]))
 	_fit_scroll.call_deferred()
 
 
@@ -152,22 +154,17 @@ func _update_choices(actions: Array[Dictionary], host_can_start: bool) -> void:
 	start_button.text = "Start game" if count >= 4 else "Start game (needs 4 players)"
 
 
-## Whispers are for the living, by day, during a game.
-func _can_whisper(info: Dictionary) -> bool:
-	return Session.in_game() and not info["night"] and Session.me != null and Session.me.alive
-
-
 ## One player's row: number, name, a note, and their buttons.
 func _row(member: Dictionary, in_game: bool, voting: bool, aimed: Array,
 		can_whisper: bool) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 2)
 	var alive: bool = member["alive"]
-	var number := Label.new()
-	number.text = str(member["number"])
-	number.custom_minimum_size.x = 8
-	number.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	number.theme_type_variation = "HudHeading"
+	var number := TextureRect.new()
+	number.texture = NumberBadge.texture(member["number"])
+	number.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	number.custom_minimum_size.x = 11
+	number.tooltip_text = "Player %d" % member["number"]
 	row.add_child(number)
 
 	var name_label := Label.new()

@@ -58,6 +58,22 @@ pub struct ChatContext {
     pub jail: JailStatus,
 }
 
+/// Whether `from` may whisper to `to` in this phase: by day, to someone else, and never to or
+/// from the accused while they're on trial (defending, being judged, or saying last words).
+/// Whether either of them is alive is checked separately.
+pub fn whisper_allowed(phase: &GamePhase, from: PlayerSlot, to: PlayerSlot) -> bool {
+    let GamePhase::Day { stage, .. } = phase else {
+        return false;
+    };
+    let on_trial = match stage {
+        DayStage::Defense { accused }
+        | DayStage::Judgement { accused }
+        | DayStage::LastWords { accused } => Some(*accused),
+        DayStage::Discussion | DayStage::Voting { .. } => None,
+    };
+    from != to && on_trial.is_none_or(|accused| accused != from && accused != to)
+}
+
 impl ChatContext {
     /// Whether this player may write to a channel right now. For a whisper the server also
     /// checks that the other player is alive.
@@ -79,7 +95,9 @@ impl ChatContext {
                 }
                 _ => false,
             },
-            ChatChannel::Whisper { to } => self.phase.is_day() && self.alive && to != self.slot,
+            ChatChannel::Whisper { to } => {
+                whisper_allowed(&self.phase, self.slot, to) && self.alive
+            }
             ChatChannel::Jail => night && self.alive && self.jail != JailStatus::Free,
             ChatChannel::Mafia => night && self.alive && self.role.faction() == Faction::Mafia,
             ChatChannel::Dead => !self.alive || (night && self.role == Role::Medium),
@@ -163,7 +181,9 @@ mod tests {
         );
         assert!(me.can_send(ChatChannel::General));
         assert!(!other.can_send(ChatChannel::General));
-        assert!(other.can_send(ChatChannel::Whisper { to: PlayerSlot(3) }));
+        // Nobody whispers to someone on trial, but others can whisper among themselves.
+        assert!(!other.can_send(ChatChannel::Whisper { to: PlayerSlot(3) }));
+        assert!(other.can_send(ChatChannel::Whisper { to: PlayerSlot(4) }));
     }
 
     #[test]
@@ -189,5 +209,31 @@ mod tests {
         assert_eq!(ghost.default_channel(), Some(ChatChannel::Dead));
         assert!(!ghost.can_read(ChatChannel::Mafia));
         assert!(!ghost.can_send(ChatChannel::Whisper { to: PlayerSlot(2) }));
+    }
+}
+
+#[cfg(test)]
+mod whisper_tests {
+    use super::*;
+
+    fn day(stage: DayStage) -> GamePhase {
+        GamePhase::Day { day: 1, stage }
+    }
+
+    #[test]
+    fn nobody_whispers_to_or_from_the_accused_during_a_trial() {
+        let (ada, bram, cleo) = (PlayerSlot(0), PlayerSlot(1), PlayerSlot(2));
+        assert!(whisper_allowed(&day(DayStage::Discussion), ada, bram));
+        assert!(!whisper_allowed(&day(DayStage::Discussion), ada, ada));
+        for stage in [
+            DayStage::Defense { accused: bram },
+            DayStage::Judgement { accused: bram },
+            DayStage::LastWords { accused: bram },
+        ] {
+            let phase = day(stage);
+            assert!(!whisper_allowed(&phase, ada, bram), "to the accused");
+            assert!(!whisper_allowed(&phase, bram, ada), "from the accused");
+            assert!(whisper_allowed(&phase, ada, cleo), "between others");
+        }
     }
 }

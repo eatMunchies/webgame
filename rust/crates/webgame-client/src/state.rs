@@ -18,6 +18,10 @@ pub struct State {
     pub role: Option<Role>,
     /// Joined the current game after it started: dead from the start, with no role.
     pub spectator: bool,
+    /// Whether this is an app that shows the players, your role and your actions on screen (the
+    /// Godot client), rather than a terminal. Its log then leaves out the role list, the player
+    /// list, the role text and how to type commands, since the screen shows all of that.
+    pub app: bool,
     pub players: Vec<PlayerSummary>,
     pub role_list: Vec<RoleSlot>,
     pub team: Vec<TeamMember>,
@@ -80,6 +84,7 @@ impl Default for State {
             me: None,
             role: None,
             spectator: false,
+            app: false,
             players: Vec::new(),
             role_list: Vec::new(),
             team: Vec::new(),
@@ -101,6 +106,16 @@ impl Default for State {
 impl State {
     pub fn in_game(&self) -> bool {
         self.me.is_some() && !matches!(self.phase, GamePhase::Lobby | GamePhase::GameOver)
+    }
+
+    /// Whether this player can whisper to `to` now: both alive, by day, and neither of them on
+    /// trial.
+    pub fn can_whisper(&self, to: PlayerSlot) -> bool {
+        self.me.is_some_and(|me| {
+            self.alive(me)
+                && self.alive(to)
+                && webgame_protocol::whisper_allowed(&self.phase, me, to)
+        })
     }
 
     pub(crate) fn alive(&self, slot: PlayerSlot) -> bool {
@@ -283,12 +298,36 @@ impl State {
         match message {
             ServerMessage::Welcome { user_id, username } => {
                 self.user_id = Some(user_id);
-                vec![format!("Connected as {username}. Type /help for commands.")]
+                if self.app {
+                    vec![format!("Connected as {username}.")]
+                } else {
+                    vec![format!("Connected as {username}. Type /help for commands.")]
+                }
             }
             ServerMessage::Error(err) => vec![format!("! {err}")],
             ServerMessage::Lobby(info) => {
                 let first = self.lobby.as_ref().is_none_or(|l| l.code != info.code);
                 let joined = self.lobby.as_ref().map(|l| l.members.len()).unwrap_or(0);
+                // The app shows the lobby on screen, so its log only says who came and went.
+                let arrivals = if self.app && !first {
+                    let before = self
+                        .lobby
+                        .as_ref()
+                        .map(|l| l.members.clone())
+                        .unwrap_or_default();
+                    let came = info
+                        .members
+                        .iter()
+                        .filter(|m| !before.iter().any(|b| b.user_id == m.user_id))
+                        .map(|m| format!("{} joined.", m.name));
+                    let went = before
+                        .iter()
+                        .filter(|b| !info.members.iter().any(|m| m.user_id == b.user_id))
+                        .map(|b| format!("{} left.", b.name));
+                    came.chain(went).collect()
+                } else {
+                    Vec::new()
+                };
                 let now = info.members.len();
                 let ended = self.phase == GamePhase::GameOver && !info.in_game;
                 self.positions
@@ -297,7 +336,12 @@ impl State {
                 if ended {
                     self.reset_game();
                 }
-                if first || ended {
+                if self.app && (first || ended) {
+                    let code = &self.lobby.as_ref().unwrap().code;
+                    vec![format!("In lobby {code}.")]
+                } else if self.app {
+                    arrivals
+                } else if first || ended {
                     let code = &self.lobby.as_ref().unwrap().code;
                     let mut lines = vec![format!(
                         "In lobby {code}. Share the code; the host types /start with 4 or more players."
@@ -502,6 +546,13 @@ impl State {
         self.will = start.last_will;
         self.revealed.clear();
         self.votes.clear();
+        if self.app {
+            return vec![if self.spectator {
+                "You joined a game in progress, as a spectator: dead from the start.".into()
+            } else {
+                "The game begins.".into()
+            }];
+        }
         if self.spectator {
             return vec![
                 "=== You joined a game in progress ===".into(),
@@ -536,6 +587,7 @@ impl State {
         };
         match stage {
             DayStage::Discussion => "A new day. Talk it over.".into(),
+            DayStage::Voting { .. } if self.app => "Voting is open.".into(),
             DayStage::Voting { .. } => "Voting is open. Vote someone up with /vote N.".into(),
             DayStage::Defense { accused } if me(accused) => {
                 "You are on trial. Make your defense; only you can talk.".into()
@@ -544,6 +596,9 @@ impl State {
                 format!("{} is on trial. Hear their defense.", self.name(*accused))
             }
             DayStage::Judgement { accused } if me(accused) => "The town is judging you.".into(),
+            DayStage::Judgement { accused } if self.app => {
+                format!("Judge {}.", self.name(*accused))
+            }
             DayStage::Judgement { accused } => {
                 format!("Judge {}: /guilty, /inno or /abstain.", self.name(*accused))
             }
@@ -557,6 +612,17 @@ impl State {
     }
 
     fn night_hint(&self) -> String {
+        if self.app {
+            return match self.jail {
+                JailStatus::Prisoner if self.me.is_some_and(|me| self.alive(me)) => {
+                    "Night falls. You are in jail tonight.".into()
+                }
+                JailStatus::Jailer { prisoner } => {
+                    format!("Night falls. You hold {} tonight.", self.name(prisoner))
+                }
+                _ => "Night falls.".into(),
+            };
+        }
         if self.me.is_some_and(|me| !self.alive(me)) {
             return "Night falls. Talk with the dead by typing.".into();
         }

@@ -7,7 +7,7 @@ extends PanelContainer
 ## over the town as a sheet, and the player can hide it to see the town.
 ##
 ## Lines are colored by kind (see Session.log_line): what players said in
-## white, game updates (your role, its results, deaths, votes) in yellow, and
+## white, led by the speaker's number in a colored circle, game updates (your role, its results, deaths, votes) in yellow, and
 ## system lines (the lobby, the connection, errors, help) in purple.
 ##
 ## Beside the box is the channel plain text goes to right now (town, jail,
@@ -51,7 +51,7 @@ var prompt: TextPrompt:
 
 func _ready() -> void:
 	for line in Session.log_lines:
-		_add_line(line["text"], line["kind"])
+		_add_line(line["text"], line["kind"], line["lot"])
 	Session.log_line.connect(_add_line)
 	Session.lobby_changed.connect(_update_channel)
 	Session.phase_changed.connect(_update_channel)
@@ -88,9 +88,13 @@ func _update_channel() -> void:
 	channel_label.add_theme_color_override("font_color", shown[1])
 
 
-## Adds one line to the log. Lines are added as plain text, never BBCode,
+## Adds one line to the log, a player's chat line led by their number in its
+## colored circle (NumberBadge). Lines are added as plain text, never BBCode,
 ## because they include what other players typed.
-func _add_line(text: String, kind: String) -> void:
+func _add_line(text: String, kind: String, lot := -1) -> void:
+	if lot >= 0:
+		log_view.add_image(NumberBadge.texture(lot + 1), 0, 0, Color.WHITE, INLINE_ALIGNMENT_CENTER)
+		log_view.add_text(" ")
 	log_view.push_color(KIND_COLORS.get(kind, KIND_COLORS[Session.LINE_GAME]))
 	log_view.add_text(text)
 	log_view.pop()

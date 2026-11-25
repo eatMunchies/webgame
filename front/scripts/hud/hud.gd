@@ -16,15 +16,19 @@ extends Control
 ## - Side: the Roster, every player with what you can do to each of them, and
 ##   the Last will button under it.
 ##
-## So a wide screen reads [clock, lobby, chat | town | roster, will], and a
-## tall one, top to bottom: clock and lobby, the town, the roster (at most a
-## third of the screen; its rows scroll) and the will button. On a tall
-## screen the chat is a sheet over the town, open by default. A handle above
-## the roster hides it to show the town, so the player can walk around, and
-## shows it again; it can be tapped, or dragged up and down. While hidden,
-## the handle counts new lines. When a night minigame begins the sheet hides
-## and the roster steps aside, so the minigame has the room; both come back
-## when it ends.
+## So a wide screen reads [clock, lobby, chat | town | roster, buttons], and
+## a tall one, top to bottom: clock and lobby, the town, the roster (at most
+## a third of the screen; its rows scroll) and the buttons. The buttons are
+## the Last will (a paper and quill) and the role card (an ID card; see
+## RoleCard, which also opens on its own when a game starts).
+##
+## On a tall screen the chat is a sheet over the town, open by default, with
+## a Chat tab on its top edge. Drag the tab down to uncover the town and walk
+## around, and up to bring the chat back; a tap does either. While the chat
+## is down, the tab counts new lines. When a night minigame begins the sheet
+## slides down and the roster steps aside, so the minigame has the room; the
+## tab stays, so the chat can be pulled up over the minigame to read what
+## happened. Both come back when the minigame ends.
 ##
 ## Typing goes through one TextPrompt, a box in the upper middle of the
 ## screen, clear of a phone's keyboard: whispering from the roster, writing
@@ -42,6 +46,8 @@ const ROSTER_SHARE := 1.0 / 3.0
 const SHEET_SECONDS := 0.2
 ## How far the handle must be dragged, in units, to count as a drag.
 const DRAG_THRESHOLD := 6.0
+## The tall screen's Chat tab, in units.
+const TAB_SIZE := Vector2(56, 12)
 const WILL_TITLE := "Last will"
 const WILL_PLACEHOLDER := "Everyone reads this when you die. N1: checked 3, not suspicious"
 
@@ -51,13 +57,19 @@ const WILL_PLACEHOLDER := "Everyone reads this when you die. N1: checked 3, not 
 @onready var middle: Control = %Middle
 @onready var side: VBoxContainer = %Side
 @onready var chat_panel: PanelContainer = %ChatPanel
-@onready var chat_handle: Button = %ChatHandle
 @onready var roster: PanelContainer = %Roster
 @onready var will_button: Button = %WillButton
 ## Where the town shows through, for the town's camera and its overlays.
 @onready var world_space: Control = %WorldSpace
 
 var prompt: TextPrompt
+var role_card: RoleCard
+## The tall screen's tab on the chat sheet's top edge.
+var chat_tab := Button.new()
+var role_button := Button.new()
+## Whether a game was running at the last check, to show the role card when
+## one starts.
+var _was_in_game := false
 var _band := HudStyle.band_box()
 ## On a tall screen, how much of the town the chat sheet covers, 0 to 1.
 var _sheet := 1.0
@@ -78,16 +90,20 @@ var _in_minigame := false
 func _ready() -> void:
 	theme = HudStyle.build()
 	prompt = TextPrompt.create(self)
+	role_card = RoleCard.create(self)
 	chat_panel.prompt = prompt
+	_add_buttons()
+	_add_chat_tab()
 	will_button.pressed.connect(_open_will)
 	roster.whisper_requested.connect(_whisper)
 	chat_panel.line_added.connect(_on_chat_line_added)
-	chat_handle.gui_input.connect(_on_handle_input)
 	shell.flow_changed.connect(func(_vertical: bool) -> void: _apply_layout())
 	middle.resized.connect(_place_sheet)
 	resized.connect(_apply_layout)
 	Session.lobby_changed.connect(_update_will_button)
 	Session.phase_changed.connect(_update_will_button)
+	Session.lobby_changed.connect(_show_role_at_start)
+	Session.phase_changed.connect(_show_role_at_start)
 	Session.minigame_changed.connect(_on_minigame_changed)
 	_update_will_button()
 	_apply_layout()
@@ -112,7 +128,7 @@ func _apply_layout() -> void:
 		# Less the prompt, heading, buttons and role around the rows.
 		roster_rows = maxf(size.y * ROSTER_SHARE - 40.0, 24.0)
 	roster.max_rows_height = roster_rows
-	chat_handle.visible = tall
+	chat_tab.visible = tall
 
 	if tall:
 		if chat_panel.get_parent() != middle:
@@ -136,11 +152,12 @@ func _update_side() -> void:
 
 
 ## Sizes the tall screen's chat sheet: anchored to the bottom of the town's
-## part, covering `_sheet` of it.
+## part, covering `_sheet` of it (all but the tab's height, open), with the
+## tab on its top edge.
 func _place_sheet() -> void:
 	if not shell.vertical:
 		return
-	var height := roundf(middle.size.y * _sheet)
+	var height := roundf((middle.size.y - TAB_SIZE.y) * _sheet)
 	chat_panel.visible = height >= 1.0
 	chat_panel.anchor_left = 0.0
 	chat_panel.anchor_right = 1.0
@@ -150,17 +167,14 @@ func _place_sheet() -> void:
 	chat_panel.offset_right = 0.0
 	chat_panel.offset_top = -height
 	chat_panel.offset_bottom = 0.0
+	chat_tab.size = TAB_SIZE
+	chat_tab.position = Vector2(roundf((middle.size.x - TAB_SIZE.x) / 2.0),
+			middle.size.y - height - TAB_SIZE.y)
 	_update_handle()
 
 
 func _update_handle() -> void:
-	var open := _sheet > 0.5
-	if open:
-		chat_handle.text = "Hide chat"
-	elif _unread > 0:
-		chat_handle.text = "Show chat (%d new)" % _unread
-	else:
-		chat_handle.text = "Show chat"
+	chat_tab.text = "Chat (%d)" % _unread if _unread > 0 and _sheet <= 0.5 else "Chat"
 
 
 func _slide_sheet(to: float) -> void:
@@ -174,7 +188,47 @@ func _slide_sheet(to: float) -> void:
 		_place_sheet(), _sheet, to, SHEET_SECONDS)
 
 
-## A tap on the handle shows or hides the chat; a drag pulls the sheet up or
+## The Chat tab: a button-like tab, rounded on top, with a grip line, that
+## rides on the sheet's top edge.
+func _add_chat_tab() -> void:
+	chat_tab.focus_mode = Control.FOCUS_NONE
+	chat_tab.add_theme_font_size_override("font_size", HudStyle.FONT_SIZE)
+	for state in ["normal", "hover", "pressed", "hover_pressed"]:
+		var box := HudStyle.panel_box()
+		box.corner_radius_bottom_left = 0
+		box.corner_radius_bottom_right = 0
+		box.content_margin_top = 3
+		box.content_margin_bottom = 0
+		chat_tab.add_theme_stylebox_override(state, box)
+	chat_tab.draw.connect(func() -> void:
+		var middle_x := roundf(chat_tab.size.x / 2.0)
+		chat_tab.draw_line(Vector2(middle_x - 6, 1.5), Vector2(middle_x + 6, 1.5), RpgTheme.TRIM, 1.0))
+	chat_tab.gui_input.connect(_on_handle_input)
+	middle.add_child(chat_tab)
+
+
+## The Last will and role card buttons, side by side under the roster.
+func _add_buttons() -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 2)
+	side.add_child(row)
+	will_button.reparent(row, false)
+	role_button.icon = preload("res://assets/sprites/ui/role.png")
+	role_button.tooltip_text = "Your role"
+	role_button.focus_mode = Control.FOCUS_NONE
+	role_button.pressed.connect(role_card.open)
+	row.add_child(role_button)
+
+
+## Shows the role card when a game starts (or when joining one in progress).
+func _show_role_at_start() -> void:
+	var in_game := Session.in_game()
+	if in_game and not _was_in_game and not Session.client.role_info().is_empty():
+		role_card.open()
+	_was_in_game = in_game
+
+
+## A tap on the tab shows or hides the chat; a drag pulls the sheet up or
 ## down with the finger, and it settles open or shut by which way it went.
 func _on_handle_input(event: InputEvent) -> void:
 	var press := event as InputEventMouseButton
@@ -192,7 +246,7 @@ func _on_handle_input(event: InputEvent) -> void:
 			else:
 				_sheet_wanted = _sheet <= 0.5
 			_slide_sheet(1.0 if _sheet_wanted else 0.0)
-		chat_handle.accept_event()
+		chat_tab.accept_event()
 		return
 	var motion := event as InputEventMouseMotion
 	if motion != null and _pressing:
@@ -202,7 +256,7 @@ func _on_handle_input(event: InputEvent) -> void:
 		if _dragging and middle.size.y > 0.0:
 			_sheet = clampf(_drag_sheet - moved / middle.size.y, 0.0, 1.0)
 			_place_sheet()
-		chat_handle.accept_event()
+		chat_tab.accept_event()
 
 
 func _on_chat_line_added() -> void:
@@ -224,6 +278,7 @@ func _on_minigame_changed() -> void:
 func _update_will_button() -> void:
 	will_button.visible = Session.in_game() and Session.me != null and Session.me.alive \
 			and roster.visible
+	role_button.visible = Session.in_game() and roster.visible
 
 
 func _open_will() -> void:

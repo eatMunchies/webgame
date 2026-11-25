@@ -102,8 +102,9 @@ func _ready() -> void:
 
 
 ## Opens the prompt. `on_done` gets the text when the player confirms.
-## Options: `multiline` (a box for several lines, with Paste), `confirm` (the
-## confirm button's text, "Send" by default) and `placeholder`.
+## Options: `multiline` (a box for several lines), `paste` (a Paste button,
+## on by default for multiline), `confirm` (the confirm button's text, "Send"
+## by default) and `placeholder`.
 func ask(title: String, text: String, on_done: Callable, options := {}) -> void:
 	var multiline: bool = options.get("multiline", false)
 	_title.text = title
@@ -111,7 +112,7 @@ func ask(title: String, text: String, on_done: Callable, options := {}) -> void:
 	_confirm.text = options.get("confirm", "Send")
 	_line.visible = not multiline
 	_multi.visible = multiline
-	_paste.visible = multiline
+	_paste.visible = options.get("paste", multiline)
 	var box: Control = _multi if multiline else _line
 	box.set("text", text)
 	box.set("placeholder_text", options.get("placeholder", ""))
@@ -133,12 +134,13 @@ func close() -> void:
 	_on_done = Callable()
 
 
-## Makes `field` open the prompt when tapped on a touch screen, titled
-## `title`. Confirming puts the text in the field; with `submit` it also
-## submits it, as pressing Enter in the field would. Does nothing on a screen
-## without touch, where the field works as it is.
-func attach(field: LineEdit, title: String, submit := false) -> void:
-	if not touch:
+## Makes `field` open the prompt when tapped, titled `title`. Confirming puts
+## the text in the field; with `submit` it also submits it, as pressing Enter
+## in the field would. Options: `always` (on every screen; otherwise only on
+## a touch screen, and the field works as it is elsewhere), `paste` (a
+## Paste button) and `confirm` (the confirm button's text).
+func attach(field: LineEdit, title: String, submit := false, options := {}) -> void:
+	if not touch and not options.get("always", false):
 		return
 	# The field never takes the keyboard itself; the prompt does.
 	field.virtual_keyboard_enabled = false
@@ -154,16 +156,29 @@ func attach(field: LineEdit, title: String, submit := false) -> void:
 			field.text_changed.emit(text)
 			if submit:
 				field.text_submitted.emit(text),
-			{"placeholder": field.placeholder_text, "confirm": "Send" if submit else "Done"}))
+			{"placeholder": field.placeholder_text,
+				"confirm": options.get("confirm", "Send" if submit else "Done"),
+				"paste": options.get("paste", false)}))
 
 
 func _place() -> void:
 	if not visible:
 		return
 	var width := minf(WIDTH, size.x * WIDTH_SHARE)
-	_panel.reset_size()
-	_panel.size.x = width
+	# The wrapped title gets the panel's inner width up front: a wrapping label
+	# measures its height at the width it has, and with none it would wrap
+	# every word onto its own line and stretch the panel.
+	var inner := width - _panel.get_theme_stylebox("panel").get_minimum_size().x
+	_title.custom_minimum_size.x = inner
+	_panel.custom_minimum_size.x = width
+	_panel.size = Vector2(width, 0)
 	_panel.position = Vector2((size.x - width) / 2.0, roundf(size.y * TOP_SHARE))
+	# Wrapped labels only know their height after a layout pass.
+	_shrink.call_deferred()
+
+
+func _shrink() -> void:
+	_panel.size = Vector2(_panel.size.x, 0)
 
 
 func _finish() -> void:
@@ -203,5 +218,9 @@ func _on_paste_pressed() -> void:
 func _insert(text: String) -> void:
 	if text == "" or not visible:
 		return
-	_multi.insert_text_at_caret(text)
-	_multi.grab_focus()
+	if _multi.visible:
+		_multi.insert_text_at_caret(text)
+		_multi.grab_focus()
+	else:
+		_line.insert_text_at_caret(text.strip_edges())
+		_line.grab_focus()

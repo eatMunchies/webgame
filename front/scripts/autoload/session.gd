@@ -21,9 +21,9 @@ signal phase_changed
 signal request_failed(message: String)
 ## A new line in the game log, and its kind: LINE_CHAT (what players
 ## said), LINE_GAME (your role, results, deaths, votes and other events) or
-## LINE_SYSTEM (the lobby, the connection, errors). Every line so far is in
-## log_lines.
-signal log_line(text: String, kind: String)
+## LINE_SYSTEM (the lobby, the connection, errors). `lot` is the lot of the
+## player who said a chat line, or -1. Every line so far is in log_lines.
+signal log_line(text: String, kind: String, lot: int)
 ## Someone else's character moved in the town. `facing` is a
 ## Character.Facing value.
 signal player_moved(lot: int, position: Vector2, facing: int, walking: bool)
@@ -58,7 +58,7 @@ const LINE_SYSTEM := "system"
 ## This player's entry in players, or null when not in a lobby.
 var me: LobbyPlayer
 ## Game text so far, oldest first, so a log that opens later can catch up:
-## each {text, kind}, as log_line gives them.
+## each {text, kind, lot}, as log_line gives them.
 var log_lines: Array[Dictionary] = []
 ## Why the player was last dropped from a lobby, for the lobby screen to
 ## show. Cleared once shown.
@@ -246,14 +246,14 @@ func _appearance_from(fields: Dictionary) -> CharacterAppearance:
 ## Adds a line of this client's own to the game log, like the reason a
 ## button's command was refused. Everyone else's lines come from the client.
 func add_log_line(text: String, kind := LINE_SYSTEM) -> void:
-	_add_log_line(text, kind)
+	_add_log_line(text, kind, -1)
 
 
-func _add_log_line(text: String, kind: String) -> void:
-	log_lines.append({"text": text, "kind": kind})
+func _add_log_line(text: String, kind: String, lot: int) -> void:
+	log_lines.append({"text": text, "kind": kind, "lot": lot})
 	if log_lines.size() > MAX_LOG_LINES:
 		log_lines.pop_front()
-	log_line.emit(text, kind)
+	log_line.emit(text, kind, lot)
 
 
 func _on_disconnected(reason: String) -> void:

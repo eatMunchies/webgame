@@ -84,11 +84,12 @@ func _ready() -> void:
 	Session.request_failed.connect(_on_session_request_failed)
 	_update_buttons()
 	_add_hint()
-	# On a touch screen the name and code boxes type in a box clear of the
-	# keyboard.
+	# The name and code boxes type in a box in the middle of the screen,
+	# clear of a phone's keyboard. The code's has Paste, for a code sent in a
+	# message.
 	_prompt = TextPrompt.create($UI)
-	_prompt.attach(name_input, "Your name")
-	_prompt.attach(code_input, "Lobby code", true)
+	_prompt.attach(name_input, "Your name", false, {"always": true})
+	_prompt.attach(code_input, "Lobby code", true, {"always": true, "paste": true, "confirm": "Join"})
 	# Say why the player is back here, if they were dropped from a lobby.
 	status_label.text = Session.last_error
 	Session.last_error = ""
