@@ -127,10 +127,11 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
-## On a touch screen, types through the screen's TextPrompt while the test
-## shows: a box at the top, clear of the on-screen keyboard (which covers the
-## bottom of the screen, where the test may be), titled with the words still
-## to type. Every change in the box is typed here as keys would be.
+## On a touch screen the test moves into the screen's TextPrompt while it
+## shows: the box at the top, clear of the on-screen keyboard (which covers
+## the bottom of the screen, where the minigame panel may be), shows the words
+## as this would (a TypingView) and takes the keyboard. Every change typed
+## there comes here as keys would. The minigame panel says to type above.
 func _notification(what: int) -> void:
 	if not TextPrompt.touch:
 		return
@@ -149,9 +150,10 @@ func _open_prompt() -> void:
 	_prompt = TextPrompt.shared(self)
 	if _prompt.is_live_for(_live_callback):
 		return
-	_prompt.ask(_prompt_title(), current, Callable(), {"live": _live_callback})
-	if not changed.is_connected(_update_prompt_title):
-		changed.connect(_update_prompt_title)
+	var view := TypingView.new()
+	view.check = self
+	_prompt.ask("", current, Callable(), {"live": _live_callback, "content": view})
+	queue_redraw()
 
 
 func _close_prompt() -> void:
@@ -159,17 +161,9 @@ func _close_prompt() -> void:
 		_prompt.close()
 
 
-## The words still to type, as the prompt's title.
-func _prompt_title() -> String:
-	if words.is_empty():
-		return "Type"
-	var left := words.slice(mini(typed.size(), words.size()))
-	return "Type: " + " ".join(left) if not left.is_empty() else "Done"
-
-
-func _update_prompt_title() -> void:
-	if is_instance_valid(_prompt) and _prompt.is_live_for(_live_callback):
-		_prompt.set_title(_prompt_title())
+## Whether the test is being typed in the prompt now.
+func _typing_in_prompt() -> bool:
+	return is_instance_valid(_prompt) and _prompt.is_live_for(_live_callback)
 
 
 ## Takes what the prompt holds: the word being typed, and a space (or Enter)
@@ -225,6 +219,20 @@ func _attempt(i: int) -> String:
 
 
 func _draw() -> void:
+	if _typing_in_prompt():
+		# The test itself is in the prompt at the top of the screen.
+		var font := ThemeDB.fallback_font
+		var note := "Type in the box above"
+		var width := font.get_string_size(note, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
+		font.draw_string(get_canvas_item(), Vector2((size.x - width) / 2, size.y / 2),
+				note, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, UNTYPED_COLOR)
+		return
+	draw_words_on(self, size)
+
+
+## Draws the words on `canvas`, laid out to fit `area`: here, or in the
+## TypingView a touch screen's prompt shows.
+func draw_words_on(canvas: CanvasItem, area: Vector2) -> void:
 	var font := ThemeDB.fallback_font
 	var space_width := font.get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
 	var line_height := font.get_height(FONT_SIZE) + LINE_GAP
@@ -234,23 +242,23 @@ func _draw() -> void:
 	for i in words.size():
 		var width := font.get_string_size(_shown(i), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
 		var with_space := width + (space_width if not lines[-1].is_empty() else 0.0)
-		if not lines[-1].is_empty() and widths[-1] + with_space > size.x - 8:
+		if not lines[-1].is_empty() and widths[-1] + with_space > area.x - 8:
 			lines.append([])
 			widths.append(0.0)
 			with_space = width
 		lines[-1].append(i)
 		widths[-1] += with_space
-	var y := (size.y - line_height * lines.size()) / 2 + font.get_ascent(FONT_SIZE)
+	var y := (area.y - line_height * lines.size()) / 2 + font.get_ascent(FONT_SIZE)
 	for line in lines.size():
-		var x := (size.x - widths[line]) / 2
+		var x := (area.x - widths[line]) / 2
 		for i: int in lines[line]:
-			x = _draw_word(font, i, Vector2(x, y)) + space_width
+			x = _draw_word(canvas, font, i, Vector2(x, y)) + space_width
 		y += line_height
 
 
 ## Draws word `i` with its baseline starting at `at`, coloring each letter
 ## by how it was typed, and returns where it ends.
-func _draw_word(font: Font, i: int, at: Vector2) -> float:
+func _draw_word(canvas: CanvasItem, font: Font, i: int, at: Vector2) -> float:
 	var word := words[i]
 	var attempt := _attempt(i)
 	var finished := i < typed.size()
@@ -268,13 +276,13 @@ func _draw_word(font: Font, i: int, at: Vector2) -> float:
 		elif finished:
 			# Letters skipped by finishing the word early.
 			color = MISS_COLOR.darkened(0.4)
-		font.draw_string(get_canvas_item(), Vector2(x, at.y), shown[j], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, color)
+		font.draw_string(canvas.get_canvas_item(), Vector2(x, at.y), shown[j], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, color)
 		x += font.get_string_size(shown[j], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
 	if i == typed.size() and caret < 0.0:
 		caret = x
 	if finished and attempt != word:
-		draw_line(Vector2(at.x, at.y + 2), Vector2(x, at.y + 2), MISS_COLOR, 1.0)
+		canvas.draw_line(Vector2(at.x, at.y + 2), Vector2(x, at.y + 2), MISS_COLOR, 1.0)
 	if caret >= 0.0 and not waiting():
 		var top := at.y - font.get_ascent(FONT_SIZE)
-		draw_line(Vector2(caret, top), Vector2(caret, at.y + 1), GOLD, 1.0)
+		canvas.draw_line(Vector2(caret, top), Vector2(caret, at.y + 1), GOLD, 1.0)
 	return x

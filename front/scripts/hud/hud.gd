@@ -43,7 +43,7 @@ const SECTION_GAP := 2
 const INFO_WIDTH := 88.0
 const SIDE_WIDTH := 96.0
 ## On a tall screen, the share of the HUD's height the roster may take.
-const ROSTER_SHARE := 1.0 / 3.0
+const ROSTER_SHARE := 0.45
 ## How long the tall screen's chat sheet takes to slide.
 const SHEET_SECONDS := 0.2
 ## How far the handle must be dragged, in units, to count as a drag.

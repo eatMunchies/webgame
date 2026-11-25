@@ -201,7 +201,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
-theme_override_constants/separation = 1
+theme_override_constants/separation = 3
 
 [node name="WillButton" type="Button" parent="Shell/Side"]
 unique_name_in_owner = true

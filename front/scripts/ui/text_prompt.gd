@@ -17,8 +17,10 @@ extends Control
 ## instead of taking the keyboard where it sits.
 ##
 ## A `live` prompt feeds every change to a callback as it's typed, with no
-## backdrop or buttons, for typing into something on screen as with a
-## keyboard (the typing test on a phone). Its owner closes it.
+## backdrop or buttons, for typing into something as with a keyboard (the
+## typing test on a phone). With `content`, a Control shows in place of the
+## title and the text box, which still takes the keyboard but isn't drawn;
+## a tap on the content brings the keyboard back. Its owner closes it.
 ##
 ## Make one per screen with `TextPrompt.create(parent)`, which fills the
 ## parent and stays hidden until asked.
@@ -47,6 +49,9 @@ var _on_done := Callable()
 ## should hold.
 var _live := Callable()
 var _backdrop := ColorRect.new()
+## Where `content` goes, and what's there now.
+var _content_slot := VBoxContainer.new()
+var _content: Control
 var _buttons := HBoxContainer.new()
 
 ## The prompt made most recently, for things that type through whichever
@@ -97,6 +102,7 @@ func _ready() -> void:
 	_title.theme_type_variation = "HudTitle"
 	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rows.add_child(_title)
+	rows.add_child(_content_slot)
 	_line.text_submitted.connect(func(_text: String) -> void:
 		if _live.is_valid():
 			# Enter types a space, as in the typing test.
@@ -145,6 +151,7 @@ func ask(title: String, text: String, on_done: Callable, options := {}) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE if live else Control.MOUSE_FILTER_STOP
 	_backdrop.visible = not live
 	_buttons.visible = not live
+	_set_content(options.get("content", null))
 	_confirm.text = options.get("confirm", "Send")
 	_line.visible = not multiline
 	_multi.visible = multiline
@@ -169,6 +176,34 @@ func close() -> void:
 	visible = false
 	_on_done = Callable()
 	_live = Callable()
+	_set_content(null)
+
+
+## Shows `content` in place of the title and the text box, or puts both back
+## with null. The prompt frees content it's done with.
+func _set_content(content: Control) -> void:
+	if is_instance_valid(_content):
+		_content.queue_free()
+	_content = content
+	var showing := content != null
+	_title.visible = not showing
+	# The box still takes the keyboard; it just isn't drawn, and takes next
+	# to no room.
+	_line.self_modulate.a = 0.0 if showing else 1.0
+	if showing:
+		_line.add_theme_font_size_override("font_size", 1)
+		for state in ["normal", "focus"]:
+			_line.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+	else:
+		_line.remove_theme_font_size_override("font_size")
+		for state in ["normal", "focus"]:
+			_line.remove_theme_stylebox_override(state)
+	if showing:
+		_content_slot.add_child(content)
+		content.gui_input.connect(func(event: InputEvent) -> void:
+			if (event is InputEventMouseButton and event.pressed) \
+					or (event is InputEventScreenTouch and event.pressed):
+				_line.grab_focus())
 
 
 ## Whether a live prompt is open for `callback`.

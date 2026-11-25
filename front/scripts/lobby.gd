@@ -7,8 +7,8 @@ extends Node2D
 ## Hosting or joining asks the game server, and goes to the town once it
 ## says yes.
 ##
-## Walking up to the house's door and pressing E (the interact action), or
-## tapping or clicking the house, opens the customizer. The house brightens
+## Clicking or tapping the house opens the customizer (so does E, the
+## interact action, at its door); a hint says so while the player is near. The house brightens
 ## while the player is at its door. Walking is the
 ## town's: WASD or the arrow keys, or dragging on a touch screen. Clicking
 ## the plaza takes the focus off the text boxes, so the keys walk again.
@@ -38,10 +38,11 @@ const HOUSE_RECT := Rect2(-32, -72, 64, 72)
 ## The house's tint while the player is at its door.
 const DOOR_GLOW := Color(1.2, 1.2, 1.12)
 ## The hint over the house saying how to go in: a click on it, or on a touch
-## screen a tap. It shows all the time, pulsing gently, so it's found without
-## walking anywhere first.
-const CLICK_HINT := "Click your house to customize"
-const TAP_HINT := "Tap your house to customize"
+## screen a tap. It shows, pulsing gently, while the player is within
+## HINT_REACH of the door.
+const CLICK_HINT := "Click to Customize"
+const TAP_HINT := "Tap to Customize"
+const HINT_REACH := 48.0
 ## How far above the owner's name the hint sits, in world pixels.
 const HINT_GAP := 2.0
 const HINT_PULSE_SPEED := 4.0
@@ -115,8 +116,12 @@ func _add_hint() -> void:
 	house.get_parent().add_child(_hint)
 
 
-## Shows the hint over the owner's name, pulsing gently.
+## Shows the hint over the owner's name, pulsing gently, while the player is
+## near the house.
 func _update_hint() -> void:
+	_hint.visible = player.position.distance_to(house.position + DOOR_SPOT) <= HINT_REACH
+	if not _hint.visible:
+		return
 	_hint.reset_size()
 	var name_label: Control = house.get_node("NameLabel")
 	var top := house.position.y + name_label.position.y
