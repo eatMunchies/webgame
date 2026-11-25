@@ -109,6 +109,19 @@ clients count="4": build
     done
     wait
 
+# `just shots 405x720 --name=Ada --create` plays in a phone-shaped window; join a lobby terminal
+# bots are in with `--join=CODE`. Frames go to front/reports/shots, or SHOTS; see
+# front/tools/shoot.gd for SECS, EVERY, SCENE and TOUCH. Needs xvfb-run.
+# Play the game in a virtual display, saving a screenshot every few seconds, to check the UI
+[positional-arguments]
+shots size="960x540" *args: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    size="$1"
+    shift
+    xvfb-run -a -s "-screen 0 1920x1920x24" "{{ godot }}" --rendering-driver opengl3 \
+        --resolution "$size" --path front --script res://tools/shoot.gd -- "$@"
+
 # Run the game server. Options go to it: --fast (short phases), --rolls (minigames may be
 # rolled, so terminal clients can play at normal speed), --seed N (repeatable roles),
 # --port, --db. Its SQLite file defaults to rust/webgame.db.

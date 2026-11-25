@@ -24,7 +24,7 @@ The client loads a GDExtension built from `rust/crates/webgame-godot-rust`. Godo
 just build
 ```
 
-The editor picks up the rebuilt library on its own. Run `just` with no arguments to list every recipe.
+The editor picks up the rebuilt library on its own. Run `just` with no arguments to list every recipe. To check the UI without a screen, `just shots 405x720 --name=Ada --create` plays the game in a virtual display and saves a screenshot every few seconds to `front/reports/shots` (see `front/tools/shoot.gd`; needs `xvfb-run`).
 
 Machine-specific settings go in a `.env` file at the repo root, which is gitignored. Copy `.env.example` to `.env` and fill in what applies to you: `GODOT` if Godot isn't on your PATH, and `EMSDK` for web builds (see below).
 
