@@ -10,9 +10,9 @@ extends PanelContainer
 ## white, led by the speaker's number in a colored circle, whispers in blue, game updates (your role, its results, deaths, votes) in yellow, and
 ## system lines (the lobby, the connection, errors, help) in purple.
 ##
-## Beside the box is the channel plain text goes to right now (town, jail,
-## mafia, dead, or whisper while a `/w` line is typed). Typing works like the
-## terminal client: plain text is chat, and commands like `/vote 3` are
+## The box doesn't say which channel plain text goes to (town, jail, mafia,
+## dead): someone looking over your shoulder would learn your role from it.
+## Typing works like the terminal client: plain text is chat, and commands like `/vote 3` are
 ## actions; `/help` lists them. Press Enter to start typing and Enter again
 ## to send; Escape goes back to walking. On a touch screen, tapping the box
 ## opens the HUD's TextPrompt instead, clear of the keyboard.
@@ -20,7 +20,7 @@ extends PanelContainer
 ## A line was added to the log.
 signal line_added
 
-## Whispers, in the log and beside the box while typing one.
+## Whispers, in the log.
 const WHISPER_COLOR := Color(0.45, 0.72, 1)
 ## Line colors, by kind.
 const KIND_COLORS := {
@@ -29,21 +29,10 @@ const KIND_COLORS := {
 	Session.LINE_GAME: Color(1, 0.84, 0.4),
 	Session.LINE_SYSTEM: Color(0.78, 0.62, 1),
 }
-## How each channel from client.chat_channel() is named and colored beside
-## the input. "" is when nobody can hear.
-const CHANNELS := {
-	"lobby": ["lobby", Color(0.93, 0.87, 0.74)],
-	"town": ["town", Color(0.93, 0.87, 0.74)],
-	"jail": ["jail", Color(0.75, 0.75, 0.85)],
-	"mafia": ["mafia", Color(0.95, 0.4, 0.4)],
-	"dead": ["dead", Color(0.6, 0.65, 0.75)],
-	"whisper": ["whisper", WHISPER_COLOR],
-	"": ["muted", Color(0.62, 0.56, 0.46)],
-}
 
 @onready var log_view: RichTextLabel = %Log
 @onready var input: LineEdit = %Input
-@onready var channel_label: Label = %Channel
+@onready var send_button: Button = %SendButton
 
 ## The HUD's prompt, which the box opens on a touch screen. Set by the HUD.
 var prompt: TextPrompt:
@@ -63,12 +52,11 @@ func _ready() -> void:
 	for line in Session.log_lines:
 		_add_line(line["text"], line["kind"], line["lot"])
 	Session.log_line.connect(_add_line)
-	Session.lobby_changed.connect(_update_channel)
-	Session.phase_changed.connect(_update_channel)
-	# Dying or being jailed changes the channel without a new phase.
-	Session.actions_changed.connect(_update_channel)
-	input.text_changed.connect(func(_text: String) -> void: _update_channel())
-	_update_channel()
+	# Wired here rather than in hud.tscn: the HUD moves this panel between
+	# screen shapes, and a scene connection is lost when its node path changes,
+	# which once left Enter, Send and the touch prompt sending nothing.
+	input.text_submitted.connect(_on_input_text_submitted)
+	send_button.pressed.connect(_on_send_button_pressed)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -84,18 +72,6 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") and input.has_focus():
 		input.release_focus()
 		get_viewport().set_input_as_handled()
-
-
-## Shows where the line being typed will go. A `/w N` line is a whisper; any
-## other command isn't chat, so the plain text channel stays shown.
-func _update_channel() -> void:
-	var channel: String = Session.client.chat_channel()
-	var typed := input.text.strip_edges()
-	if typed.begins_with("/w ") or typed.begins_with("/whisper "):
-		channel = "whisper"
-	var shown: Array = CHANNELS.get(channel, CHANNELS[""])
-	channel_label.text = shown[0]
-	channel_label.add_theme_color_override("font_color", shown[1])
 
 
 ## Adds one line to the log, a player's chat line led by their number in its
@@ -122,7 +98,6 @@ func _send() -> void:
 		Session.add_log_line("! " + error)
 		return
 	input.clear()
-	_update_channel()
 
 
 func _on_input_text_submitted(_text: String) -> void:
