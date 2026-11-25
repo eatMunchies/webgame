@@ -62,6 +62,7 @@ const HINT_PULSE_SPEED := 4.0
 @onready var _camera_lift := camera.position
 ## True while waiting for the server to answer a create or join.
 var _waiting := false
+var _prompt: TextPrompt
 ## The hint over the house; see KEY_HINT.
 var _hint := Label.new()
 var _touch := DisplayServer.is_touchscreen_available()
@@ -83,6 +84,11 @@ func _ready() -> void:
 	Session.request_failed.connect(_on_session_request_failed)
 	_update_buttons()
 	_add_hint()
+	# On a touch screen the name and code boxes type in a box clear of the
+	# keyboard.
+	_prompt = TextPrompt.create($UI)
+	_prompt.attach(name_input, "Your name")
+	_prompt.attach(code_input, "Lobby code", true)
 	# Say why the player is back here, if they were dropped from a lobby.
 	status_label.text = Session.last_error
 	Session.last_error = ""
@@ -147,6 +153,8 @@ func _input(event: InputEvent) -> void:
 	# which would otherwise take the touch.
 	var tap := event as InputEventMouseButton
 	if tap == null or not tap.pressed or tap.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if _prompt != null and _prompt.visible:
 		return
 	if panel.get_global_rect().has_point(tap.position):
 		return

@@ -89,9 +89,11 @@ impl GameClient {
     #[signal]
     fn phase_changed();
 
-    /// A line of text for the game log: chat, private night results, deaths, votes.
+    /// A line of text for the game log, and what kind of line it is, so the log can color it:
+    /// `chat` (what players said), `game` (your role, night results, deaths, votes and other
+    /// events) or `system` (the lobby, the connection, errors and help).
     #[signal]
-    fn log_line(text: GString);
+    fn log_line(text: GString, kind: GString);
 
     /// The server refused something, for example joining a lobby that doesn't exist.
     #[signal]
@@ -285,6 +287,7 @@ impl GameClient {
             Ok(command) => command,
             Err(err) => return text(err),
         };
+        let mut kind = LINE_GAME;
         let text = match command {
             Command::Send(message) => {
                 if let ClientMessage::Game(GameAction::SetLastWill(will)) = &message {
@@ -301,13 +304,18 @@ impl GameClient {
                 self.signals().actions_changed().emit();
                 line
             }
-            Command::Help => HELP.to_string(),
+            Command::Help => {
+                kind = LINE_SYSTEM;
+                HELP.to_string()
+            }
             Command::Quit => {
                 self.leave_lobby();
                 return GString::new();
             }
         };
-        self.signals().log_line().emit(&GString::from(&text));
+        self.signals()
+            .log_line()
+            .emit(&GString::from(&text), &GString::from(kind));
         GString::new()
     }
 
@@ -699,6 +707,7 @@ impl GameClient {
         if matches!(message, ServerMessage::Fight(_)) {
             self.fight_received_at = Time::singleton().get_ticks_msec();
         }
+        let kind = line_kind(&message);
         let before = self.state.phase.clone();
         let lines = self.state.apply(message);
         if welcome {
@@ -708,7 +717,9 @@ impl GameClient {
             self.signals().server_error().emit(&GString::from(&error));
         }
         for line in lines {
-            self.signals().log_line().emit(&GString::from(&line));
+            self.signals()
+                .log_line()
+                .emit(&GString::from(&line), &GString::from(kind));
         }
         if members {
             self.signals().members_changed().emit();
@@ -822,5 +833,21 @@ fn capitalize(text: &str) -> String {
     match chars.next() {
         Some(first) => first.to_uppercase().chain(chars).collect::<String>() + ".",
         None => String::new(),
+    }
+}
+
+const LINE_CHAT: &str = "chat";
+const LINE_GAME: &str = "game";
+const LINE_SYSTEM: &str = "system";
+
+/// What kind of log line a server message makes (see the `log_line` signal).
+fn line_kind(message: &ServerMessage) -> &'static str {
+    match message {
+        ServerMessage::Chat(_) => LINE_CHAT,
+        ServerMessage::Welcome { .. }
+        | ServerMessage::Error(_)
+        | ServerMessage::Lobby(_)
+        | ServerMessage::LeftLobby => LINE_SYSTEM,
+        _ => LINE_GAME,
     }
 }

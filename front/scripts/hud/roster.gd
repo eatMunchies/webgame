@@ -1,8 +1,8 @@
 extends PanelContainer
 
 ## The roster: every player, and what you can do to each of them right now.
-## It is the HUD's main panel, a wide column under the clock on a wide screen
-## and a panel between the town and the chat on a tall one (hud.gd moves it).
+## It is the HUD's main panel: a column of its own on the right of a wide
+## screen, and under the town on a tall one (see hud.gd).
 ##
 ## From the top:
 ## - the prompt, saying what to do now in big gold letters ("Vote: put
@@ -20,12 +20,13 @@ extends PanelContainer
 ##
 ## Action buttons come from client.actions() and submit the same command
 ## typing would, so the server's answer shows in the chat log either way. The
-## current choice shows pressed. Whisper doesn't send anything: it asks the
-## chat to start a whisper (`whisper_requested`), which opens the chat with
-## `/w N ` typed, ready for the message.
+## current choice shows pressed. Whisper asks the HUD for a whisper
+## (`whisper_requested`), which opens a text box in the middle of the screen
+## for the message.
 
-## Asks the chat to start a whisper to the player with this number.
-signal whisper_requested(number: int)
+## Asks for a whisper to the player with this number and name. The HUD opens
+## its text prompt for the message.
+signal whisper_requested(number: int, player_name: String)
 
 ## What the prompt says for an action aimed at players, by its label. Any
 ## other label (a night ability) reads "Heal: pick a player".
@@ -207,7 +208,7 @@ func _row(member: Dictionary, in_game: bool, voting: bool, aimed: Array,
 	if can_whisper:
 		var whisper := _button(WHISPER)
 		whisper.tooltip_text = "Whisper to %s" % member["name"]
-		whisper.pressed.connect(func() -> void: whisper_requested.emit(member["number"]))
+		whisper.pressed.connect(func() -> void: whisper_requested.emit(member["number"], member["name"]))
 		row.add_child(whisper)
 	return row
 

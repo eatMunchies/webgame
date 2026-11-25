@@ -19,8 +19,11 @@ signal phase_changed
 ## A request was refused or the server couldn't be reached. `message` is
 ## written for the player.
 signal request_failed(message: String)
-## A new line in the game log. Every line so far is in log_lines.
-signal log_line(text: String)
+## A new line in the game log, and its kind: LINE_CHAT (what players
+## said), LINE_GAME (your role, results, deaths, votes and other events) or
+## LINE_SYSTEM (the lobby, the connection, errors). Every line so far is in
+## log_lines.
+signal log_line(text: String, kind: String)
 ## Someone else's character moved in the town. `facing` is a
 ## Character.Facing value.
 signal player_moved(lot: int, position: Vector2, facing: int, walking: bool)
@@ -47,10 +50,16 @@ var code := ""
 var is_host := false
 ## Everyone in the lobby, in lot order.
 var players: Array[LobbyPlayer] = []
+## The kinds of game log line; see log_line.
+const LINE_CHAT := "chat"
+const LINE_GAME := "game"
+const LINE_SYSTEM := "system"
+
 ## This player's entry in players, or null when not in a lobby.
 var me: LobbyPlayer
-## Game text so far, oldest first, so a log that opens later can catch up.
-var log_lines: Array[String] = []
+## Game text so far, oldest first, so a log that opens later can catch up:
+## each {text, kind}, as log_line gives them.
+var log_lines: Array[Dictionary] = []
 ## Why the player was last dropped from a lobby, for the lobby screen to
 ## show. Cleared once shown.
 var last_error := ""
@@ -236,15 +245,15 @@ func _appearance_from(fields: Dictionary) -> CharacterAppearance:
 
 ## Adds a line of this client's own to the game log, like the reason a
 ## button's command was refused. Everyone else's lines come from the client.
-func add_log_line(text: String) -> void:
-	_add_log_line(text)
+func add_log_line(text: String, kind := LINE_SYSTEM) -> void:
+	_add_log_line(text, kind)
 
 
-func _add_log_line(text: String) -> void:
-	log_lines.append(text)
+func _add_log_line(text: String, kind: String) -> void:
+	log_lines.append({"text": text, "kind": kind})
 	if log_lines.size() > MAX_LOG_LINES:
 		log_lines.pop_front()
-	log_line.emit(text)
+	log_line.emit(text, kind)
 
 
 func _on_disconnected(reason: String) -> void:
