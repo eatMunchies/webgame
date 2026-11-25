@@ -1,9 +1,8 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/hud/hud.gd" id="1_hud"]
-[ext_resource type="Script" path="res://scripts/hud/player_list.gd" id="2_players"]
+[ext_resource type="Script" path="res://scripts/hud/roster.gd" id="2_roster"]
 [ext_resource type="Script" path="res://scripts/hud/phase_clock.gd" id="3_clock"]
-[ext_resource type="Script" path="res://scripts/hud/action_bar.gd" id="4_actions"]
 [ext_resource type="Script" path="res://scripts/hud/chat_panel.gd" id="5_chat"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/will.png" id="6_will"]
 
@@ -43,19 +42,42 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 2
 
-[node name="PlayerList" type="PanelContainer" parent="Shell/Strip/StripBox"]
+[node name="Roster" type="PanelContainer" parent="Shell/Strip/StripBox"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_stretch_ratio = 1.2
+size_flags_vertical = 3
 mouse_filter = 2
-script = ExtResource("2_players")
+script = ExtResource("2_roster")
 
-[node name="Rows" type="VBoxContainer" parent="Shell/Strip/StripBox/PlayerList"]
+[node name="Rows" type="VBoxContainer" parent="Shell/Strip/StripBox/Roster"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 0
+theme_override_constants/separation = 2
 
-[node name="Heading" type="Label" parent="Shell/Strip/StripBox/PlayerList/Rows"]
+[node name="Prompt" type="Label" parent="Shell/Strip/StripBox/Roster/Rows"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"HudTitle"
+autowrap_mode = 3
+
+[node name="ChoiceRow" type="HFlowContainer" parent="Shell/Strip/StripBox/Roster/Rows"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/h_separation = 2
+theme_override_constants/v_separation = 2
+
+[node name="StartButton" type="Button" parent="Shell/Strip/StripBox/Roster/Rows"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 7
+text = "Start game"
+
+[node name="Heading" type="Label" parent="Shell/Strip/StripBox/Roster/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudHeading"
@@ -63,13 +85,20 @@ text = "Players"
 clip_text = true
 text_overrun_behavior = 3
 
-[node name="PlayerRows" type="VBoxContainer" parent="Shell/Strip/StripBox/PlayerList/Rows"]
+[node name="RosterScroll" type="ScrollContainer" parent="Shell/Strip/StripBox/Roster/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = -1
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
 
-[node name="RoleLabel" type="Label" parent="Shell/Strip/StripBox/PlayerList/Rows"]
+[node name="PlayerRows" type="VBoxContainer" parent="Shell/Strip/StripBox/Roster/Rows/RosterScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 1
+
+[node name="RoleLabel" type="Label" parent="Shell/Strip/StripBox/Roster/Rows"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
@@ -131,48 +160,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 mouse_filter = 2
-
-[node name="ActionBar" type="PanelContainer" parent="Shell/Focus/WorldSpace"]
-visible = false
-layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 0
-script = ExtResource("4_actions")
-
-[node name="Rows" type="VBoxContainer" parent="Shell/Focus/WorldSpace/ActionBar"]
-layout_mode = 2
-theme_override_constants/separation = 2
-
-[node name="Scroll" type="ScrollContainer" parent="Shell/Focus/WorldSpace/ActionBar/Rows"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-horizontal_scroll_mode = 0
-
-[node name="Groups" type="VBoxContainer" parent="Shell/Focus/WorldSpace/ActionBar/Rows/Scroll"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 1
-
-[node name="ChoiceRow" type="HFlowContainer" parent="Shell/Focus/WorldSpace/ActionBar/Rows"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-theme_override_constants/h_separation = 2
-theme_override_constants/v_separation = 2
-alignment = 1
-
-[node name="StartButton" type="Button" parent="Shell/Focus/WorldSpace/ActionBar/Rows"]
-unique_name_in_owner = true
-layout_mode = 2
-focus_mode = 0
-theme_override_font_sizes/font_size = 7
-text = "Start game"
 
 [node name="WillButton" type="Button" parent="Shell/Strip/StripBox/Side"]
 unique_name_in_owner = true
@@ -268,7 +255,6 @@ layout_mode = 2
 focus_mode = 0
 text = "Save"
 
-[connection signal="pressed" from="Shell/Focus/WorldSpace/ActionBar/Rows/StartButton" to="Shell/Focus/WorldSpace/ActionBar" method="_on_start_button_pressed"]
 [connection signal="text_submitted" from="Shell/Focus/ChatPanel/Rows/InputRow/Input" to="Shell/Focus/ChatPanel" method="_on_input_text_submitted"]
 [connection signal="pressed" from="Shell/Focus/ChatPanel/Rows/InputRow/SendButton" to="Shell/Focus/ChatPanel" method="_on_send_button_pressed"]
 [connection signal="pressed" from="Shell/Focus/ChatPanel/WillEditor/Buttons/CloseWillButton" to="Shell/Focus/ChatPanel" method="_close_will"]

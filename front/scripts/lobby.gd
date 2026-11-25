@@ -253,6 +253,10 @@ func arrival_spot() -> Vector2:
 ## in the same spot by their house, facing the same way, and the plaza's
 ## floor dissolves into the town around them.
 func _on_session_lobby_changed() -> void:
+	# This screen lingers for a moment after the change to the town, out of
+	# the tree; a second lobby update then must not change scenes again.
+	if not is_inside_tree():
+		return
 	if _waiting and Session.in_lobby():
 		Session.arrival_spot = arrival_spot()
 		Session.arrival_facing = player.facing

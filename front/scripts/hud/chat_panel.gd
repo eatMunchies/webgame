@@ -172,6 +172,18 @@ func collapse() -> void:
 		_set_expanded(false)
 
 
+## Opens the chat with a whisper to player `number` typed (`/w N `), ready
+## for the message. The roster's Whisper buttons call it.
+func start_whisper(number: int) -> void:
+	if will_editor.visible:
+		_close_will()
+	_set_expanded(true)
+	input.text = "/w %d " % number
+	input.caret_column = input.text.length()
+	input.grab_focus()
+	_update_channel()
+
+
 func open_will() -> void:
 	if will_editor.visible:
 		return
