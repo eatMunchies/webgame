@@ -4,8 +4,8 @@
 use std::collections::BTreeMap;
 
 use webgame_protocol::{
-    Accepted, ChatChannel, ChatContext, ChatSender, DayStage, DeathCause, DeathReport,
-    FIGHT_ROUNDS, FightView, GameOverInfo, GamePhase, GameStart, JailStatus, LobbyInfo, Minigame,
+    ACTION_ROUNDS, Accepted, ChatChannel, ChatContext, ChatSender, DayStage, DeathCause,
+    DeathReport, FightView, GameOverInfo, GamePhase, GameStart, JailStatus, LobbyInfo, Minigame,
     MinigameResult, Movement, NightAction, NightStage, Notice, Outcome, PlayerSlot, PlayerSummary,
     Role, RoleSlot, SaveReason, ServerMessage, TeamMember, UserId, Verdict, VoteEntry,
 };
@@ -164,9 +164,7 @@ impl State {
                 let stage = match stage {
                     NightStage::Choosing => "Choosing".to_string(),
                     NightStage::Roleblock => "Roleblocks".to_string(),
-                    NightStage::Kill { round } => format!("Fights {round}/{FIGHT_ROUNDS}"),
-                    NightStage::Protect => "Protection".to_string(),
-                    NightStage::Investigate => "Investigations".to_string(),
+                    NightStage::Actions { round } => format!("Actions {round}/{ACTION_ROUNDS}"),
                 };
                 format!("Night {night} {stage}")
             }
@@ -904,7 +902,7 @@ mod tests {
             game: Minigame::Passive,
             ends_at_ms: 10,
         });
-        state.apply(night(NightStage::Kill { round: 1 }));
+        state.apply(night(NightStage::Actions { round: 1 }));
         let kept = state.minigame.as_ref().map(|m| (m.game, m.ends_at_ms));
         assert_eq!(kept, Some((Minigame::Passive, 10)));
         state.apply(ServerMessage::Minigame {

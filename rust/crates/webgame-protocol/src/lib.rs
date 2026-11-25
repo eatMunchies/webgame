@@ -26,7 +26,7 @@ pub use messages::{
     ServerError, ServerMessage, TeamMember, VoteEntry, decode, encode,
 };
 pub use minigame::{
-    FIGHT_HP, FIGHT_ROUNDS, FightMove, FightView, Fighter, GRAB_WINDUP_MS, GUARD_COOLDOWN_MS,
+    ACTION_ROUNDS, FIGHT_HP, FightMove, FightView, Fighter, GRAB_WINDUP_MS, GUARD_COOLDOWN_MS,
     GUARD_MS, GUARD_RAISE_MS, MAX_CHANCE, MINIGAME_INTRO_MS, Minigame, MinigamePlay,
     MinigameResult, STAGGER_MS, STRIKE_WINDUP_MS,
 };

@@ -91,8 +91,9 @@ pub const GUARD_RAISE_MS: u32 = STRIKE_WINDUP_MS / 2;
 pub const GUARD_COOLDOWN_MS: u32 = STRIKE_WINDUP_MS;
 /// How long a strike into a guard, or a missed grab, leaves the attacker unable to act.
 pub const STAGGER_MS: u32 = 2_200;
-/// The Kill stage is split into this many rounds, each with its own fights.
-pub const FIGHT_ROUNDS: u8 = 3;
+/// The night's Actions stage is split into this many rounds, so nobody plays two minigames at
+/// once: all skill checks in the first, and each fight in the first round its players are free.
+pub const ACTION_ROUNDS: u8 = 2;
 /// How long the countdown before a skill check or fight lasts ("Skill Check", "Fight
 /// starting", then 3, 2, 1). The server adds it to each minigame stage, so it never comes out
 /// of the time to play.

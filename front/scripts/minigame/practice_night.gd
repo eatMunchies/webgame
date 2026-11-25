@@ -7,14 +7,16 @@ extends Node
 ## overlay can't tell it apart from a real night:
 ##
 ## - Choose your action, with no minigame, as players pick targets.
-## - Roleblocks, Fights 1/3 to 3/3, Protection, Investigations: one minigame
-##   each. Your action's skill check falls in one of the action stages, and
-##   a fight in one of the rounds; every other stage is the passive practice
-##   game, which carries on from stage to stage.
+## - Roleblocks, Actions 1/2, Actions 2/2: one minigame each. As on the
+##   server, a roleblock's skill check is in Roleblocks and every other
+##   skill check in Actions 1/2; a fight goes in the first action round
+##   you're free. Every other stage is the passive practice game, which
+##   carries on from stage to stage.
 ##
-## A night either has you attacking someone in the first fight round (a
+## A night either has you attacking someone in the first action round (a
 ## killing role, so no skill check), or has you doing an action and being
-## attacked in a random round. Skill checks are rolled as the server rolls
+## attacked: in round 1 if your action was a roleblock, or in round 2 after
+## your skill check. Skill checks are rolled as the server rolls
 ## them. Fights run the real fight rules through PracticeFight, against a
 ## bot that reacts after a human-ish delay, so it can be beaten. As on the
 ## server, a fight runs past its stage until someone is knocked out.
@@ -24,7 +26,7 @@ extends Node
 ##
 ## Once the last stage ends, `finished` gives the morning's summary.
 
-## A stage starts: its title, like "Fights 2/3", and how long it lasts.
+## A stage starts: its title, like "Actions 2/2", and how long it lasts.
 signal stage_started(title: String, seconds: float)
 ## Something worth showing in the tester's log happened.
 signal logged(line: String)
@@ -36,8 +38,8 @@ signal finished(summary: String)
 ## How long the stages last, in seconds, as the server's fast timers.
 const CHOOSING_SECONDS := 4.0
 const STAGE_SECONDS := 8.0
-## Fight rounds last a little longer, as on the server. A fight that outlasts
-## its round still runs on until a knockout.
+## Action rounds last a little longer, as on the server. A fight that
+## outlasts its round still runs on until a knockout.
 const FIGHT_SECONDS := 10.0
 ## How many fights a fights-only practice plays.
 const FIGHT_PRACTICE := 3
@@ -48,8 +50,11 @@ const BOT_REACTION_MS := Vector2i(350, 600)
 const BOT_MISS_CHANCE := 0.25
 ## The first stage's title, as GameClient names it.
 const CHOOSING := "Choose your action"
-## The action stages a skill check can fall in.
-const ACTION_STAGES := ["Roleblocks", "Protection", "Investigations"]
+## The stages after choosing, as GameClient names them.
+const STAGE_TITLES := ["Roleblocks", "Actions 1/2", "Actions 2/2"]
+## The stages a skill check can fall in: roleblocks in the first, every
+## other action in the second.
+const ACTION_STAGES := ["Roleblocks", "Actions 1/2"]
 
 var overlay: MinigameOverlay
 ## Each stage as {title, seconds, kind}: kind is "", "skill_check", "fight"
@@ -74,20 +79,19 @@ var _bot_next_msec := 0
 
 
 ## The stages of a night, as {title, seconds, kind}. An attacker fights in
-## the first round; anyone else gets a skill check in one action stage and
-## is attacked in one random round.
+## the first action round; anyone else gets a skill check in one action
+## stage and is attacked in the first action round they're free.
 static func plan(attacking: bool, rng: RandomNumberGenerator) -> Array[Dictionary]:
 	var check_stage: String = "" if attacking else ACTION_STAGES[rng.randi_range(0, ACTION_STAGES.size() - 1)]
-	var fight_round := 1 if attacking else rng.randi_range(1, 3)
+	var fight_stage := "Actions 2/2" if check_stage == "Actions 1/2" else "Actions 1/2"
 	var night: Array[Dictionary] = [{"title": CHOOSING, "seconds": CHOOSING_SECONDS, "kind": ""}]
-	var titles := ["Roleblocks", "Fights 1/3", "Fights 2/3", "Fights 3/3", "Protection", "Investigations"]
-	for title: String in titles:
+	for title: String in STAGE_TITLES:
 		var kind := "passive"
 		if title == check_stage:
 			kind = "skill_check"
-		elif title == "Fights %d/3" % fight_round:
+		elif title == fight_stage:
 			kind = "fight"
-		var seconds := FIGHT_SECONDS if title.begins_with("Fights") else STAGE_SECONDS
+		var seconds := FIGHT_SECONDS if title.begins_with("Actions") else STAGE_SECONDS
 		night.append({"title": title, "seconds": seconds, "kind": kind})
 	return night
 

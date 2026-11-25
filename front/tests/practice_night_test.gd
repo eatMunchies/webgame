@@ -10,9 +10,8 @@ func kinds(night: Array[Dictionary]) -> Array:
 
 func test_an_attacker_fights_in_the_first_round_with_no_skill_check() -> void:
 	var night := PracticeNight.plan(true, RandomNumberGenerator.new())
-	assert_array(kinds(night)).is_equal(
-			["", "passive", "fight", "passive", "passive", "passive", "passive"])
-	assert_str(night[2]["title"]).is_equal("Fights 1/3")
+	assert_array(kinds(night)).is_equal(["", "passive", "fight", "passive"])
+	assert_str(night[2]["title"]).is_equal("Actions 1/2")
 
 
 func test_anyone_else_gets_one_skill_check_and_one_fight() -> void:
@@ -26,7 +25,9 @@ func test_anyone_else_gets_one_skill_check_and_one_fight() -> void:
 		var check: String = night[found.find("skill_check")]["title"]
 		assert_array(PracticeNight.ACTION_STAGES).contains([check])
 		var fight: String = night[found.find("fight")]["title"]
-		assert_str(fight).starts_with("Fights")
+		assert_str(fight).starts_with("Actions")
+		# The fight never lands in the stage the skill check is in.
+		assert_str(fight).is_not_equal(check)
 
 
 func test_a_practice_fight_lands_a_strike_after_its_windup() -> void:

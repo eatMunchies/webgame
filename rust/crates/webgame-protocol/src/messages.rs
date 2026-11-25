@@ -453,7 +453,7 @@ mod tests {
         round_trip(ServerMessage::Phase {
             phase: GamePhase::Night {
                 night: 3,
-                stage: crate::NightStage::Kill { round: 2 },
+                stage: crate::NightStage::Actions { round: 2 },
             },
             ends_at_ms: 9,
         });
