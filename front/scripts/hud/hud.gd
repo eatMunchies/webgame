@@ -37,6 +37,8 @@ extends Control
 ## Every panel shares HudStyle's theme, set here so the scene file stays
 ## free of styles.
 
+## The gap between the parts on a wide screen.
+const SECTION_GAP := 2
 ## The Info and Side columns' widths on a wide screen.
 const INFO_WIDTH := 88.0
 const SIDE_WIDTH := 96.0
@@ -124,6 +126,9 @@ func add_lobby_bar(bar: Control) -> void:
 
 func _apply_layout() -> void:
 	var tall := shell.vertical
+	# Stacked, the parts sit flush, so the chat tab rests right on what's
+	# under it.
+	shell.add_theme_constant_override("separation", 0 if tall else SECTION_GAP)
 	info.add_theme_stylebox_override("panel", _band if tall else StyleBoxEmpty.new())
 	info.custom_minimum_size.x = 0.0 if tall else INFO_WIDTH
 	side.custom_minimum_size.x = 0.0 if tall else SIDE_WIDTH
@@ -251,6 +256,9 @@ func _add_buttons() -> void:
 
 ## Shows the role card when a game starts (or when joining one in progress).
 func _show_role_at_start() -> void:
+	# A reconnect drops the game and brings it back; that's no new game.
+	if Session.reconnecting:
+		return
 	var in_game := Session.in_game()
 	if in_game and not _was_in_game and not Session.client.role_info().is_empty():
 		role_card.open()

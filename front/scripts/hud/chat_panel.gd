@@ -7,7 +7,7 @@ extends PanelContainer
 ## over the town as a sheet, and the player can hide it to see the town.
 ##
 ## Lines are colored by kind (see Session.log_line): what players said in
-## white, led by the speaker's number in a colored circle, game updates (your role, its results, deaths, votes) in yellow, and
+## white, led by the speaker's number in a colored circle, whispers in blue, game updates (your role, its results, deaths, votes) in yellow, and
 ## system lines (the lobby, the connection, errors, help) in purple.
 ##
 ## Beside the box is the channel plain text goes to right now (town, jail,
@@ -20,9 +20,12 @@ extends PanelContainer
 ## A line was added to the log.
 signal line_added
 
+## Whispers, in the log and beside the box while typing one.
+const WHISPER_COLOR := Color(0.45, 0.72, 1)
 ## Line colors, by kind.
 const KIND_COLORS := {
 	Session.LINE_CHAT: Color(0.96, 0.95, 0.92),
+	Session.LINE_WHISPER: WHISPER_COLOR,
 	Session.LINE_GAME: Color(1, 0.84, 0.4),
 	Session.LINE_SYSTEM: Color(0.78, 0.62, 1),
 }
@@ -34,7 +37,7 @@ const CHANNELS := {
 	"jail": ["jail", Color(0.75, 0.75, 0.85)],
 	"mafia": ["mafia", Color(0.95, 0.4, 0.4)],
 	"dead": ["dead", Color(0.6, 0.65, 0.75)],
-	"whisper": ["whisper", Color(0.8, 0.6, 1)],
+	"whisper": ["whisper", WHISPER_COLOR],
 	"": ["muted", Color(0.62, 0.56, 0.46)],
 }
 

@@ -16,6 +16,10 @@ extends Control
 ## `attach()` makes a LineEdit open the prompt when tapped on a touch screen,
 ## instead of taking the keyboard where it sits.
 ##
+## A `live` prompt feeds every change to a callback as it's typed, with no
+## backdrop or buttons, for typing into something on screen as with a
+## keyboard (the typing test on a phone). Its owner closes it.
+##
 ## Make one per screen with `TextPrompt.create(parent)`, which fills the
 ## parent and stays hidden until asked.
 
@@ -39,6 +43,15 @@ var _multi := TextEdit.new()
 var _paste := Button.new()
 var _confirm := Button.new()
 var _on_done := Callable()
+## While live: gets the text after each change and returns what the box
+## should hold.
+var _live := Callable()
+var _backdrop := ColorRect.new()
+var _buttons := HBoxContainer.new()
+
+## The prompt made most recently, for things that type through whichever
+## prompt their screen has (see shared()).
+static var _latest: TextPrompt
 ## Kept while the browser reads the clipboard, which calls it back later.
 var _paste_callback: JavaScriptObject
 
@@ -49,7 +62,19 @@ static func create(parent: Node) -> TextPrompt:
 	var prompt := TextPrompt.new()
 	parent.add_child(prompt)
 	prompt.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_latest = prompt
 	return prompt
+
+
+## The prompt of the screen `from` is on, or a new one over it if that
+## screen made none (like the minigame tester).
+static func shared(from: Node) -> TextPrompt:
+	if is_instance_valid(_latest) and _latest.is_inside_tree():
+		return _latest
+	var layer := CanvasLayer.new()
+	layer.layer = 64
+	from.get_tree().current_scene.add_child(layer)
+	return create(layer)
 
 
 func _init() -> void:
@@ -60,11 +85,10 @@ func _init() -> void:
 
 func _ready() -> void:
 	theme = HudStyle.build()
-	var backdrop := ColorRect.new()
-	backdrop.color = BACKDROP
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	backdrop.gui_input.connect(_on_backdrop_input)
-	add_child(backdrop)
+	_backdrop.color = BACKDROP
+	_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_backdrop.gui_input.connect(_on_backdrop_input)
+	add_child(_backdrop)
 
 	add_child(_panel)
 	var rows := VBoxContainer.new()
@@ -73,14 +97,20 @@ func _ready() -> void:
 	_title.theme_type_variation = "HudTitle"
 	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rows.add_child(_title)
-	_line.text_submitted.connect(func(_text: String) -> void: _finish())
+	_line.text_submitted.connect(func(_text: String) -> void:
+		if _live.is_valid():
+			# Enter types a space, as in the typing test.
+			_line_changed(_line.text + " ")
+		else:
+			_finish())
+	_line.text_changed.connect(_line_changed)
 	_line.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_DEFAULT
 	rows.add_child(_line)
 	_multi.custom_minimum_size.y = MULTILINE_HEIGHT
 	_multi.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	rows.add_child(_multi)
 
-	var buttons := HBoxContainer.new()
+	var buttons := _buttons
 	buttons.add_theme_constant_override("separation", 4)
 	rows.add_child(buttons)
 	_paste.text = "Paste"
@@ -109,6 +139,12 @@ func ask(title: String, text: String, on_done: Callable, options := {}) -> void:
 	var multiline: bool = options.get("multiline", false)
 	_title.text = title
 	_on_done = on_done
+	_live = options.get("live", Callable())
+	var live := _live.is_valid()
+	# Live, taps go through to the screen; only the box takes them.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE if live else Control.MOUSE_FILTER_STOP
+	_backdrop.visible = not live
+	_buttons.visible = not live
 	_confirm.text = options.get("confirm", "Send")
 	_line.visible = not multiline
 	_multi.visible = multiline
@@ -132,6 +168,27 @@ func close() -> void:
 	_multi.release_focus()
 	visible = false
 	_on_done = Callable()
+	_live = Callable()
+
+
+## Whether a live prompt is open for `callback`.
+func is_live_for(callback: Callable) -> bool:
+	return visible and _live == callback
+
+
+## Changes the title while open, as a live prompt's owner does.
+func set_title(text: String) -> void:
+	_title.text = text
+	_place()
+
+
+func _line_changed(text: String) -> void:
+	if not _live.is_valid():
+		return
+	var shown: String = _live.call(text)
+	if shown != _line.text:
+		_line.text = shown
+		_line.caret_column = shown.length()
 
 
 ## Makes `field` open the prompt when tapped, titled `title`. Confirming puts

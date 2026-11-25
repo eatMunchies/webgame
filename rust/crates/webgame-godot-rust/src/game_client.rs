@@ -101,7 +101,8 @@ impl GameClient {
     fn phase_changed();
 
     /// A line of text for the game log, and what kind of line it is, so the log can color it:
-    /// `chat` (what players said), `game` (your role, night results, deaths, votes and other
+    /// `chat` (what players said), `whisper` (whispers, and the notice that someone whispered),
+    /// `game` (your role, night results, deaths, votes and other
     /// events) or `system` (the lobby, the connection, errors and help). `lot` is the lot of the
     /// player who said it, for a chat line from a player, or -1.
     #[signal]
@@ -909,12 +910,17 @@ fn capitalize(text: &str) -> String {
 }
 
 const LINE_CHAT: &str = "chat";
+const LINE_WHISPER: &str = "whisper";
 const LINE_GAME: &str = "game";
 const LINE_SYSTEM: &str = "system";
 
 /// What kind of log line a server message makes (see the `log_line` signal).
 fn line_kind(message: &ServerMessage) -> &'static str {
     match message {
+        ServerMessage::Chat(chat) if matches!(chat.channel, ChatChannel::Whisper { .. }) => {
+            LINE_WHISPER
+        }
+        ServerMessage::Whispered { .. } => LINE_WHISPER,
         ServerMessage::Chat(_) => LINE_CHAT,
         ServerMessage::Welcome { .. }
         | ServerMessage::Error(_)

@@ -106,3 +106,23 @@ func test_a_decided_check_starts_new_words_in_practice() -> void:
 	type("x")
 	assert_int(check.typed.size()).is_equal(0)
 	assert_str(check.current).is_equal("x")
+
+
+
+## On a phone the test types through a text box: each change to the box's
+## text comes in whole, and a space finishes the word.
+func test_text_box_changes_type_like_keys() -> void:
+	assert_str(check._on_prompt_text("c")).is_equal("c")
+	assert_str(check._on_prompt_text("ca")).is_equal("ca")
+	# A letter taken back.
+	assert_str(check._on_prompt_text("c")).is_equal("c")
+	assert_str(check._on_prompt_text("cat ")).is_equal("")
+	assert_array(Array(check.typed)).is_equal(["cat"])
+	# Autocorrect can swap the whole word at once.
+	check._on_prompt_text("dgo")
+	assert_str(check._on_prompt_text("dog ")).is_equal("")
+	assert_array(Array(check.typed)).is_equal(["cat", "dog"])
+	# The last word finishes itself once it's typed right.
+	assert_str(check._on_prompt_text("sun")).is_equal("")
+	assert_array(Array(check.typed)).is_equal(["cat", "dog", "sun"])
+	assert_array(reported.back()).is_equal([100, true])

@@ -74,7 +74,7 @@ pub async fn run(socket: WebSocket, registry: Arc<Registry>) {
             _ => {}
         }
     }
-    session.leave_lobby().await;
+    session.leave_lobby(true).await;
     writer.abort();
 }
 
@@ -149,7 +149,7 @@ impl Session {
                 if self.lobby.is_none() {
                     return self.error(ErrorCode::NotInLobby, "You aren't in a lobby.");
                 }
-                self.leave_lobby().await;
+                self.leave_lobby(false).await;
                 self.send(ServerMessage::LeftLobby);
             }
             other => {
@@ -191,12 +191,14 @@ impl Session {
         self.send(ServerMessage::Welcome { user_id, username });
     }
 
-    async fn leave_lobby(&mut self) {
+    /// Leaves the lobby: on purpose, or because the connection `dropped`.
+    async fn leave_lobby(&mut self, dropped: bool) {
         if let (Some((_, handle)), Some((user, _))) = (self.lobby.take(), &self.user) {
             let _ = handle
                 .send(LobbyCmd::Leave {
                     user: *user,
                     connection: self.connection.id,
+                    dropped,
                 })
                 .await;
         }

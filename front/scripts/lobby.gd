@@ -37,10 +37,10 @@ const EDGE_SIDES := 48
 const HOUSE_RECT := Rect2(-32, -72, 64, 72)
 ## The house's tint while the player is at its door.
 const DOOR_GLOW := Color(1.2, 1.2, 1.12)
-## The hint over the house saying how to go in: a key at the door, or on a
-## touch screen a tap anywhere on the house, shown all the time and pulsing
-## since there's no door to walk up to first.
-const KEY_HINT := "Press E to customize"
+## The hint over the house saying how to go in: a click on it, or on a touch
+## screen a tap. It shows all the time, pulsing gently, so it's found without
+## walking anywhere first.
+const CLICK_HINT := "Click your house to customize"
 const TAP_HINT := "Tap your house to customize"
 ## How far above the owner's name the hint sits, in world pixels.
 const HINT_GAP := 2.0
@@ -104,7 +104,7 @@ func _process(_delta: float) -> void:
 
 
 func _add_hint() -> void:
-	_hint.text = TAP_HINT if _touch else KEY_HINT
+	_hint.text = TAP_HINT if _touch else CLICK_HINT
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hint.z_index = 2
@@ -115,18 +115,14 @@ func _add_hint() -> void:
 	house.get_parent().add_child(_hint)
 
 
-## Shows the hint over the owner's name: always on a touch screen, pulsing,
-## and with keys only while the player is at the door.
+## Shows the hint over the owner's name, pulsing gently.
 func _update_hint() -> void:
-	_hint.visible = _touch or near_door()
-	if not _hint.visible:
-		return
 	_hint.reset_size()
 	var name_label: Control = house.get_node("NameLabel")
 	var top := house.position.y + name_label.position.y
 	_hint.position = Vector2(house.position.x - _hint.size.x / 2.0, top - _hint.size.y - HINT_GAP)
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * HINT_PULSE_SPEED)
-	_hint.modulate.a = lerpf(0.55, 1.0, pulse) if _touch else 1.0
+	_hint.modulate.a = lerpf(0.55, 1.0, pulse)
 
 
 ## Keeps the player in the middle of the part of the screen the panel leaves.

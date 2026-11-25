@@ -4,7 +4,8 @@ extends Control
 ## Character creator, styled like an RPG character screen. The character
 ## stands on a pedestal on the left and can be turned around with the arrows.
 ## On the right, tabs group the choices (body, face, outfit, gear, pet,
-## house), and each slot is a grid of picture tiles showing that item on the
+## house); on a portrait window like a phone's, the pedestal sits on top
+## and the tabs under it, and each slot is a grid of picture tiles showing that item on the
 ## current body. While the House tab is open, the left side shows the house
 ## with the character in its yard instead of the pedestal.
 ## The pickers start on whatever `appearance` and `house` hold when the screen
@@ -15,6 +16,8 @@ extends Control
 ## a form, so this screen turns that scaling off and zooms the art itself.
 
 const WALK_FPS := 6.0
+## How tall the pedestal panel is on a portrait window, over the tabs.
+const PORTRAIT_STAGE_HEIGHT := 420.0
 const SKIN_PRESETS: Array[Color] = [
 	Color(1.0, 0.87, 0.77), Color(0.96, 0.8, 0.69), Color(0.85, 0.65, 0.5),
 	Color(0.68, 0.48, 0.34), Color(0.5, 0.33, 0.22), Color(0.33, 0.21, 0.14),
@@ -124,12 +127,21 @@ func _build() -> void:
 	rows.add_theme_constant_override("separation", 16)
 	margin.add_child(rows)
 
-	var columns := HBoxContainer.new()
+	# Side by side on a wide window; on a portrait one (a phone), the
+	# pedestal on top and the tabs under it.
+	var portrait := ScreenScale.menus_portrait(get_window())
+	var columns := BoxContainer.new()
+	columns.vertical = portrait
 	columns.size_flags_vertical = SIZE_EXPAND_FILL
 	columns.add_theme_constant_override("separation", 20)
 	rows.add_child(columns)
-	columns.add_child(_build_stage())
-	columns.add_child(_build_tabs())
+	var stage_panel := _build_stage()
+	if portrait:
+		stage_panel.custom_minimum_size = Vector2(0, PORTRAIT_STAGE_HEIGHT)
+	columns.add_child(stage_panel)
+	var tabs := _build_tabs()
+	tabs.size_flags_vertical = SIZE_EXPAND_FILL
+	columns.add_child(tabs)
 	rows.add_child(_build_footer())
 
 

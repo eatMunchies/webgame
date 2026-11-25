@@ -30,6 +30,10 @@ var _rng := RandomNumberGenerator.new()
 var _practice_started_msec := -1
 ## Letters in words typed right in practice, each with its space.
 var _practice_letters := 0
+## On a touch screen, the prompt typed through while the test shows, and
+## the callback it feeds (see _notification).
+var _prompt: TextPrompt
+var _live_callback := Callable(self, "_on_prompt_text")
 
 
 func _ready() -> void:
@@ -123,18 +127,68 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
-## Brings up the on-screen keyboard on phones and tablets while the test
-## shows, since there's no text box to tap.
+## On a touch screen, types through the screen's TextPrompt while the test
+## shows: a box at the top, clear of the on-screen keyboard (which covers the
+## bottom of the screen, where the test may be), titled with the words still
+## to type. Every change in the box is typed here as keys would be.
 func _notification(what: int) -> void:
-	if not DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+	if not TextPrompt.touch:
 		return
 	if what == NOTIFICATION_VISIBILITY_CHANGED or what == NOTIFICATION_READY:
 		if is_visible_in_tree():
-			DisplayServer.virtual_keyboard_show("")
+			_open_prompt.call_deferred()
 		else:
-			DisplayServer.virtual_keyboard_hide()
+			_close_prompt()
 	elif what == NOTIFICATION_EXIT_TREE:
-		DisplayServer.virtual_keyboard_hide()
+		_close_prompt()
+
+
+func _open_prompt() -> void:
+	if not is_visible_in_tree():
+		return
+	_prompt = TextPrompt.shared(self)
+	if _prompt.is_live_for(_live_callback):
+		return
+	_prompt.ask(_prompt_title(), current, Callable(), {"live": _live_callback})
+	if not changed.is_connected(_update_prompt_title):
+		changed.connect(_update_prompt_title)
+
+
+func _close_prompt() -> void:
+	if is_instance_valid(_prompt) and _prompt.is_live_for(_live_callback):
+		_prompt.close()
+
+
+## The words still to type, as the prompt's title.
+func _prompt_title() -> String:
+	if words.is_empty():
+		return "Type"
+	var left := words.slice(mini(typed.size(), words.size()))
+	return "Type: " + " ".join(left) if not left.is_empty() else "Done"
+
+
+func _update_prompt_title() -> void:
+	if is_instance_valid(_prompt) and _prompt.is_live_for(_live_callback):
+		_prompt.set_title(_prompt_title())
+
+
+## Takes what the prompt holds: the word being typed, and a space (or Enter)
+## after it to finish it. Returns what the box should hold now: the rest of
+## the word being typed.
+func _on_prompt_text(text: String) -> String:
+	var parts := text.split(" ")
+	for i in parts.size():
+		var word := parts[i]
+		if word != current:
+			if word.begins_with(current):
+				type_text(word.substr(current.length()))
+			else:
+				backspace(true)
+				type_text(word)
+		if i < parts.size() - 1:
+			space()
+	changed.emit()
+	return current
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

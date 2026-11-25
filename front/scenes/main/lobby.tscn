@@ -88,23 +88,25 @@ placeholder_text = "Your name"
 alignment = 1
 max_length = 16
 
-[node name="CreateButton" type="Button" parent="UI/Shell/Panel/Column"]
+[node name="JoinRow" type="HBoxContainer" parent="UI/Shell/Panel/Column"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="CreateButton" type="Button" parent="UI/Shell/Panel/Column/JoinRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Create lobby"
 
-[node name="Rule" type="HSeparator" parent="UI/Shell/Panel/Column"]
+[node name="OrLabel" type="Label" parent="UI/Shell/Panel/Column/JoinRow"]
 layout_mode = 2
-
-[node name="JoinRow" type="HBoxContainer" parent="UI/Shell/Panel/Column"]
-layout_mode = 2
-theme_override_constants/separation = 2
+theme_type_variation = &"HudDim"
+text = "or"
 
 [node name="CodeInput" type="LineEdit" parent="UI/Shell/Panel/Column/JoinRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "CODE"
+placeholder_text = "Lobby code"
 alignment = 1
 max_length = 8
 
@@ -126,7 +128,7 @@ horizontal_alignment = 1
 autowrap_mode = 3
 
 [connection signal="text_changed" from="UI/Shell/Panel/Column/NameInput" to="." method="_on_name_input_text_changed"]
-[connection signal="pressed" from="UI/Shell/Panel/Column/CreateButton" to="." method="_on_create_button_pressed"]
+[connection signal="pressed" from="UI/Shell/Panel/Column/JoinRow/CreateButton" to="." method="_on_create_button_pressed"]
 [connection signal="text_changed" from="UI/Shell/Panel/Column/JoinRow/CodeInput" to="." method="_on_code_input_text_changed"]
 [connection signal="text_submitted" from="UI/Shell/Panel/Column/JoinRow/CodeInput" to="." method="_on_code_input_text_submitted"]
 [connection signal="pressed" from="UI/Shell/Panel/Column/JoinRow/JoinButton" to="." method="_on_join_button_pressed"]
