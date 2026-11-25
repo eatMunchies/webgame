@@ -32,6 +32,9 @@ signal actions_changed
 ## The player's night minigame started, ended, or changed. Read
 ## client.minigame() and client.fight().
 signal minigame_changed
+## A minigame started or stopped taking the on-screen keyboard (see
+## keyboard_minigame).
+signal keyboard_minigame_changed
 ## The connection dropped and Session started trying to get back in, or
 ## stopped trying (it got back in, or gave up). Read `reconnecting`.
 signal reconnecting_changed
@@ -61,6 +64,10 @@ var is_host := false
 ## player stays where they are meanwhile; the server keeps their seat (for
 ## the game, or RECONNECT_SECONDS before one).
 var reconnecting := false
+## True while a minigame (the typing test on a touch screen) has the
+## on-screen keyboard up, which covers the bottom of the screen; the HUD
+## moves the minigame above it.
+var keyboard_minigame := false
 ## Everyone in the lobby, in lot order.
 var players: Array[LobbyPlayer] = []
 ## The kinds of game log line; see log_line.
@@ -116,6 +123,12 @@ func _ready() -> void:
 	client.minigame_changed.connect(minigame_changed.emit)
 	_reconnect_timer.timeout.connect(_try_reconnect)
 	add_child(_reconnect_timer)
+
+
+func set_keyboard_minigame(up: bool) -> void:
+	if keyboard_minigame != up:
+		keyboard_minigame = up
+		keyboard_minigame_changed.emit()
 
 
 func in_lobby() -> bool:

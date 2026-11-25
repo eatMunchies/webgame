@@ -30,10 +30,9 @@ var _rng := RandomNumberGenerator.new()
 var _practice_started_msec := -1
 ## Letters in words typed right in practice, each with its space.
 var _practice_letters := 0
-## On a touch screen, the prompt typed through while the test shows, and
-## the callback it feeds (see _notification).
-var _prompt: TextPrompt
-var _live_callback := Callable(self, "_on_prompt_text")
+## On a touch screen, an invisible text box in the test that takes the
+## on-screen keyboard (see _notification).
+var _keys: LineEdit
 
 
 func _ready() -> void:
@@ -127,48 +126,66 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
-## On a touch screen the test moves into the screen's TextPrompt while it
-## shows: the box at the top, clear of the on-screen keyboard (which covers
-## the bottom of the screen, where the minigame panel may be), shows the words
-## as this would (a TypingView) and takes the keyboard. Every change typed
-## there comes here as keys would. The minigame panel says to type above.
+## On a touch screen there's no keyboard to press keys on, so an invisible
+## text box in the test takes the on-screen keyboard while the test shows,
+## and every change typed into it comes here as keys would. The HUD moves the
+## minigame to the top of a tall screen meanwhile (Session.keyboard_minigame),
+## above the keyboard. A tap on the test brings the keyboard back if it was
+## put away.
 func _notification(what: int) -> void:
 	if not TextPrompt.touch:
 		return
 	if what == NOTIFICATION_VISIBILITY_CHANGED or what == NOTIFICATION_READY:
 		if is_visible_in_tree():
-			_open_prompt.call_deferred()
+			_take_keyboard.call_deferred()
 		else:
-			_close_prompt()
+			_give_up_keyboard()
 	elif what == NOTIFICATION_EXIT_TREE:
-		_close_prompt()
+		_give_up_keyboard()
 
 
-func _open_prompt() -> void:
+func _take_keyboard() -> void:
 	if not is_visible_in_tree():
 		return
-	_prompt = TextPrompt.shared(self)
-	if _prompt.is_live_for(_live_callback):
-		return
-	var view := TypingView.new()
-	view.check = self
-	_prompt.ask("", current, Callable(), {"live": _live_callback, "content": view})
-	queue_redraw()
+	if _keys == null:
+		_keys = LineEdit.new()
+		# Drawn by nobody, and in nobody's way; it only takes the keyboard.
+		_keys.self_modulate.a = 0.0
+		_keys.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_keys.custom_minimum_size = Vector2.ZERO
+		_keys.size = Vector2(1, 1)
+		_keys.add_theme_font_size_override("font_size", 1)
+		_keys.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+		_keys.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		_keys.text_changed.connect(func(text: String) -> void: _sync_keys(_on_prompt_text(text)))
+		_keys.text_submitted.connect(func(text: String) -> void: _sync_keys(_on_prompt_text(text + " ")))
+		add_child(_keys)
+	_keys.text = current
+	_keys.grab_focus()
+	Session.set_keyboard_minigame(true)
 
 
-func _close_prompt() -> void:
-	if is_instance_valid(_prompt) and _prompt.is_live_for(_live_callback):
-		_prompt.close()
+func _give_up_keyboard() -> void:
+	if _keys != null and _keys.is_inside_tree():
+		_keys.release_focus()
+	if Session.keyboard_minigame:
+		Session.set_keyboard_minigame(false)
 
 
-## Whether the test is being typed in the prompt now.
-func _typing_in_prompt() -> bool:
-	return is_instance_valid(_prompt) and _prompt.is_live_for(_live_callback)
+func _sync_keys(text: String) -> void:
+	if _keys.text != text:
+		_keys.text = text
+		_keys.caret_column = text.length()
 
 
-## Takes what the prompt holds: the word being typed, and a space (or Enter)
-## after it to finish it. Returns what the box should hold now: the rest of
-## the word being typed.
+func _gui_input(event: InputEvent) -> void:
+	if _keys != null and is_tap(event):
+		_keys.grab_focus()
+
+
+## Takes what the invisible box holds: the word being typed, and a space
+## (or Enter) after it to finish it. Returns what the box should hold now:
+## the rest of the word being typed.
 func _on_prompt_text(text: String) -> String:
 	var parts := text.split(" ")
 	for i in parts.size():
@@ -219,19 +236,10 @@ func _attempt(i: int) -> String:
 
 
 func _draw() -> void:
-	if _typing_in_prompt():
-		# The test itself is in the prompt at the top of the screen.
-		var font := ThemeDB.fallback_font
-		var note := "Type in the box above"
-		var width := font.get_string_size(note, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
-		font.draw_string(get_canvas_item(), Vector2((size.x - width) / 2, size.y / 2),
-				note, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, UNTYPED_COLOR)
-		return
 	draw_words_on(self, size)
 
 
-## Draws the words on `canvas`, laid out to fit `area`: here, or in the
-## TypingView a touch screen's prompt shows.
+## Draws the words on `canvas`, laid out to fit `area`.
 func draw_words_on(canvas: CanvasItem, area: Vector2) -> void:
 	var font := ThemeDB.fallback_font
 	var space_width := font.get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x

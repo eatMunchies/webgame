@@ -92,8 +92,10 @@ var _drag_from := Vector2.ZERO
 var _drag_sheet := 0.0
 var _dragging := false
 var _pressing := false
-## Whether a minigame was showing at the last check.
+## Whether a minigame was showing at the last check, and whether it had the
+## on-screen keyboard up.
 var _in_minigame := false
+var _keyboard_was := false
 
 
 func _ready() -> void:
@@ -114,6 +116,7 @@ func _ready() -> void:
 	Session.lobby_changed.connect(_show_role_at_start)
 	Session.phase_changed.connect(_show_role_at_start)
 	Session.minigame_changed.connect(_on_minigame_changed)
+	Session.keyboard_minigame_changed.connect(_on_minigame_changed)
 	_update_will_button()
 	_apply_layout()
 
@@ -162,8 +165,14 @@ func _apply_layout() -> void:
 func _update_side() -> void:
 	var tall_minigame := shell.vertical and Session.in_minigame()
 	roster.visible = not tall_minigame
-	minigame_space.anchor_top = 1.0 - MINIGAME_SHARE if tall_minigame else 0.0
+	# A minigame that has the on-screen keyboard up (the typing test) goes to
+	# the top instead, above the keyboard, with the chat put away.
+	var keyboard := tall_minigame and Session.keyboard_minigame
+	minigame_space.anchor_top = 0.0 if keyboard or not tall_minigame else 1.0 - MINIGAME_SHARE
+	minigame_space.anchor_bottom = MINIGAME_SHARE if keyboard else 1.0
 	minigame_space.offset_top = 0.0
+	minigame_space.offset_bottom = 0.0
+	chat_tab.visible = shell.vertical and not keyboard
 	_update_will_button()
 	_place_sheet()
 
@@ -305,11 +314,19 @@ func _on_chat_line_added() -> void:
 
 func _on_minigame_changed() -> void:
 	var in_minigame := Session.in_minigame()
-	if shell.vertical and in_minigame != _in_minigame:
-		# The chat opens above the game, so the night before is in view; the
-		# player's own choice comes back after it.
-		_slide_sheet(1.0 if in_minigame else (1.0 if _sheet_wanted else 0.0))
+	var keyboard := shell.vertical and in_minigame and Session.keyboard_minigame
+	if shell.vertical:
+		if keyboard:
+			# The keyboard covers the bottom, so the chat is put away.
+			_slide_sheet(0.0)
+		elif in_minigame and (not _in_minigame or _keyboard_was):
+			# The chat opens above the game, so the night before is in view.
+			_slide_sheet(1.0)
+		elif not in_minigame and _in_minigame:
+			# The player's own choice comes back after the minigame.
+			_slide_sheet(1.0 if _sheet_wanted else 0.0)
 	_in_minigame = in_minigame
+	_keyboard_was = keyboard
 	_update_side()
 
 
