@@ -160,7 +160,9 @@ func _ready() -> void:
 
 func _add_minigame_overlay() -> void:
 	_minigame = MINIGAME_SCENE.instantiate()
-	_hud.world_space.add_child(_minigame)
+	# The HUD's minigame space: all of the town's part of the screen, or on a
+	# tall screen its bottom half, under the chat.
+	_hud.minigame_space.add_child(_minigame)
 	_minigame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_minigame.fight_source = Session.client.fight
 	_minigame.check_reported.connect(Session.client.report_check)

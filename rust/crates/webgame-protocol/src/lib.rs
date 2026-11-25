@@ -18,7 +18,7 @@ mod roles;
 mod world;
 
 pub use actions::{NightAction, Verdict};
-pub use chat::{ChatChannel, ChatContext, ChatMessage, ChatSender, JailStatus};
+pub use chat::{ChatChannel, ChatContext, ChatMessage, ChatSender, JailStatus, whisper_allowed};
 pub use ids::{CodeError, LobbyCode, NameError, PlayerSlot, UserId, validate_username};
 pub use messages::{
     Accepted, ClientMessage, DeathCause, DeathReport, DecodeError, ErrorCode, GameAction,

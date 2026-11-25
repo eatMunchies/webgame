@@ -43,7 +43,7 @@ impl INode for GameClient {
             socket: None,
             pending: Vec::new(),
             open: false,
-            state: State::default(),
+            state: Self::app_state(),
             sent_movement: None,
             fight_received_at: 0,
         }
@@ -51,6 +51,17 @@ impl INode for GameClient {
 
     fn process(&mut self, _delta: f64) {
         self.poll();
+    }
+}
+
+impl GameClient {
+    /// A fresh client state for this app, which shows players, roles and actions on screen,
+    /// so the log leaves those out (see `State::app`).
+    fn app_state() -> State {
+        State {
+            app: true,
+            ..State::default()
+        }
     }
 }
 
@@ -89,9 +100,13 @@ impl GameClient {
     #[signal]
     fn phase_changed();
 
-    /// A line of text for the game log: chat, private night results, deaths, votes.
+    /// A line of text for the game log, and what kind of line it is, so the log can color it:
+    /// `chat` (what players said), `whisper` (whispers, and the notice that someone whispered),
+    /// `game` (your role, night results, deaths, votes and other
+    /// events) or `system` (the lobby, the connection, errors and help). `lot` is the lot of the
+    /// player who said it, for a chat line from a player, or -1.
     #[signal]
-    fn log_line(text: GString);
+    fn log_line(text: GString, kind: GString, lot: i64);
 
     /// The server refused something, for example joining a lobby that doesn't exist.
     #[signal]
@@ -138,7 +153,7 @@ impl GameClient {
         }
         self.open = false;
         self.pending.clear();
-        self.state = State::default();
+        self.state = Self::app_state();
         self.sent_movement = None;
     }
 
@@ -285,6 +300,7 @@ impl GameClient {
             Ok(command) => command,
             Err(err) => return text(err),
         };
+        let mut kind = LINE_GAME;
         let text = match command {
             Command::Send(message) => {
                 if let ClientMessage::Game(GameAction::SetLastWill(will)) = &message {
@@ -301,14 +317,72 @@ impl GameClient {
                 self.signals().actions_changed().emit();
                 line
             }
-            Command::Help => HELP.to_string(),
+            Command::Help => {
+                kind = LINE_SYSTEM;
+                HELP.to_string()
+            }
             Command::Quit => {
                 self.leave_lobby();
                 return GString::new();
             }
         };
-        self.signals().log_line().emit(&GString::from(&text));
+        self.signals()
+            .log_line()
+            .emit(&GString::from(&text), &GString::from(kind), -1);
         GString::new()
+    }
+
+    /// Whether this player can whisper to the player on `lot` now: both alive, by day, and
+    /// neither of them on trial.
+    #[func]
+    fn can_whisper(&self, lot: i64) -> bool {
+        u8::try_from(lot).is_ok_and(|lot| self.state.can_whisper(PlayerSlot(lot)))
+    }
+
+    /// This player's role, for the role card: `name` ("Sheriff"), `category` ("Town
+    /// Investigative"), `faction` ("Town"), `ability`, `goal`, `target` (an Executioner's
+    /// target's name, or "") and `team` (fellow Mafia as "Name (Role)" lines). `spectator` is
+    /// true for someone who joined a game in progress, who has no role. Empty before a game.
+    #[func]
+    fn role_info(&self) -> VarDictionary {
+        if self.state.spectator {
+            return vdict! { "spectator" => true };
+        }
+        let Some(role) = self.state.role else {
+            return VarDictionary::new();
+        };
+        let faction = match role.faction() {
+            webgame_protocol::Faction::Town => "Town",
+            webgame_protocol::Faction::Mafia => "Mafia",
+            webgame_protocol::Faction::Neutral => "Neutral",
+        };
+        let team: Array<GString> = self
+            .state
+            .team
+            .iter()
+            .map(|member| {
+                text(format!(
+                    "{} ({})",
+                    self.state.name(member.slot),
+                    member.role.name()
+                ))
+            })
+            .collect();
+        vdict! {
+            "spectator" => false,
+            "name" => role.name(),
+            "category" => role.category().name(),
+            "faction" => faction,
+            "ability" => role.ability(),
+            "goal" => role.goal(),
+            "target" => &text(
+                self.state
+                    .executioner_target
+                    .map(|slot| self.state.name(slot))
+                    .unwrap_or_default()
+            ),
+            "team" => &team,
+        }
     }
 
     /// The lobby code, or "" when not in a lobby.
@@ -699,6 +773,14 @@ impl GameClient {
         if matches!(message, ServerMessage::Fight(_)) {
             self.fight_received_at = Time::singleton().get_ticks_msec();
         }
+        let kind = line_kind(&message);
+        let speaker = match &message {
+            ServerMessage::Chat(chat) => match chat.from {
+                webgame_protocol::ChatSender::Player(slot) => i64::from(slot.0),
+                _ => -1,
+            },
+            _ => -1,
+        };
         let before = self.state.phase.clone();
         let lines = self.state.apply(message);
         if welcome {
@@ -708,7 +790,9 @@ impl GameClient {
             self.signals().server_error().emit(&GString::from(&error));
         }
         for line in lines {
-            self.signals().log_line().emit(&GString::from(&line));
+            self.signals()
+                .log_line()
+                .emit(&GString::from(&line), &GString::from(kind), speaker);
         }
         if members {
             self.signals().members_changed().emit();
@@ -822,5 +906,26 @@ fn capitalize(text: &str) -> String {
     match chars.next() {
         Some(first) => first.to_uppercase().chain(chars).collect::<String>() + ".",
         None => String::new(),
+    }
+}
+
+const LINE_CHAT: &str = "chat";
+const LINE_WHISPER: &str = "whisper";
+const LINE_GAME: &str = "game";
+const LINE_SYSTEM: &str = "system";
+
+/// What kind of log line a server message makes (see the `log_line` signal).
+fn line_kind(message: &ServerMessage) -> &'static str {
+    match message {
+        ServerMessage::Chat(chat) if matches!(chat.channel, ChatChannel::Whisper { .. }) => {
+            LINE_WHISPER
+        }
+        ServerMessage::Whispered { .. } => LINE_WHISPER,
+        ServerMessage::Chat(_) => LINE_CHAT,
+        ServerMessage::Welcome { .. }
+        | ServerMessage::Error(_)
+        | ServerMessage::Lobby(_)
+        | ServerMessage::LeftLobby => LINE_SYSTEM,
+        _ => LINE_GAME,
     }
 }

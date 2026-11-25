@@ -1,9 +1,8 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/hud/hud.gd" id="1_hud"]
-[ext_resource type="Script" path="res://scripts/hud/player_list.gd" id="2_players"]
+[ext_resource type="Script" path="res://scripts/hud/roster.gd" id="2_roster"]
 [ext_resource type="Script" path="res://scripts/hud/phase_clock.gd" id="3_clock"]
-[ext_resource type="Script" path="res://scripts/hud/action_bar.gd" id="4_actions"]
 [ext_resource type="Script" path="res://scripts/hud/chat_panel.gd" id="5_chat"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/will.png" id="6_will"]
 
@@ -32,30 +31,158 @@ grow_vertical = 2
 mouse_filter = 2
 theme_override_constants/separation = 2
 
-[node name="Strip" type="PanelContainer" parent="Shell"]
+[node name="Info" type="PanelContainer" parent="Shell"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 
-[node name="StripBox" type="BoxContainer" parent="Shell/Strip"]
+[node name="InfoBox" type="VBoxContainer" parent="Shell/Info"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 2
 
-[node name="PlayerList" type="PanelContainer" parent="Shell/Strip/StripBox"]
+[node name="PhaseClock" type="PanelContainer" parent="Shell/Info/InfoBox"]
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("3_clock")
+
+[node name="Rows" type="VBoxContainer" parent="Shell/Info/InfoBox/PhaseClock"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = -1
+
+[node name="TitleRow" type="HBoxContainer" parent="Shell/Info/InfoBox/PhaseClock/Rows"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+
+[node name="Title" type="Label" parent="Shell/Info/InfoBox/PhaseClock/Rows/TitleRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HudTitle"
+text = "Lobby"
+
+[node name="Time" type="Label" parent="Shell/Info/InfoBox/PhaseClock/Rows/TitleRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 8
+text = "0:00"
+
+[node name="Stage" type="Label" parent="Shell/Info/InfoBox/PhaseClock/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="Middle" type="Control" parent="Shell"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_stretch_ratio = 1.2
+size_flags_vertical = 3
 mouse_filter = 2
-script = ExtResource("2_players")
 
-[node name="Rows" type="VBoxContainer" parent="Shell/Strip/StripBox/PlayerList"]
+[node name="WorldSpace" type="Control" parent="Shell/Middle"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="MinigameSpace" type="Control" parent="Shell/Middle/WorldSpace"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="ChatPanel" type="PanelContainer" parent="Shell/Info/InfoBox"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("5_chat")
+
+[node name="Rows" type="VBoxContainer" parent="Shell/Info/InfoBox/ChatPanel"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Log" type="RichTextLabel" parent="Shell/Info/InfoBox/ChatPanel/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+focus_mode = 0
+theme_override_font_sizes/normal_font_size = 6
+scroll_following = true
+
+[node name="InputRow" type="HBoxContainer" parent="Shell/Info/InfoBox/ChatPanel/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Channel" type="Label" parent="Shell/Info/InfoBox/ChatPanel/Rows/InputRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "town"
+
+[node name="Input" type="LineEdit" parent="Shell/Info/InfoBox/ChatPanel/Rows/InputRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Enter to chat"
+max_length = 1600
+
+[node name="SendButton" type="Button" parent="Shell/Info/InfoBox/ChatPanel/Rows/InputRow"]
+layout_mode = 2
+focus_mode = 0
+text = "Send"
+
+[node name="Side" type="VBoxContainer" parent="Shell"]
+unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 0
+theme_override_constants/separation = 2
 
-[node name="Heading" type="Label" parent="Shell/Strip/StripBox/PlayerList/Rows"]
+[node name="Roster" type="PanelContainer" parent="Shell/Side"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+script = ExtResource("2_roster")
+
+[node name="Rows" type="VBoxContainer" parent="Shell/Side/Roster"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Prompt" type="Label" parent="Shell/Side/Roster/Rows"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"HudTitle"
+autowrap_mode = 3
+
+[node name="ChoiceRow" type="HFlowContainer" parent="Shell/Side/Roster/Rows"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/h_separation = 2
+theme_override_constants/v_separation = 2
+
+[node name="StartButton" type="Button" parent="Shell/Side/Roster/Rows"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 7
+text = "Start game"
+
+[node name="Heading" type="Label" parent="Shell/Side/Roster/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HudHeading"
@@ -63,118 +190,20 @@ text = "Players"
 clip_text = true
 text_overrun_behavior = 3
 
-[node name="PlayerRows" type="VBoxContainer" parent="Shell/Strip/StripBox/PlayerList/Rows"]
+[node name="RosterScroll" type="ScrollContainer" parent="Shell/Side/Roster/Rows"]
 unique_name_in_owner = true
 layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = -1
-
-[node name="RoleLabel" type="Label" parent="Shell/Strip/StripBox/PlayerList/Rows"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-theme_type_variation = &"HudHeading"
-autowrap_mode = 3
-
-[node name="Side" type="VBoxContainer" parent="Shell/Strip/StripBox"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 2
-theme_override_constants/separation = 2
-
-[node name="PhaseClock" type="PanelContainer" parent="Shell/Strip/StripBox/Side"]
-layout_mode = 2
-mouse_filter = 2
-script = ExtResource("3_clock")
-
-[node name="Rows" type="VBoxContainer" parent="Shell/Strip/StripBox/Side/PhaseClock"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = -1
-
-[node name="TitleRow" type="HBoxContainer" parent="Shell/Strip/StripBox/Side/PhaseClock/Rows"]
-layout_mode = 2
-mouse_filter = 2
-alignment = 1
-
-[node name="Title" type="Label" parent="Shell/Strip/StripBox/Side/PhaseClock/Rows/TitleRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudTitle"
-text = "Lobby"
-
-[node name="Time" type="Label" parent="Shell/Strip/StripBox/Side/PhaseClock/Rows/TitleRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 8
-text = "0:00"
-
-[node name="Stage" type="Label" parent="Shell/Strip/StripBox/Side/PhaseClock/Rows"]
-unique_name_in_owner = true
-layout_mode = 2
-horizontal_alignment = 1
-clip_text = true
-text_overrun_behavior = 3
-
-[node name="Focus" type="AspectFlowContainer" parent="Shell"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
 size_flags_vertical = 3
-mouse_filter = 2
-theme_override_constants/separation = 2
-
-[node name="WorldSpace" type="Control" parent="Shell/Focus"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-mouse_filter = 2
-
-[node name="ActionBar" type="PanelContainer" parent="Shell/Focus/WorldSpace"]
-visible = false
-layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 0
-script = ExtResource("4_actions")
-
-[node name="Rows" type="VBoxContainer" parent="Shell/Focus/WorldSpace/ActionBar"]
-layout_mode = 2
-theme_override_constants/separation = 2
-
-[node name="Scroll" type="ScrollContainer" parent="Shell/Focus/WorldSpace/ActionBar/Rows"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
 horizontal_scroll_mode = 0
 
-[node name="Groups" type="VBoxContainer" parent="Shell/Focus/WorldSpace/ActionBar/Rows/Scroll"]
+[node name="PlayerRows" type="VBoxContainer" parent="Shell/Side/Roster/Rows/RosterScroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 1
+mouse_filter = 2
+theme_override_constants/separation = 3
 
-[node name="ChoiceRow" type="HFlowContainer" parent="Shell/Focus/WorldSpace/ActionBar/Rows"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-theme_override_constants/h_separation = 2
-theme_override_constants/v_separation = 2
-alignment = 1
-
-[node name="StartButton" type="Button" parent="Shell/Focus/WorldSpace/ActionBar/Rows"]
-unique_name_in_owner = true
-layout_mode = 2
-focus_mode = 0
-theme_override_font_sizes/font_size = 7
-text = "Start game"
-
-[node name="WillButton" type="Button" parent="Shell/Strip/StripBox/Side"]
+[node name="WillButton" type="Button" parent="Shell/Side"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
@@ -183,93 +212,4 @@ focus_mode = 0
 tooltip_text = "Last will"
 icon = ExtResource("6_will")
 
-[node name="ChatPanel" type="PanelContainer" parent="Shell/Focus"]
-unique_name_in_owner = true
-layout_mode = 2
-script = ExtResource("5_chat")
 
-[node name="Rows" type="VBoxContainer" parent="Shell/Focus/ChatPanel"]
-layout_mode = 2
-theme_override_constants/separation = 2
-
-[node name="Header" type="HBoxContainer" parent="Shell/Focus/ChatPanel/Rows"]
-layout_mode = 2
-
-[node name="Heading" type="Label" parent="Shell/Focus/ChatPanel/Rows/Header"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_type_variation = &"HudHeading"
-text = "Chat"
-
-[node name="Log" type="RichTextLabel" parent="Shell/Focus/ChatPanel/Rows"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 3
-focus_mode = 0
-theme_override_font_sizes/normal_font_size = 6
-scroll_following = true
-
-[node name="InputRow" type="HBoxContainer" parent="Shell/Focus/ChatPanel/Rows"]
-layout_mode = 2
-theme_override_constants/separation = 2
-
-[node name="Channel" type="Label" parent="Shell/Focus/ChatPanel/Rows/InputRow"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "town"
-
-[node name="Input" type="LineEdit" parent="Shell/Focus/ChatPanel/Rows/InputRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-placeholder_text = "Enter to chat"
-max_length = 1600
-
-[node name="SendButton" type="Button" parent="Shell/Focus/ChatPanel/Rows/InputRow"]
-layout_mode = 2
-focus_mode = 0
-text = "Send"
-
-[node name="WillEditor" type="VBoxContainer" parent="Shell/Focus/ChatPanel"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-theme_override_constants/separation = 2
-
-[node name="Title" type="Label" parent="Shell/Focus/ChatPanel/WillEditor"]
-layout_mode = 2
-theme_type_variation = &"HudHeading"
-text = "Last will"
-
-[node name="Hint" type="Label" parent="Shell/Focus/ChatPanel/WillEditor"]
-layout_mode = 2
-theme_type_variation = &"HudDim"
-text = "Everyone reads this when you die. Keep notes on what you learned."
-autowrap_mode = 3
-
-[node name="WillText" type="TextEdit" parent="Shell/Focus/ChatPanel/WillEditor"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 3
-placeholder_text = "N1: checked 3, not suspicious"
-wrap_mode = 1
-
-[node name="Buttons" type="HBoxContainer" parent="Shell/Focus/ChatPanel/WillEditor"]
-layout_mode = 2
-alignment = 2
-
-[node name="CloseWillButton" type="Button" parent="Shell/Focus/ChatPanel/WillEditor/Buttons"]
-layout_mode = 2
-focus_mode = 0
-text = "Cancel"
-
-[node name="SaveWillButton" type="Button" parent="Shell/Focus/ChatPanel/WillEditor/Buttons"]
-layout_mode = 2
-focus_mode = 0
-text = "Save"
-
-[connection signal="pressed" from="Shell/Focus/WorldSpace/ActionBar/Rows/StartButton" to="Shell/Focus/WorldSpace/ActionBar" method="_on_start_button_pressed"]
-[connection signal="text_submitted" from="Shell/Focus/ChatPanel/Rows/InputRow/Input" to="Shell/Focus/ChatPanel" method="_on_input_text_submitted"]
-[connection signal="pressed" from="Shell/Focus/ChatPanel/Rows/InputRow/SendButton" to="Shell/Focus/ChatPanel" method="_on_send_button_pressed"]
-[connection signal="pressed" from="Shell/Focus/ChatPanel/WillEditor/Buttons/CloseWillButton" to="Shell/Focus/ChatPanel" method="_close_will"]
-[connection signal="pressed" from="Shell/Focus/ChatPanel/WillEditor/Buttons/SaveWillButton" to="Shell/Focus/ChatPanel" method="_on_save_will_button_pressed"]

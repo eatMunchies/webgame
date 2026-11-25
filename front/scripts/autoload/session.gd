@@ -19,8 +19,11 @@ signal phase_changed
 ## A request was refused or the server couldn't be reached. `message` is
 ## written for the player.
 signal request_failed(message: String)
-## A new line in the game log. Every line so far is in log_lines.
-signal log_line(text: String)
+## A new line in the game log, and its kind: LINE_CHAT (what players
+## said), LINE_WHISPER (whispers, and the notice that someone whispered), LINE_GAME (your role, results, deaths, votes and other events) or
+## LINE_SYSTEM (the lobby, the connection, errors). `lot` is the lot of the
+## player who said a chat line, or -1. Every line so far is in log_lines.
+signal log_line(text: String, kind: String, lot: int)
 ## Someone else's character moved in the town. `facing` is a
 ## Character.Facing value.
 signal player_moved(lot: int, position: Vector2, facing: int, walking: bool)
@@ -29,6 +32,12 @@ signal actions_changed
 ## The player's night minigame started, ended, or changed. Read
 ## client.minigame() and client.fight().
 signal minigame_changed
+## A minigame started or stopped taking the on-screen keyboard (see
+## keyboard_minigame).
+signal keyboard_minigame_changed
+## The connection dropped and Session started trying to get back in, or
+## stopped trying (it got back in, or gave up). Read `reconnecting`.
+signal reconnecting_changed
 
 const CODE_LENGTH := 6
 ## Letters and digits that are hard to confuse when read aloud or typed
@@ -38,6 +47,11 @@ const CODE_ALPHABET := "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 const MAX_PLAYERS := 15
 ## The port `just server` and `just play` listen on.
 const DEFAULT_PORT := 9090
+## How long Session keeps trying to get back into the lobby after the
+## connection drops, as long as the server keeps a seat waiting before a game
+## (RECONNECT_GRACE in webgame-server), and how often it tries.
+const RECONNECT_SECONDS := 90.0
+const RECONNECT_EVERY := 3.0
 ## The log keeps this many lines, dropping the oldest.
 const MAX_LOG_LINES := 300
 
@@ -45,12 +59,28 @@ var client: GameClient
 ## The current lobby's code, or "" when not in a lobby.
 var code := ""
 var is_host := false
+## True while the connection is down and Session is trying to get back into
+## the lobby: phones drop it when the browser goes to the background. The
+## player stays where they are meanwhile; the server keeps their seat (for
+## the game, or RECONNECT_SECONDS before one).
+var reconnecting := false
+## True while a minigame (the typing test on a touch screen) has the
+## on-screen keyboard up, which covers the bottom of the screen; the HUD
+## moves the minigame above it.
+var keyboard_minigame := false
 ## Everyone in the lobby, in lot order.
 var players: Array[LobbyPlayer] = []
+## The kinds of game log line; see log_line.
+const LINE_CHAT := "chat"
+const LINE_WHISPER := "whisper"
+const LINE_GAME := "game"
+const LINE_SYSTEM := "system"
+
 ## This player's entry in players, or null when not in a lobby.
 var me: LobbyPlayer
-## Game text so far, oldest first, so a log that opens later can catch up.
-var log_lines: Array[String] = []
+## Game text so far, oldest first, so a log that opens later can catch up:
+## each {text, kind, lot}, as log_line gives them.
+var log_lines: Array[Dictionary] = []
 ## Why the player was last dropped from a lobby, for the lobby screen to
 ## show. Cleared once shown.
 var last_error := ""
@@ -71,6 +101,12 @@ var arrival_view_center: Variant = null
 
 ## The name the connection was opened with, to reconnect if it changes.
 var _connected_as := ""
+## While reconnecting: the lobby to get back into, why the connection
+## dropped, and when to give up.
+var _reconnect_code := ""
+var _reconnect_reason := ""
+var _reconnect_until_msec := 0
+var _reconnect_timer := Timer.new()
 
 
 func _ready() -> void:
@@ -80,15 +116,23 @@ func _ready() -> void:
 	client.members_changed.connect(_refresh_players)
 	client.phase_changed.connect(phase_changed.emit)
 	client.log_line.connect(_add_log_line)
-	client.server_error.connect(request_failed.emit)
+	client.server_error.connect(_on_server_error)
 	client.disconnected.connect(_on_disconnected)
 	client.player_moved.connect(player_moved.emit)
 	client.actions_changed.connect(actions_changed.emit)
 	client.minigame_changed.connect(minigame_changed.emit)
+	_reconnect_timer.timeout.connect(_try_reconnect)
+	add_child(_reconnect_timer)
+
+
+func set_keyboard_minigame(up: bool) -> void:
+	if keyboard_minigame != up:
+		keyboard_minigame = up
+		keyboard_minigame_changed.emit()
 
 
 func in_lobby() -> bool:
-	return code != ""
+	return code != "" or reconnecting
 
 
 ## Whether a game is being played (not in the lobby, not over).
@@ -119,6 +163,10 @@ func join_lobby(raw_code: String) -> String:
 
 
 func leave_lobby() -> void:
+	if reconnecting:
+		_stop_reconnecting()
+		client.disconnect_from_server()
+		_connected_as = ""
 	client.leave_lobby()
 	_clear()
 
@@ -189,6 +237,16 @@ func _connect_if_needed() -> bool:
 ## Rebuilds `players` from the client's member list.
 func _refresh_players() -> void:
 	var new_code := client.lobby_code()
+	if new_code == "" and code != "" and not client.is_online():
+		# The connection dropped; `disconnected` comes next and starts getting
+		# back in, so keep showing the lobby until then.
+		return
+	if reconnecting:
+		if new_code == "":
+			# The dropped connection's empty lobby: keep showing the last one.
+			return
+		_stop_reconnecting()
+		add_log_line("Reconnected.")
 	# The log belongs to one lobby, but its first lines arrive just before
 	# the lobby does, so it is only cleared on the way out.
 	if new_code == "":
@@ -236,23 +294,80 @@ func _appearance_from(fields: Dictionary) -> CharacterAppearance:
 
 ## Adds a line of this client's own to the game log, like the reason a
 ## button's command was refused. Everyone else's lines come from the client.
-func add_log_line(text: String) -> void:
-	_add_log_line(text)
+func add_log_line(text: String, kind := LINE_SYSTEM) -> void:
+	_add_log_line(text, kind, -1)
 
 
-func _add_log_line(text: String) -> void:
-	log_lines.append(text)
+func _add_log_line(text: String, kind: String, lot: int) -> void:
+	log_lines.append({"text": text, "kind": kind, "lot": lot})
 	if log_lines.size() > MAX_LOG_LINES:
 		log_lines.pop_front()
-	log_line.emit(text)
+	log_line.emit(text, kind, lot)
+
+
+func _on_server_error(message: String) -> void:
+	if reconnecting:
+		# The way back in was refused (the lobby is gone, say): stop trying.
+		_reconnect_reason = message
+		_give_up_reconnecting()
+		return
+	request_failed.emit(message)
 
 
 func _on_disconnected(reason: String) -> void:
 	_connected_as = ""
-	if in_lobby():
-		last_error = reason
+	if reconnecting:
+		# A try that didn't get through; the timer tries again.
+		return
+	if code != "":
+		_start_reconnecting(reason)
+		return
 	_clear()
 	request_failed.emit(reason)
+
+
+## Keeps the player where they are and tries to get back into the lobby, as
+## the same name, every RECONNECT_EVERY seconds for RECONNECT_SECONDS.
+func _start_reconnecting(reason: String) -> void:
+	reconnecting = true
+	_reconnect_code = code
+	_reconnect_reason = reason
+	_reconnect_until_msec = Time.get_ticks_msec() + int(RECONNECT_SECONDS * 1000)
+	add_log_line("Connection lost. Reconnecting...")
+	_reconnect_timer.start(RECONNECT_EVERY)
+	reconnecting_changed.emit()
+	_try_reconnect()
+
+
+func _try_reconnect() -> void:
+	if not reconnecting:
+		return
+	if Time.get_ticks_msec() >= _reconnect_until_msec:
+		_give_up_reconnecting()
+		return
+	if client.is_online():
+		return
+	_connected_as = PlayerProfile.username
+	if client.connect_to_server(server_url(), PlayerProfile.username) == "":
+		# Sent once the connection is up.
+		client.join_lobby(_reconnect_code)
+	else:
+		_connected_as = ""
+
+
+func _stop_reconnecting() -> void:
+	reconnecting = false
+	_reconnect_timer.stop()
+	reconnecting_changed.emit()
+
+
+func _give_up_reconnecting() -> void:
+	_stop_reconnecting()
+	client.disconnect_from_server()
+	_connected_as = ""
+	last_error = _reconnect_reason
+	_clear()
+	request_failed.emit(_reconnect_reason)
 
 
 func _clear() -> void:

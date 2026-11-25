@@ -4,8 +4,9 @@ extends RefCounted
 ## How each screen scales to fit the window, so the game looks the same at
 ## any window size (the window opens at 1920x1080; see project.godot).
 ##
-## - Menus (the customizer) are laid out for 1280x720
-##   and scaled smoothly to the window. They use canvas_items scaling, which
+## - Menus (the customizer) are laid out for 1280x720, or 720x1280 on a
+##   portrait window like a phone's (see menus_portrait), and scaled smoothly
+##   to the window. They use canvas_items scaling, which
 ##   draws text at the window's own resolution, so it stays sharp.
 ## - The start screen, the town and their HUDs are laid out in units where the window's short
 ##   side is WORLD_SHORT_SIDE (180) units, so a 16:9 landscape window is
@@ -18,14 +19,20 @@ extends RefCounted
 ## the last screen set.
 
 const MENU_SIZE := Vector2i(1280, 720)
+const MENU_SIZE_PORTRAIT := Vector2i(720, 1280)
 const WORLD_SHORT_SIDE := 180
 
 
 static func for_menus(window: Window) -> void:
 	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
-	window.content_scale_size = MENU_SIZE
+	window.content_scale_size = MENU_SIZE_PORTRAIT if menus_portrait(window) else MENU_SIZE
 	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
 	window.content_scale_stretch = Window.CONTENT_SCALE_STRETCH_FRACTIONAL
+
+
+## Whether menus lay out for a portrait window, taller than it is wide.
+static func menus_portrait(window: Window) -> bool:
+	return window.size.y > window.size.x
 
 
 static func for_world(window: Window) -> void:

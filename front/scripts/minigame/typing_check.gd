@@ -30,6 +30,9 @@ var _rng := RandomNumberGenerator.new()
 var _practice_started_msec := -1
 ## Letters in words typed right in practice, each with its space.
 var _practice_letters := 0
+## On a touch screen, an invisible text box in the test that takes the
+## on-screen keyboard (see _notification).
+var _keys: LineEdit
 
 
 func _ready() -> void:
@@ -123,18 +126,80 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
-## Brings up the on-screen keyboard on phones and tablets while the test
-## shows, since there's no text box to tap.
+## On a touch screen there's no keyboard to press keys on, so an invisible
+## text box in the test takes the on-screen keyboard while the test shows,
+## and every change typed into it comes here as keys would. The HUD moves the
+## minigame to the top of a tall screen meanwhile (Session.keyboard_minigame),
+## above the keyboard. A tap on the test brings the keyboard back if it was
+## put away.
 func _notification(what: int) -> void:
-	if not DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+	if not TextPrompt.touch:
 		return
 	if what == NOTIFICATION_VISIBILITY_CHANGED or what == NOTIFICATION_READY:
 		if is_visible_in_tree():
-			DisplayServer.virtual_keyboard_show("")
+			_take_keyboard.call_deferred()
 		else:
-			DisplayServer.virtual_keyboard_hide()
+			_give_up_keyboard()
 	elif what == NOTIFICATION_EXIT_TREE:
-		DisplayServer.virtual_keyboard_hide()
+		_give_up_keyboard()
+
+
+func _take_keyboard() -> void:
+	if not is_visible_in_tree():
+		return
+	if _keys == null:
+		_keys = LineEdit.new()
+		# Drawn by nobody, and in nobody's way; it only takes the keyboard.
+		_keys.self_modulate.a = 0.0
+		_keys.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_keys.custom_minimum_size = Vector2.ZERO
+		_keys.size = Vector2(1, 1)
+		_keys.add_theme_font_size_override("font_size", 1)
+		_keys.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+		_keys.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		_keys.text_changed.connect(func(text: String) -> void: _sync_keys(_on_prompt_text(text)))
+		_keys.text_submitted.connect(func(text: String) -> void: _sync_keys(_on_prompt_text(text + " ")))
+		add_child(_keys)
+	_keys.text = current
+	_keys.grab_focus()
+	Session.set_keyboard_minigame(true)
+
+
+func _give_up_keyboard() -> void:
+	if _keys != null and _keys.is_inside_tree():
+		_keys.release_focus()
+	if Session.keyboard_minigame:
+		Session.set_keyboard_minigame(false)
+
+
+func _sync_keys(text: String) -> void:
+	if _keys.text != text:
+		_keys.text = text
+		_keys.caret_column = text.length()
+
+
+func _gui_input(event: InputEvent) -> void:
+	if _keys != null and is_tap(event):
+		_keys.grab_focus()
+
+
+## Takes what the invisible box holds: the word being typed, and a space
+## (or Enter) after it to finish it. Returns what the box should hold now:
+## the rest of the word being typed.
+func _on_prompt_text(text: String) -> String:
+	var parts := text.split(" ")
+	for i in parts.size():
+		var word := parts[i]
+		if word != current:
+			if word.begins_with(current):
+				type_text(word.substr(current.length()))
+			else:
+				backspace(true)
+				type_text(word)
+		if i < parts.size() - 1:
+			space()
+	changed.emit()
+	return current
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -171,6 +236,11 @@ func _attempt(i: int) -> String:
 
 
 func _draw() -> void:
+	draw_words_on(self, size)
+
+
+## Draws the words on `canvas`, laid out to fit `area`.
+func draw_words_on(canvas: CanvasItem, area: Vector2) -> void:
 	var font := ThemeDB.fallback_font
 	var space_width := font.get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
 	var line_height := font.get_height(FONT_SIZE) + LINE_GAP
@@ -180,23 +250,23 @@ func _draw() -> void:
 	for i in words.size():
 		var width := font.get_string_size(_shown(i), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
 		var with_space := width + (space_width if not lines[-1].is_empty() else 0.0)
-		if not lines[-1].is_empty() and widths[-1] + with_space > size.x - 8:
+		if not lines[-1].is_empty() and widths[-1] + with_space > area.x - 8:
 			lines.append([])
 			widths.append(0.0)
 			with_space = width
 		lines[-1].append(i)
 		widths[-1] += with_space
-	var y := (size.y - line_height * lines.size()) / 2 + font.get_ascent(FONT_SIZE)
+	var y := (area.y - line_height * lines.size()) / 2 + font.get_ascent(FONT_SIZE)
 	for line in lines.size():
-		var x := (size.x - widths[line]) / 2
+		var x := (area.x - widths[line]) / 2
 		for i: int in lines[line]:
-			x = _draw_word(font, i, Vector2(x, y)) + space_width
+			x = _draw_word(canvas, font, i, Vector2(x, y)) + space_width
 		y += line_height
 
 
 ## Draws word `i` with its baseline starting at `at`, coloring each letter
 ## by how it was typed, and returns where it ends.
-func _draw_word(font: Font, i: int, at: Vector2) -> float:
+func _draw_word(canvas: CanvasItem, font: Font, i: int, at: Vector2) -> float:
 	var word := words[i]
 	var attempt := _attempt(i)
 	var finished := i < typed.size()
@@ -214,13 +284,13 @@ func _draw_word(font: Font, i: int, at: Vector2) -> float:
 		elif finished:
 			# Letters skipped by finishing the word early.
 			color = MISS_COLOR.darkened(0.4)
-		font.draw_string(get_canvas_item(), Vector2(x, at.y), shown[j], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, color)
+		font.draw_string(canvas.get_canvas_item(), Vector2(x, at.y), shown[j], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, color)
 		x += font.get_string_size(shown[j], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
 	if i == typed.size() and caret < 0.0:
 		caret = x
 	if finished and attempt != word:
-		draw_line(Vector2(at.x, at.y + 2), Vector2(x, at.y + 2), MISS_COLOR, 1.0)
+		canvas.draw_line(Vector2(at.x, at.y + 2), Vector2(x, at.y + 2), MISS_COLOR, 1.0)
 	if caret >= 0.0 and not waiting():
 		var top := at.y - font.get_ascent(FONT_SIZE)
-		draw_line(Vector2(caret, top), Vector2(caret, at.y + 1), GOLD, 1.0)
+		canvas.draw_line(Vector2(caret, top), Vector2(caret, at.y + 1), GOLD, 1.0)
 	return x

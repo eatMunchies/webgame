@@ -7,8 +7,8 @@ extends Node2D
 ## Hosting or joining asks the game server, and goes to the town once it
 ## says yes.
 ##
-## Walking up to the house's door and pressing E (the interact action), or
-## tapping or clicking the house, opens the customizer. The house brightens
+## Clicking or tapping the house opens the customizer (so does E, the
+## interact action, at its door); a hint says so while the player is near. The house brightens
 ## while the player is at its door. Walking is the
 ## town's: WASD or the arrow keys, or dragging on a touch screen. Clicking
 ## the plaza takes the focus off the text boxes, so the keys walk again.
@@ -37,11 +37,12 @@ const EDGE_SIDES := 48
 const HOUSE_RECT := Rect2(-32, -72, 64, 72)
 ## The house's tint while the player is at its door.
 const DOOR_GLOW := Color(1.2, 1.2, 1.12)
-## The hint over the house saying how to go in: a key at the door, or on a
-## touch screen a tap anywhere on the house, shown all the time and pulsing
-## since there's no door to walk up to first.
-const KEY_HINT := "Press E to customize"
-const TAP_HINT := "Tap your house to customize"
+## The hint over the house saying how to go in: a click on it, or on a touch
+## screen a tap. It shows, pulsing gently, while the player is within
+## HINT_REACH of the door.
+const CLICK_HINT := "Click to Customize"
+const TAP_HINT := "Tap to Customize"
+const HINT_REACH := 48.0
 ## How far above the owner's name the hint sits, in world pixels.
 const HINT_GAP := 2.0
 const HINT_PULSE_SPEED := 4.0
@@ -62,6 +63,7 @@ const HINT_PULSE_SPEED := 4.0
 @onready var _camera_lift := camera.position
 ## True while waiting for the server to answer a create or join.
 var _waiting := false
+var _prompt: TextPrompt
 ## The hint over the house; see KEY_HINT.
 var _hint := Label.new()
 var _touch := DisplayServer.is_touchscreen_available()
@@ -83,6 +85,12 @@ func _ready() -> void:
 	Session.request_failed.connect(_on_session_request_failed)
 	_update_buttons()
 	_add_hint()
+	# The name and code boxes type in a box in the middle of the screen,
+	# clear of a phone's keyboard. The code's has Paste, for a code sent in a
+	# message.
+	_prompt = TextPrompt.create($UI)
+	_prompt.attach(name_input, "Your name", false, {"always": true})
+	_prompt.attach(code_input, "Lobby code", true, {"always": true, "paste": true, "confirm": "Join"})
 	# Say why the player is back here, if they were dropped from a lobby.
 	status_label.text = Session.last_error
 	Session.last_error = ""
@@ -97,7 +105,7 @@ func _process(_delta: float) -> void:
 
 
 func _add_hint() -> void:
-	_hint.text = TAP_HINT if _touch else KEY_HINT
+	_hint.text = TAP_HINT if _touch else CLICK_HINT
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hint.z_index = 2
@@ -108,10 +116,10 @@ func _add_hint() -> void:
 	house.get_parent().add_child(_hint)
 
 
-## Shows the hint over the owner's name: always on a touch screen, pulsing,
-## and with keys only while the player is at the door.
+## Shows the hint over the owner's name, pulsing gently, while the player is
+## near the house.
 func _update_hint() -> void:
-	_hint.visible = _touch or near_door()
+	_hint.visible = player.position.distance_to(house.position + DOOR_SPOT) <= HINT_REACH
 	if not _hint.visible:
 		return
 	_hint.reset_size()
@@ -119,7 +127,7 @@ func _update_hint() -> void:
 	var top := house.position.y + name_label.position.y
 	_hint.position = Vector2(house.position.x - _hint.size.x / 2.0, top - _hint.size.y - HINT_GAP)
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * HINT_PULSE_SPEED)
-	_hint.modulate.a = lerpf(0.55, 1.0, pulse) if _touch else 1.0
+	_hint.modulate.a = lerpf(0.55, 1.0, pulse)
 
 
 ## Keeps the player in the middle of the part of the screen the panel leaves.
@@ -147,6 +155,8 @@ func _input(event: InputEvent) -> void:
 	# which would otherwise take the touch.
 	var tap := event as InputEventMouseButton
 	if tap == null or not tap.pressed or tap.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if _prompt != null and _prompt.visible:
 		return
 	if panel.get_global_rect().has_point(tap.position):
 		return
@@ -253,6 +263,10 @@ func arrival_spot() -> Vector2:
 ## in the same spot by their house, facing the same way, and the plaza's
 ## floor dissolves into the town around them.
 func _on_session_lobby_changed() -> void:
+	# This screen lingers for a moment after the change to the town, out of
+	# the tree; a second lobby update then must not change scenes again.
+	if not is_inside_tree():
+		return
 	if _waiting and Session.in_lobby():
 		Session.arrival_spot = arrival_spot()
 		Session.arrival_facing = player.facing

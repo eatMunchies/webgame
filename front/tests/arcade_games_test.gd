@@ -362,7 +362,10 @@ func test_a_blackjack_check_reports_what_the_hand_is_worth() -> void:
 	check.game.player = [card(10), card(9)]
 	check.game.dealer = [card(10), card(9)]
 	check.game.turn = "player"
+	# The check dealt a random hand when it started, and a natural 21 there
+	# would have decided it already; start this hand undecided.
 	check._was_over = false
+	check.done = false
 	check.stand()
 	check._process(1.0)
 	assert_str(check.game.outcome).is_equal("push")

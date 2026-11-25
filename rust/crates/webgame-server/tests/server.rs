@@ -452,3 +452,38 @@ async fn movement_and_looks_reach_the_rest_of_the_lobby() {
     assert_eq!(ada.error().await, ErrorCode::BadMessage);
     let _ = std::fs::remove_file(path);
 }
+
+#[tokio::test]
+async fn a_dropped_player_keeps_their_seat_in_the_lobby() {
+    let (addr, _db, path) = start_server(Timers::uniform(60_000), 3).await;
+    let mut ada = Client::connect(addr, "Ada").await;
+    let code = ada.create().await;
+    let mut bram = Client::connect(addr, "Bram").await;
+    bram.join(&code).await;
+    // Bram's phone drops the connection, as when the browser goes to the background.
+    drop(bram);
+    let ServerMessage::Lobby(info) = ada
+        .wait(|m| matches!(m, ServerMessage::Lobby(info) if info.members.iter().any(|m| !m.connected)))
+        .await
+    else {
+        unreachable!()
+    };
+    let seat = info.members.iter().find(|m| m.name == "Bram").expect("Bram keeps a seat");
+    assert!(!seat.connected);
+    let slot = seat.slot;
+
+    // Coming back under the same name puts them back in that seat.
+    let mut back = Client::connect(addr, "Bram").await;
+    back.send(ClientMessage::JoinLobby { code }).await;
+    let ServerMessage::Lobby(info) = back
+        .wait(|m| matches!(m, ServerMessage::Lobby(_)))
+        .await
+    else {
+        unreachable!()
+    };
+    let seat = info.members.iter().find(|m| m.name == "Bram").unwrap();
+    assert!(seat.connected);
+    assert_eq!(seat.slot, slot);
+    assert_eq!(info.members.len(), 2);
+    let _ = std::fs::remove_file(path);
+}

@@ -13,6 +13,10 @@ extends Sprite2D
 ##
 ## Draw this under everything else (the town scene gives it z_index -2), since
 ## the yards under each house sit at -1.
+##
+## Past the map's edges, OUTSKIRTS of plain grass (and the road in, carrying
+## on down) reach under the HUD, so the camera, which may scroll past an edge
+## to keep houses there clear of the HUD, never shows the empty backdrop.
 
 const SIZE := Vector2i(456, 360)
 const CENTER := Vector2(228, 188)
@@ -34,6 +38,9 @@ const PLAZA_RADII := Vector2(36, 22)
 const ENTRANCE_WIDTH := 24
 const PATH_WIDTH := 8
 const CURB := 2
+## How far the plain grass reaches past each edge of the map: past the most
+## the HUD can cover beside or under the town.
+const OUTSKIRTS := 240
 
 const GRASS := Color(0.45, 0.52, 0.18)
 const PARK_GRASS := Color(0.4, 0.56, 0.2)
@@ -47,6 +54,12 @@ const FLOWERS: Array[Color] = [Color(0.93, 0.36, 0.4), Color(0.96, 0.86, 0.35), 
 func _ready() -> void:
 	centered = false
 	texture = ImageTexture.create_from_image(_paint())
+	var outskirts := Sprite2D.new()
+	outskirts.centered = false
+	outskirts.position = -Vector2(OUTSKIRTS, OUTSKIRTS)
+	outskirts.show_behind_parent = true
+	outskirts.texture = ImageTexture.create_from_image(_paint_outskirts())
+	add_child(outskirts)
 
 
 ## Returns the ground point of a lot. Lots are numbered clockwise from the
@@ -69,6 +82,28 @@ static func lot_position(lot: int, lot_count: int) -> Vector2:
 	var target := lengths[STEPS] * (lot + 1) / (lot_count + 1)
 	var i := lengths.bsearch(target)
 	return points[clampi(i, 0, STEPS)] + LOT_GROUND_OFFSET
+
+
+## Plain grass around the map, with the road in carrying on from the bottom
+## edge, its center line keeping the map's rhythm.
+func _paint_outskirts() -> Image:
+	var size := SIZE + Vector2i(OUTSKIRTS, OUTSKIRTS) * 2
+	var image := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
+	image.fill(GRASS)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2
+	_speckle(image, Rect2i(Vector2i.ZERO, size), GRASS, rng)
+	var road_x := OUTSKIRTS + int(CENTER.x) - ENTRANCE_WIDTH / 2
+	var map_bottom := OUTSKIRTS + SIZE.y
+	image.fill_rect(Rect2i(road_x - CURB, map_bottom, ENTRANCE_WIDTH + CURB * 2, size.y - map_bottom), CURB_COLOR)
+	image.fill_rect(Rect2i(road_x, map_bottom, ENTRANCE_WIDTH, size.y - map_bottom), ASPHALT)
+	var first_dash := int(CENTER.y + ROAD_RADII.y) + 4
+	for y in range(first_dash, SIZE.y + OUTSKIRTS, 12):
+		var top := maxi(y, SIZE.y)
+		var bottom := y + 6
+		if bottom > top:
+			image.fill_rect(Rect2i(OUTSKIRTS + int(CENTER.x) - 1, OUTSKIRTS + top, 2, bottom - top), CENTER_LINE)
+	return image
 
 
 func _paint() -> Image:

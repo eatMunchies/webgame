@@ -24,6 +24,15 @@ const HURRY_SECONDS := 5
 
 
 func _process(_delta: float) -> void:
+	# While the connection is down the client knows nothing of the game, so
+	# the clock just waits.
+	if Session.reconnecting:
+		title_label.text = "Reconnecting"
+		title_label.add_theme_color_override("font_color", HudStyle.DANGER_COLOR)
+		stage_label.text = "Hold on, getting you back in"
+		stage_label.visible = true
+		time_label.visible = false
+		return
 	# The countdown ticks, so this reads the phase every frame. It is one
 	# small Dictionary from the client, cheap next to drawing the town.
 	var info: Dictionary = Session.client.phase_info()

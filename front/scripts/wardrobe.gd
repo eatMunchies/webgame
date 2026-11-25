@@ -4,7 +4,8 @@ extends Control
 ## Character creator, styled like an RPG character screen. The character
 ## stands on a pedestal on the left and can be turned around with the arrows.
 ## On the right, tabs group the choices (body, face, outfit, gear, pet,
-## house), and each slot is a grid of picture tiles showing that item on the
+## house); on a portrait window like a phone's, the pedestal sits on top
+## and the tabs under it, and each slot is a grid of picture tiles showing that item on the
 ## current body. While the House tab is open, the left side shows the house
 ## with the character in its yard instead of the pedestal.
 ## The pickers start on whatever `appearance` and `house` hold when the screen
@@ -15,6 +16,13 @@ extends Control
 ## a form, so this screen turns that scaling off and zooms the art itself.
 
 const WALK_FPS := 6.0
+## How tall the pedestal panel is on a portrait window, over the tabs.
+const PORTRAIT_STAGE_HEIGHT := 420.0
+## On a portrait window (a phone), how much bigger the tiles and swatches
+## are, for fingers. Their rows scroll sideways there instead of wrapping.
+const PORTRAIT_TILE_SCALE := 1.5
+## How far a finger moves on a row before it scrolls instead of pressing.
+const SCROLL_DEADZONE := 12
 const SKIN_PRESETS: Array[Color] = [
 	Color(1.0, 0.87, 0.77), Color(0.96, 0.8, 0.69), Color(0.85, 0.65, 0.5),
 	Color(0.68, 0.48, 0.34), Color(0.5, 0.33, 0.22), Color(0.33, 0.21, 0.14),
@@ -56,6 +64,8 @@ const MIN_CROP := 14
 const THUMBNAIL_DELAY := 0.2
 
 var appearance := CharacterAppearance.new()
+## Whether the screen is laid out for a portrait window (see _build).
+var _portrait := false
 var house := HouseAppearance.new()
 var walking := false
 var walk_time := 0.0
@@ -124,12 +134,22 @@ func _build() -> void:
 	rows.add_theme_constant_override("separation", 16)
 	margin.add_child(rows)
 
-	var columns := HBoxContainer.new()
+	# Side by side on a wide window; on a portrait one (a phone), the
+	# pedestal on top and the tabs under it.
+	var portrait := ScreenScale.menus_portrait(get_window())
+	_portrait = portrait
+	var columns := BoxContainer.new()
+	columns.vertical = portrait
 	columns.size_flags_vertical = SIZE_EXPAND_FILL
 	columns.add_theme_constant_override("separation", 20)
 	rows.add_child(columns)
-	columns.add_child(_build_stage())
-	columns.add_child(_build_tabs())
+	var stage_panel := _build_stage()
+	if portrait:
+		stage_panel.custom_minimum_size = Vector2(0, PORTRAIT_STAGE_HEIGHT)
+	columns.add_child(stage_panel)
+	var tabs := _build_tabs()
+	tabs.size_flags_vertical = SIZE_EXPAND_FILL
+	columns.add_child(tabs)
 	rows.add_child(_build_footer())
 
 
@@ -256,8 +276,32 @@ func _build_footer() -> Control:
 	return bar
 
 
-## A heading with the current choice beside it, over a wrapping grid of
-## tiles, one per value. Body and gender tiles are bigger and labeled; item
+## A row of tiles or swatches: wrapping on a wide window, or on a portrait
+## one a single row that scrolls sideways when it doesn't fit. Returns the
+## control to add to the section, and the container to add the tiles to.
+func _tile_row(separation: int) -> Array[Control]:
+	if not _portrait:
+		var flow := HFlowContainer.new()
+		flow.add_theme_constant_override("h_separation", separation)
+		flow.add_theme_constant_override("v_separation", separation)
+		return [flow, flow]
+	var scroll := ScrollContainer.new()
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.scroll_deadzone = SCROLL_DEADZONE
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", separation)
+	scroll.add_child(row)
+	return [scroll, row]
+
+
+## How big a tile or swatch is on this window: bigger on a portrait one.
+func _tile_size(size: Vector2) -> Vector2:
+	return size * PORTRAIT_TILE_SCALE if _portrait else size
+
+
+## A heading with the current choice beside it, over a grid of tiles (a
+## scrolling row on a phone), one per value. Body and gender tiles are bigger and labeled; item
 ## tiles name their item in a tooltip.
 func _tile_section(picker: String, heading: String, values: Array) -> Control:
 	var section := VBoxContainer.new()
@@ -276,10 +320,9 @@ func _tile_section(picker: String, heading: String, values: Array) -> Control:
 	header.add_child(value_label)
 	_value_labels[picker] = value_label
 
-	var grid := HFlowContainer.new()
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 8)
-	section.add_child(grid)
+	var parts := _tile_row(8)
+	section.add_child(parts[0])
+	var grid: Control = parts[1]
 	var labeled := picker in ["body", "gender"] or picker in HouseCatalog.LAYERS
 	_tiles[picker] = {}
 	for value: String in values:
@@ -290,9 +333,9 @@ func _tile_section(picker: String, heading: String, values: Array) -> Control:
 		tile.expand_icon = true
 		tile.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		if picker in HouseCatalog.LAYERS:
-			tile.custom_minimum_size = HOUSE_TILE_SIZE
+			tile.custom_minimum_size = _tile_size(HOUSE_TILE_SIZE)
 		else:
-			tile.custom_minimum_size = BODY_TILE_SIZE if labeled else TILE_SIZE
+			tile.custom_minimum_size = _tile_size(BODY_TILE_SIZE if labeled else TILE_SIZE)
 		tile.tooltip_text = _display_name(picker, value)
 		if labeled:
 			tile.text = _display_name(picker, value)
@@ -314,14 +357,13 @@ func _skin_section() -> Control:
 	heading.text = "Skin"
 	heading.theme_type_variation = "HeaderLabel"
 	section.add_child(heading)
-	var row := HFlowContainer.new()
-	row.add_theme_constant_override("h_separation", 10)
-	row.add_theme_constant_override("v_separation", 10)
-	section.add_child(row)
+	var parts := _tile_row(10)
+	section.add_child(parts[0])
+	var row: Control = parts[1]
 	for color in SKIN_PRESETS:
 		var swatch := Button.new()
 		swatch.toggle_mode = true
-		swatch.custom_minimum_size = Vector2(40, 40)
+		swatch.custom_minimum_size = _tile_size(Vector2(40, 40))
 		swatch.tooltip_text = "Skin color"
 		swatch.add_theme_stylebox_override("normal", _swatch_box(color, RpgTheme.INK, 2))
 		swatch.add_theme_stylebox_override("hover", _swatch_box(color, RpgTheme.GOLD, 2))
@@ -334,7 +376,7 @@ func _skin_section() -> Control:
 	_custom_skin = ColorPickerButton.new()
 	_custom_skin.text = "Custom"
 	_custom_skin.edit_alpha = false
-	_custom_skin.custom_minimum_size = Vector2(110, 40)
+	_custom_skin.custom_minimum_size = _tile_size(Vector2(110, 40))
 	for preset in SKIN_PRESETS:
 		_custom_skin.get_picker().add_preset(preset)
 	_custom_skin.color_changed.connect(_set_skin)
