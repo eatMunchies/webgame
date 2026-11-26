@@ -6,9 +6,11 @@ extends GalleryPage
 
 const TOWN := preload("res://scenes/main/town.tscn")
 
+var _variant := ""
+
 
 func _init() -> void:
-	variants = ["lobby_host_4", "lobby_full_15", "day_voting", "day_trial", "night_choosing", "spectating", "reconnecting"]
+	variants = ["lobby_host_4", "lobby_full_15", "day_voting", "day_trial", "night_choosing", "spectating", "reconnecting", "role_card"]
 	# Past the candle's fade in (town.gd DAY_FADE_SECONDS).
 	settle_frames = 120
 
@@ -16,8 +18,10 @@ func _init() -> void:
 func build(stage: Control, variant: String) -> void:
 	var session := stage.get_node("/root/Session")
 	session.arrival_spot = null
-	# Reconnecting is a voting day with the connection down.
-	var fixture := "day_voting" if variant == "reconnecting" else variant
+	# Reconnecting is a voting day with the connection down; role_card the
+	# same day with the role card open.
+	_variant = variant
+	var fixture := "day_voting" if variant in ["reconnecting", "role_card"] else variant
 	var error: String = session.client.load_fixture(fixture)
 	if error != "":
 		stage.add_child(caption(error, Color.RED, 8))
@@ -32,6 +36,10 @@ func build(stage: Control, variant: String) -> void:
 
 
 func after_settle(stage: Control) -> void:
+	if _variant == "role_card":
+		for card in stage.find_children("*", "RoleCard", true, false):
+			card.open()
+		return
 	# The role card opens on its own at a game's start; put it away so the
 	# HUD shows. (The dialogs get pages of their own.)
 	for card in stage.find_children("*", "RoleCard", true, false):

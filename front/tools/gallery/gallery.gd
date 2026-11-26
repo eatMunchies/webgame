@@ -76,7 +76,12 @@ func _render(page: GalleryPage, variant: String) -> void:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var name := page.id() if variant == "" else "%s_%s" % [page.id(), variant]
-	get_viewport().get_texture().get_image().save_png("%s/%s.png" % [_out, name])
+	var image := get_viewport().get_texture().get_image()
+	# Opaque, as on a screen: blending a see-through dark (a card's backdrop,
+	# the night) also lowers the frame's alpha, and a viewer shows those
+	# pixels washed out over its own background.
+	image.convert(Image.FORMAT_RGB8)
+	image.save_png("%s/%s.png" % [_out, name])
 	# The page's nodes go first: a town still listening would leave for the
 	# start screen when the page puts the session back.
 	stage.queue_free()
