@@ -34,8 +34,9 @@ extends Control
 ## screen, clear of a phone's keyboard: whispering from the roster, writing
 ## the last will (with Paste), and on a touch screen the chat's own box.
 ##
-## Every panel shares HudStyle's theme, set here so the scene file stays
-## free of styles.
+## Each panel carries its own layer's theme (UiTheme.paper() or
+## UiTheme.system(), see docs/DESIGN.md); the HUD's own is the paper one,
+## for anything placed straight under it.
 
 ## The gap between the parts on a wide screen.
 const SECTION_GAP := 2
@@ -108,7 +109,7 @@ var _keyboard_was := false
 
 
 func _ready() -> void:
-	theme = HudStyle.build()
+	theme = UiTheme.paper()
 	prompt = TextPrompt.create(self)
 	role_card = RoleCard.create(self)
 	chat_panel.prompt = prompt

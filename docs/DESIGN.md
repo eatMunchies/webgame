@@ -25,7 +25,7 @@ Read [LORE.md](LORE.md) first: the game is a simulation, and that decides which 
 
 ## Color
 
-Raw colors are in `Palette`; components use the semantic names in `Tokens`. Never write a color literal in a component (a test will enforce this as components move over).
+Raw colors are in `Palette`; components use the semantic names in `Tokens`. Never write a color literal in a UI script: `tests/design_tokens_test.gd` fails on any outside a short allowlist (art tints and skin tones).
 
 ### In-world
 
@@ -119,6 +119,7 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | RoleCard | in-world | `scripts/hud/role_card.gd` | Your role on a card (below) |
 | WaxSeal | in-world | `scripts/ui/kit/wax_seal.gd` | A round wax seal pressed with a letter: the role card's faction mark |
 | Minigame panel | system | `scenes/main/minigame_overlay.tscn` | The night's skill checks and fights (below) |
+| SimBackdrop | system | `scripts/ui/kit/sim_backdrop.gd` | The machine's menus' background: a faint grid on near-black |
 | Notice | system | `scripts/ui/kit/notice.gd` | The machine speaking about itself: a glass pane at the top of the town, `say(lines)` / `clear()` |
 
 More components (modal, card, sheet tab) arrive with the screens that use them; each gets a row here.
@@ -157,6 +158,10 @@ More components (modal, card, sheet tab) arrive with the screens that use them; 
 ### The start screen
 
 The machine's screen, over the plaza where the simulation loads (the phase-in into the town is unchanged). A SystemPanel with TABLE OF SALEM (Title) and "> simulation: salem, 1692" (Accent); the subject's name; [host] (SysPrimary) or [key] [join]; "practice evaluations" (quiet) for the minigame tester; a status line, dim while connecting and `SYS_FAULT` when refused. Fields type at the mono body size (typing happens in the text box, on glass here). The hint over the house is cyan mono bold with a dark outline.
+
+### The customizer ("subject setup") and the minigame tester
+
+The machine's menus, laid out in 1280x720 units (`UiTheme.system(4)`). Behind them a `SimBackdrop`: near-black with a faint grid, darker toward the corners. The customizer's pedestal is a SystemPanel headed "> subject setup" over the subject's name, and the character stands on a projection pad (a dark disc with a cyan rim) instead of a stone plinth. Tabs, picture tiles (`ItemTile`) and checkboxes come from the system theme: the open tab and the chosen tile ringed in cyan. Words are lower case; Save is the machine's primary. The minigame tester ("evaluations") uses the same theme at the HUD's units, its list at the small mono size.
 
 ### Night
 

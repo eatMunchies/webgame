@@ -18,7 +18,9 @@ extends RefCounted
 ##   Accent.
 ## - Buttons: Button (stamped), WaxButton (the primary action), QuietButton
 ##   (a text link), IconButton (an icon, maybe a word), and in system
-##   SysPrimary.
+##   SysPrimary and ItemTile (a picture tile in a grid of choices).
+## - System also styles TabContainer, CheckBox and tooltips, for the
+##   machine's menus (the customizer).
 
 static var _cache := {}
 
@@ -155,7 +157,91 @@ static func _build_system(u: float) -> Theme:
 
 	_scrollbars(theme, Color(Tokens.SYS_LINE, 0.6), Tokens.SYS_DIM, Tokens.SYS_ACCENT, u)
 	theme.set_stylebox("separator", "HSeparator", _rule(Tokens.SYS_LINE, u))
+	_system_tabs(theme, u)
+	_system_tiles(theme, u)
+	for key in ["font_color", "font_pressed_color", "font_focus_color"]:
+		theme.set_color(key, "CheckBox", Tokens.SYS_TEXT)
+	for key in ["font_hover_color", "font_hover_pressed_color"]:
+		theme.set_color(key, "CheckBox", Tokens.SYS_ACCENT)
+	var box_px := _px(Tokens.TYPE_MONO, u)
+	theme.set_icon("unchecked", "CheckBox", _check_icon(box_px, false))
+	theme.set_icon("checked", "CheckBox", _check_icon(box_px, true))
+	theme.set_icon("unchecked_disabled", "CheckBox", _check_icon(box_px, false))
+	theme.set_icon("checked_disabled", "CheckBox", _check_icon(box_px, true))
+	theme.set_constant("h_separation", "CheckBox", _px(Tokens.SPACE_XS, u))
+	for state in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
+		theme.set_stylebox(state, "CheckBox", _box(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0, 0, Tokens.SPACE_XS, u))
+	theme.set_font("font", "CheckBox", Fonts.MONO)
+	theme.set_font_size("font_size", "CheckBox", _px(Tokens.TYPE_MONO, u))
+	theme.set_stylebox("panel", "TooltipPanel", _box(Tokens.SYS_BG, Tokens.SYS_LINE, 1, 0, Tokens.SPACE_XS, u))
+	theme.set_color("font_color", "TooltipLabel", Tokens.SYS_TEXT)
 	return theme
+
+
+## A checkbox's box, `px` pixels square: a hairline square, filled with
+## the accent inside when checked.
+static func _check_icon(px: int, checked: bool) -> ImageTexture:
+	var image := Image.create_empty(px, px, false, Image.FORMAT_RGBA8)
+	var edge := maxi(1, px / 8)
+	for y in px:
+		for x in px:
+			var border := x < edge or y < edge or x >= px - edge or y >= px - edge
+			var inner := x >= edge * 3 and y >= edge * 3 and x < px - edge * 3 and y < px - edge * 3
+			if border:
+				image.set_pixel(x, y, Tokens.SYS_ACCENT if checked else Tokens.SYS_DIM)
+			elif checked and inner:
+				image.set_pixel(x, y, Tokens.SYS_ACCENT)
+	return ImageTexture.create_from_image(image)
+
+
+## Tabs on glass: the open one joins the panel with a cyan rule on top, the
+## others sit back dim. Padded well, for fingers.
+static func _system_tabs(theme: Theme, u: float) -> void:
+	var open := _box(Color(Tokens.SYS_BG, 0.92), Tokens.SYS_LINE, 1, 0, Tokens.SPACE_MD, u)
+	open.border_width_bottom = 0
+	open.border_width_top = _px(Tokens.SPACE_HAIR, u) * 2
+	open.border_color = Tokens.SYS_ACCENT
+	var closed := _box(Color(Tokens.SYS_SURFACE, 0.8), Tokens.SYS_LINE, 1, 0, Tokens.SPACE_MD, u)
+	var hover := closed.duplicate() as StyleBoxFlat
+	hover.border_color = Tokens.SYS_ACCENT_DIM
+	for box: StyleBoxFlat in [open, closed, hover]:
+		box.content_margin_top = Tokens.SPACE_SM * u
+		box.content_margin_bottom = Tokens.SPACE_SM * u
+	theme.set_stylebox("tab_selected", "TabContainer", open)
+	theme.set_stylebox("tab_unselected", "TabContainer", closed)
+	theme.set_stylebox("tab_hovered", "TabContainer", hover)
+	theme.set_stylebox("tab_focus", "TabContainer", StyleBoxEmpty.new())
+	theme.set_stylebox("panel", "TabContainer",
+			_box(Color(Tokens.SYS_BG, 0.92), Tokens.SYS_LINE, 1, 0, Tokens.SPACE_MD, u))
+	theme.set_color("font_selected_color", "TabContainer", Tokens.SYS_ACCENT)
+	theme.set_color("font_unselected_color", "TabContainer", Tokens.SYS_DIM)
+	theme.set_color("font_hovered_color", "TabContainer", Tokens.SYS_TEXT)
+	theme.set_font("font", "TabContainer", Fonts.MONO_BOLD)
+	theme.set_font_size("font_size", "TabContainer", _px(Tokens.TYPE_MONO, u))
+	theme.set_constant("side_margin", "TabContainer", 0)
+
+
+## ItemTile: a square picture button in a grid of choices. Dark with a
+## hairline; the chosen one ringed in cyan.
+static func _system_tiles(theme: Theme, u: float) -> void:
+	theme.set_type_variation("ItemTile", "Button")
+	var tile := _box(Tokens.SYS_SURFACE, Tokens.SYS_LINE, 1, 0, Tokens.SPACE_XS, u)
+	var hover := tile.duplicate() as StyleBoxFlat
+	hover.border_color = Tokens.SYS_ACCENT_DIM
+	var chosen := _box(Color(Tokens.SYS_ACCENT_DIM, 0.35), Tokens.SYS_ACCENT, 1, 0, Tokens.SPACE_XS, u)
+	chosen.set_border_width_all(maxi(2, _px(0.5, u)))
+	for state: String in ["normal", "disabled"]:
+		theme.set_stylebox(state, "ItemTile", tile)
+	theme.set_stylebox("hover", "ItemTile", hover)
+	theme.set_stylebox("pressed", "ItemTile", chosen)
+	theme.set_stylebox("hover_pressed", "ItemTile", chosen)
+	theme.set_stylebox("focus", "ItemTile", StyleBoxEmpty.new())
+	theme.set_font("font", "ItemTile", Fonts.MONO)
+	theme.set_font_size("font_size", "ItemTile", _px(Tokens.TYPE_MONO_SMALL, u))
+	theme.set_color("font_color", "ItemTile", Tokens.SYS_DIM)
+	theme.set_color("font_hover_color", "ItemTile", Tokens.SYS_TEXT)
+	for key in ["font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+		theme.set_color(key, "ItemTile", Tokens.SYS_ACCENT)
 
 
 ## A size in units, in this theme's pixels.

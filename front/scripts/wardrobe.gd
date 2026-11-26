@@ -1,7 +1,8 @@
 class_name Wardrobe
 extends Control
 
-## Character creator, styled like an RPG character screen. The character
+## Character creator: the machine's "subject setup" (docs/LORE.md), on its
+## glass and in its type, over a SimBackdrop. The character
 ## stands on a pedestal on the left and can be turned around with the arrows.
 ## On the right, tabs group the choices (body, face, outfit, gear, pet,
 ## house); on a portrait window like a phone's, the pedestal sits on top
@@ -16,6 +17,8 @@ extends Control
 ## a form, so this screen turns that scaling off and zooms the art itself.
 
 const WALK_FPS := 6.0
+## The menus are laid out in 1280x720 units, four times the HUD's.
+const MENU_UNIT := 4.0
 ## How tall the pedestal panel is on a portrait window, over the tabs.
 const PORTRAIT_STAGE_HEIGHT := 420.0
 ## On a portrait window (a phone), how much bigger the tiles and swatches
@@ -89,7 +92,7 @@ var _thumbnail_timer := Timer.new()
 func _ready() -> void:
 	ScreenScale.for_menus(get_window())
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	theme = RpgTheme.build()
+	theme = UiTheme.system(MENU_UNIT)
 	for slot in DEFAULT_FIRST_ITEM:
 		var items := PartCatalog.items_for(slot)
 		if not appearance.items.has(slot) and not items.is_empty():
@@ -123,7 +126,7 @@ func _footer_buttons() -> Array[Button]:
 
 
 func _build() -> void:
-	add_child(RpgTheme.backdrop())
+	add_child(SimBackdrop.new())
 
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -156,15 +159,20 @@ func _build() -> void:
 ## The left panel: the player's name, the character on its pedestal, and the
 ## controls to turn it and make it walk.
 func _build_stage() -> Control:
-	var panel := PanelContainer.new()
+	var panel := SystemPanel.new()
 	panel.custom_minimum_size.x = 380
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 10)
 	panel.add_child(column)
 
+	var setup_label := Label.new()
+	setup_label.text = "> subject setup"
+	setup_label.theme_type_variation = "Accent"
+	setup_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(setup_label)
 	var name_label := Label.new()
-	name_label.text = PlayerProfile.username if PlayerProfile.username != "" else "Adventurer"
-	name_label.theme_type_variation = "HeaderLabel"
+	name_label.text = PlayerProfile.username if PlayerProfile.username != "" else "unnamed subject"
+	name_label.theme_type_variation = "Title"
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(name_label)
 
@@ -198,6 +206,7 @@ func _build_stage() -> Control:
 	left.pressed.connect(_turn.bind(-1))
 	turn.add_child(left)
 	_facing_label = Label.new()
+	_facing_label.theme_type_variation = "Dim"
 	_facing_label.custom_minimum_size.x = 80
 	_facing_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	turn.add_child(_facing_label)
@@ -209,7 +218,7 @@ func _build_stage() -> Control:
 	turn.add_child(right)
 
 	var walk_toggle := CheckBox.new()
-	walk_toggle.text = "Walk"
+	walk_toggle.text = "walk"
 	walk_toggle.button_pressed = walking
 	walk_toggle.size_flags_horizontal = SIZE_SHRINK_CENTER
 	walk_toggle.toggled.connect(func(on): walking = on)
@@ -236,6 +245,8 @@ func _build_tabs() -> Control:
 		scroll.name = tab_name
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		tabs.add_child(scroll)
+		# The machine names things in lower case.
+		tabs.set_tab_title(tabs.get_tab_count() - 1, tab_name.to_lower())
 		var sections := VBoxContainer.new()
 		sections.size_flags_horizontal = SIZE_EXPAND_FILL
 		sections.add_theme_constant_override("separation", 18)
@@ -259,11 +270,11 @@ func _build_footer() -> Control:
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 12)
 	_random_button = Button.new()
-	_random_button.text = "Randomize"
+	_random_button.text = "randomize"
 	_random_button.pressed.connect(_randomize)
 	bar.add_child(_random_button)
 	var undo_button := Button.new()
-	undo_button.text = "Undo changes"
+	undo_button.text = "undo changes"
 	undo_button.tooltip_text = "Go back to how the character looked when this screen opened"
 	undo_button.pressed.connect(_undo)
 	bar.add_child(undo_button)
@@ -310,10 +321,10 @@ func _tile_section(picker: String, heading: String, values: Array) -> Control:
 	section.add_child(header)
 	var heading_label := Label.new()
 	heading_label.text = heading
-	heading_label.theme_type_variation = "HeaderLabel"
+	heading_label.theme_type_variation = "Heading"
 	header.add_child(heading_label)
 	var value_label := Label.new()
-	value_label.theme_type_variation = "ValueLabel"
+	value_label.theme_type_variation = "Dim"
 	value_label.size_flags_horizontal = SIZE_EXPAND_FILL
 	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	value_label.size_flags_vertical = SIZE_SHRINK_END
@@ -355,7 +366,7 @@ func _skin_section() -> Control:
 	section.add_theme_constant_override("separation", 8)
 	var heading := Label.new()
 	heading.text = "Skin"
-	heading.theme_type_variation = "HeaderLabel"
+	heading.theme_type_variation = "Heading"
 	section.add_child(heading)
 	var parts := _tile_row(10)
 	section.add_child(parts[0])
@@ -365,16 +376,16 @@ func _skin_section() -> Control:
 		swatch.toggle_mode = true
 		swatch.custom_minimum_size = _tile_size(Vector2(40, 40))
 		swatch.tooltip_text = "Skin color"
-		swatch.add_theme_stylebox_override("normal", _swatch_box(color, RpgTheme.INK, 2))
-		swatch.add_theme_stylebox_override("hover", _swatch_box(color, RpgTheme.GOLD, 2))
-		swatch.add_theme_stylebox_override("pressed", _swatch_box(color, RpgTheme.GOLD_BRIGHT, 4))
-		swatch.add_theme_stylebox_override("hover_pressed", _swatch_box(color, RpgTheme.GOLD_BRIGHT, 4))
+		swatch.add_theme_stylebox_override("normal", _swatch_box(color, Tokens.SYS_LINE, 2))
+		swatch.add_theme_stylebox_override("hover", _swatch_box(color, Tokens.SYS_ACCENT_DIM, 2))
+		swatch.add_theme_stylebox_override("pressed", _swatch_box(color, Tokens.SYS_ACCENT, 4))
+		swatch.add_theme_stylebox_override("hover_pressed", _swatch_box(color, Tokens.SYS_ACCENT, 4))
 		swatch.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		swatch.pressed.connect(_set_skin.bind(color))
 		row.add_child(swatch)
 		_swatches.append(swatch)
 	_custom_skin = ColorPickerButton.new()
-	_custom_skin.text = "Custom"
+	_custom_skin.text = "custom"
 	_custom_skin.edit_alpha = false
 	_custom_skin.custom_minimum_size = _tile_size(Vector2(110, 40))
 	for preset in SKIN_PRESETS:
@@ -642,19 +653,23 @@ class Stage:
 		if show_house and house != null:
 			var house_zoom := house.scale.x
 			for i in 8:
-				draw_circle(house.position - Vector2(0, 36 * house_zoom), (44 - i * 4) * house_zoom, Color(1.0, 0.85, 0.5, 0.025))
-			_ellipse(house.position + Vector2(0, 6 * house_zoom), Vector2(42, 12) * house_zoom, Color(0.27, 0.36, 0.15))
-			_ellipse(house.position + Vector2(0, 5 * house_zoom), Vector2(40, 10.5) * house_zoom, Color(0.38, 0.5, 0.2))
+				draw_circle(house.position - Vector2(0, 36 * house_zoom), (44 - i * 4) * house_zoom, Color(Tokens.SYS_ACCENT, 0.012))
+			_pad(house.position + Vector2(0, 5 * house_zoom), 40 * house_zoom, house_zoom, 0.26)
 			return
 		var zoom := character.scale.x
 		var middle := Vector2(size.x / 2, character.position.y)
 		for i in 8:
-			draw_circle(middle - Vector2(0, 18 * zoom), (30 - i * 3) * zoom, Color(1.0, 0.85, 0.5, 0.025))
-		var radius := 26.0 * zoom
-		_ellipse(middle + Vector2(0, 4 * zoom), Vector2(radius, radius * 0.32), Color(0.2, 0.17, 0.15))
-		_ellipse(middle, Vector2(radius, radius * 0.32), Color(0.45, 0.4, 0.35))
-		_ellipse(middle, Vector2(radius - 2 * zoom, (radius - 2 * zoom) * 0.3), Color(0.37, 0.33, 0.29))
-		_ellipse(middle, Vector2(radius * 0.8, radius * 0.18), Color(0, 0, 0, 0.18))
+			draw_circle(middle - Vector2(0, 18 * zoom), (30 - i * 3) * zoom, Color(Tokens.SYS_ACCENT, 0.012))
+		_pad(middle, 26.0 * zoom, zoom, 0.32)
+
+	## The projection pad the subject stands on: a dark disc with a lit
+	## cyan rim and a fainter inner ring, seen at a slant (`flat`).
+	func _pad(center: Vector2, radius: float, zoom: float, flat: float) -> void:
+		_ellipse(center + Vector2(0, 3 * zoom), Vector2(radius, radius * flat), Tokens.SYS_BG)
+		_ellipse(center, Vector2(radius, radius * flat), Tokens.SYS_ACCENT_DIM)
+		_ellipse(center, Vector2(radius - 1.5 * zoom, (radius - 1.5 * zoom) * flat), Tokens.SYS_SURFACE)
+		_ellipse(center, Vector2(radius * 0.7, radius * 0.7 * flat), Tokens.SYS_LINE)
+		_ellipse(center, Vector2(radius * 0.7 - zoom, (radius * 0.7 - zoom) * flat), Tokens.SYS_SURFACE)
 
 	func _ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
 		draw_set_transform(center, 0.0, Vector2(1.0, radii.y / radii.x))

@@ -29,6 +29,8 @@ const PAGES := [
 	preload("res://tools/gallery/pages/dialogs.gd"),
 	preload("res://tools/gallery/pages/minigames.gd"),
 	preload("res://tools/gallery/pages/start.gd"),
+	preload("res://tools/gallery/pages/customizer.gd"),
+	preload("res://tools/gallery/pages/tester.gd"),
 	preload("res://tools/gallery/pages/in_game.gd"),
 ]
 

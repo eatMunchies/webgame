@@ -82,3 +82,47 @@ static func _luminance(c: Color) -> float:
 	var channel := func(v: float) -> float:
 		return v / 12.92 if v <= 0.03928 else pow((v + 0.055) / 1.055, 2.4)
 	return 0.2126 * channel.call(c.r) + 0.7152 * channel.call(c.g) + 0.0722 * channel.call(c.b)
+
+
+## UI scripts take their colors from Tokens, not literals (DESIGN.md). The
+## few literals left are the game's content or tints, not UI colors.
+const LITERAL_ALLOWED := {
+	# Multipliers on the town's art, not colors of their own.
+	"scripts/lobby.gd": ["DOOR_GLOW"],
+	"scripts/town.gd": ["DEAD_HOUSE_COLOR"],
+	# Skin tones a character can have.
+	"scripts/wardrobe.gd": ["Color(1.0, 0.87", "Color(0.68, 0.48", "Color(0.6, 0.85"],
+}
+const UI_SCRIPTS := ["scripts/hud", "scripts/ui/kit", "scripts/ui/text_prompt.gd",
+		"scripts/minigame", "scripts/lobby.gd", "scripts/town.gd", "scripts/wardrobe.gd",
+		"scripts/customizer.gd"]
+
+
+func test_ui_scripts_take_colors_from_tokens() -> void:
+	var literal := RegEx.create_from_string("Color\\(\\s*[0-9.]")
+	var found: Array[String] = []
+	var scripts := _scripts(UI_SCRIPTS)
+	assert_int(scripts.size()).is_greater(20)
+	for path in scripts:
+		var allowed: Array = LITERAL_ALLOWED.get(path, [])
+		var lines := FileAccess.get_file_as_string("res://" + path).split("\n")
+		for i in lines.size():
+			var line := lines[i]
+			if literal.search(line) == null or line.strip_edges().begins_with("#"):
+				continue
+			if allowed.any(func(mark: String) -> bool: return mark in line):
+				continue
+			found.append("%s:%d %s" % [path, i + 1, line.strip_edges()])
+	assert_array(found).override_failure_message("Color literals in UI scripts:\n" + "\n".join(found)).is_empty()
+
+
+static func _scripts(paths: Array) -> Array[String]:
+	var out: Array[String] = []
+	for path: String in paths:
+		if path.ends_with(".gd"):
+			out.append(path)
+			continue
+		for file in DirAccess.get_files_at("res://" + path):
+			if file.ends_with(".gd"):
+				out.append(path + "/" + file)
+	return out

@@ -12,7 +12,7 @@ extends ArcadeCheck
 ## Fruit are targets: rings of the simulation's amber and grey over a dark
 ## fill, each kind its own shade, and a sliced half shows its dark inside.
 const FRUIT_COLORS: Array[Color] = [
-	SIM_TARGET, SIM_TEXT, Color(0.86, 0.62, 0.36), SIM_EDGE,
+	SIM_TARGET, SIM_TEXT, Tokens.SYS_ACCENT_DIM, SIM_EDGE,
 ]
 ## A fruit's fill, and its inside once sliced.
 const FRUIT_FILL := SIM_SOLID
