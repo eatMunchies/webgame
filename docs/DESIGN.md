@@ -125,7 +125,7 @@ More components (modal, card, sheet tab) arrive with the screens that use them; 
 ### The clock
 
 - A Sheet at the top of the Info column (a wide screen) or across the top (a phone). A sun or moon in secondary ink, the title in IM Fell, the time in Atkinson bold on the right, wax red for the last five seconds; the stage under it in secondary ink.
-- Under a rule, the town's code: "Town" in small caps, the code in bold, a copy icon (the code reads "Copied" for a moment, inline, no toast) and a leave icon.
+- Under a rule, the town's code: "Town" in small caps, the code in bold, a copy icon (the code reads "Copied" for a moment, inline, no toast) and a leave icon, which asks again inline: the first tap turns it wax red and the row reads "Tap again to leave" for 3 seconds, and only a second tap leaves (a phone's echo of the first tap, within 400 ms, doesn't count).
 - At night only the choosing stage and its timer show (timing never leaks).
 - Reconnecting: Salem doesn't notice. The sheet fades to 45% and its time stops; the machine's Notice says "desync detected, resyncing".
 
