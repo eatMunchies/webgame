@@ -7,7 +7,10 @@ extends ParchmentPanel
 ## waits on.
 ##
 ## Under a rule, the town's row: its code, a copy icon (the code reads
-## "Copied" for a moment) and a leave icon (a door).
+## "Copied" for a moment) and a leave icon (an arrow out of a door). Leaving
+## asks again inline, not in a dialog: the first tap turns the icon wax red
+## and the row reads "Tap again to leave" for a few seconds; only a second
+## tap then leaves.
 ##
 ## Past choosing, a night shows only its title: the stages it plays through
 ## (roleblocks, fight rounds, protection, investigations) and their timers
@@ -29,6 +32,11 @@ const CHOOSING_STAGE := "Choose your action"
 const HURRY_SECONDS := 5
 ## How long the code reads "Copied" after Copy.
 const COPIED_SECONDS := 1.5
+## How long the leave icon waits for the second tap.
+const LEAVE_CONFIRM_SECONDS := 3.0
+## A second tap sooner than this after the first doesn't count: on a phone
+## one tap arrives as a touch and a made-up click, which would confirm itself.
+const LEAVE_GRACE_MSEC := 400
 ## The sun or moon before the title, in units.
 const SKY_ICON := 9.0
 ## How faint the clock goes while the connection is down.
@@ -47,6 +55,10 @@ var _code := Label.new()
 var _copy := Button.new()
 var _leave := Button.new()
 var _copied_until := 0
+## Until when a tap on the leave icon leaves, and when it was armed.
+var _leave_until := 0
+var _leave_armed_at := 0
+var _town := Label.new()
 
 
 func _ready() -> void:
@@ -86,10 +98,9 @@ func _ready() -> void:
 
 	_town_row.add_theme_constant_override("separation", Tokens.SPACE_XS)
 	rows.add_child(_town_row)
-	var town := Label.new()
-	town.theme_type_variation = "Heading"
-	town.text = "Town"
-	_town_row.add_child(town)
+	_town.theme_type_variation = "Heading"
+	_town.text = "Town"
+	_town_row.add_child(_town)
 	_code.add_theme_font_override("font", Fonts.BODY_BOLD)
 	_code.add_theme_font_size_override("font_size", Tokens.TYPE_NAME)
 	_code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -165,7 +176,16 @@ func show_model(model: Dictionary) -> void:
 	var code: String = model["code"]
 	_rule.visible = code != ""
 	_town_row.visible = code != ""
-	_code.text = "Copied" if Time.get_ticks_msec() < _copied_until else code
+	var now := Time.get_ticks_msec()
+	var leaving := now < _leave_until
+	_town.visible = not leaving
+	if leaving:
+		_code.text = "Tap again to leave"
+	else:
+		_code.text = "Copied" if now < _copied_until else code
+	_code.add_theme_color_override("font_color", Tokens.WAX if leaving else Tokens.INK)
+	_code.add_theme_font_size_override("font_size", Tokens.TYPE_BODY if leaving else Tokens.TYPE_NAME)
+	_leave.add_theme_color_override("icon_normal_color", Tokens.WAX if leaving else Tokens.INK_SECONDARY)
 	# Salem doesn't notice a desync; the clock just goes still.
 	var stale: bool = model["reconnecting"]
 	modulate.a = STALE_ALPHA if stale else 1.0
@@ -185,4 +205,16 @@ func _on_copy_pressed() -> void:
 
 
 func _on_leave_pressed() -> void:
-	Session.leave_lobby()
+	var now := Time.get_ticks_msec()
+	if now < _leave_until:
+		if now - _leave_armed_at >= LEAVE_GRACE_MSEC:
+			_leave_until = 0
+			Session.leave_lobby()
+		return
+	arm_leave()
+
+
+## Asks for the second tap: the row reads "Tap again to leave" for a while.
+func arm_leave() -> void:
+	_leave_armed_at = Time.get_ticks_msec()
+	_leave_until = _leave_armed_at + int(LEAVE_CONFIRM_SECONDS * 1000)
