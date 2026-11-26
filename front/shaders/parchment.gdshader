@@ -48,10 +48,10 @@ void fragment() {
 	// Distance to the nearest edge, roughened on a Document.
 	float d = min(min(p.x, size.x - p.x), min(p.y, size.y - p.y));
 	float along = (p.x + p.y) * 0.9;
-	float tear = (noise(vec2(along, seed)) - 0.5) * 2.2 + (noise(vec2(along * 3.1, seed)) - 0.5) * 0.8;
+	float tear = (noise(vec2(along, seed)) - 0.5) * 1.1 + (noise(vec2(along * 3.1, seed)) - 0.5) * 0.4;
 	float dd = d + tear * deckle;
 
-	float burn = 1.0 - smoothstep(0.0, 2.5 + 4.0 * deckle, dd);
+	float burn = 1.0 - smoothstep(0.0, 2.5 + 2.0 * deckle, dd);
 	col = mix(col, edge, burn * (0.45 + 0.25 * deckle));
 
 	// Candlelight: warm in the middle, falling off to the edges.
@@ -59,6 +59,6 @@ void fragment() {
 	float r = dot(c, c) * 2.0;
 	col = mix(col, col * (1.0 - r * 0.55) + candle_light.rgb * 0.08 * (1.0 - r), candle);
 
-	float alpha = mix(1.0, smoothstep(0.0, 0.8, dd), deckle);
+	float alpha = mix(1.0, smoothstep(0.0, 0.5, dd), deckle);
 	COLOR = vec4(col, alpha);
 }

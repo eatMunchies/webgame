@@ -61,19 +61,7 @@ func build(stage: Control, _variant: String) -> void:
 
 
 static func _seat(n: int) -> Control:
-	var dot := Panel.new()
-	dot.custom_minimum_size = Vector2(11, 11)
-	var round_box := StyleBoxFlat.new()
-	round_box.bg_color = Tokens.seat(n)
-	round_box.set_corner_radius_all(6)
-	dot.add_theme_stylebox_override("panel", round_box)
-	var digit := Label.new()
-	digit.text = str(n)
-	digit.add_theme_font_override("font", Fonts.BODY_BOLD)
-	digit.add_theme_font_size_override("font_size", Tokens.TYPE_CAPTION)
-	digit.add_theme_color_override("font_color", Tokens.INK_ON_DARK)
-	digit.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	digit.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	digit.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dot.add_child(digit)
-	return dot
+	var badge := SeatBadge.new()
+	badge.number = n
+	badge.custom_minimum_size *= 1.4
+	return badge
