@@ -1,0 +1,142 @@
+# Design system
+
+How Table of Salem looks and why: the brand book every screen is built from. The values live in code (`front/scripts/ui/design/`); this explains them. The style gallery renders all of it, alone and in the game, at a phone's and a wide window's size: `just gallery` (see [Gallery](#gallery)).
+
+Read [LORE.md](LORE.md) first: the game is a simulation, and that decides which of two visual layers anything belongs to.
+
+## Principles
+
+1. **Played in person.** Everyone sits around one table and talks out loud; each phone is an assistant. The screen shows who is who and what you can do now; the chat is a record and the bots' voice. Nothing should need typing to play.
+2. **Phones first.** Every screen works on a portrait phone (405x720) and a wide window (960x540). Check both in the gallery before calling anything done.
+3. **Nothing on screen gives your role away.** People glance at each other's phones. Your role, faction and anything that implies them (a faction color, a channel name, an ability's name) appear only on the role card, which you open on purpose.
+4. **Timing never leaks.** Night stages always run their full length, whatever happens in them; the UI must not show stage names or end anything early in a way that hints at who acted.
+5. **Always say where you are.** A visible caret, the current choice filled in, the prompt saying what to do now, hints only when they apply.
+6. **Two layers, never mixed.** A thing is either in-world parchment or the machine's glass (below). A component doesn't borrow the other layer's colors or type.
+
+## The two layers
+
+| Layer | In-world: the simulated Salem | System: the machine |
+|---|---|---|
+| Theme | `UiTheme.paper()` | `UiTheme.system()` |
+| Surface | `ParchmentPanel` (Sheet or Document) | `SystemPanel` (glass, brackets, scanlines) |
+| Type | IM Fell English (titles), IM Fell SC (headings), Atkinson Hyperlegible (everything read) | IBM Plex Mono |
+| Color | Ink on parchment; wax for the one primary action; dyes for meaning | Light grey on black; one cyan accent |
+| Uses | Roster, clock and lobby bar, chat, will, role card, text box, names over the town | Start screen, loading/phase-in, reconnecting, chat system lines, customizer ("subject setup"), every night minigame |
+
+## Color
+
+Raw colors are in `Palette`; components use the semantic names in `Tokens`. Never write a color literal in a component (a test will enforce this as components move over).
+
+### In-world
+
+| Token | Use | Day | Night |
+|---|---|---|---|
+| `paper_raised` | Text fields, stamped buttons | `#f2e8d2` | `#e2cfa6` |
+| `paper_surface` | Panels | `#e9dcc0` | `#dcc79c` |
+| `paper_sunken` | Disabled, wells | `#d9c7a1` | `#cdb589` |
+| `paper_edge` | Burnt edges | `#b89b6a` | `#6e4f2c` |
+| `INK` | Text, borders, the current choice | `#1f1a14` | same |
+| `INK_SECONDARY` | Headings, quiet links | `#4a3f33` | same |
+| `INK_FAINT` | Notes, placeholders | `#5e503f` | same |
+| `INK_RULE` | Rules and lines (decoration) | `#8c7656` | same |
+| `WAX` | The primary action, danger, the caret | `#8e1b1b` | same |
+| `GOLD` / `GLOW` | Ornament, night glow (never text) | `#a37a22` / `#e8c060` | same |
+| `YOU` | Your own name | woad `#2b4c7e` | same |
+| `DEAD` | The dead, struck through | ash `#554b3e` | same |
+| `SAFE` / `DANGER` | Innocent / Guilty | verdigris / wax | same |
+| `FACTION_*` | Role card only | town verdigris, mafia wax, neutral logwood `#5b3f7a` | same |
+| `CHAT_*` | Chat lines: said, whisper, game, system | ink, woad, ochre `#6e4a00`, teal `#0d5357` | same |
+
+Every text ink keeps a contrast of at least 4.5 on day and night paper (`tests/design_tokens_test.gd`). Night only changes the paper: ink stays the same, so text already on screen never needs repainting.
+
+### The machine
+
+| Token | Use | Value |
+|---|---|---|
+| `SYS_BG` / `SYS_SURFACE` | Glass, fields | `#0a0e10` / `#10171a` |
+| `SYS_LINE` | Hairlines | `#2a3a40` |
+| `SYS_TEXT` / `SYS_DIM` | Text, notes | `#d7e3e6` / `#7f9399` |
+| `SYS_ACCENT` | The one accent: headings, focus, primary | cyan `#46e0e0` |
+| `SYS_FAULT` | A miss or failure, if used at all | `#e0466a` (to decide at the minigame review) |
+
+### Seats
+
+Each of the 15 seats has a dye (`Tokens.seat(n)`): madder, saffron, weld, verdigris, woad, indigo, logwood, cochineal, walnut, oak gall, ochre, sage, slate, rose madder, umber. A player's number is a parchment numeral on their dye, the same in the roster and the chat. Seat colors say *which player*, never anything about their role.
+
+## Type
+
+Sizes in HUD units (the window's short side is 180; a phone shows 2.25 pixels per unit, a 1080p screen 6). Menus in 1280x720 pass `unit` 4 to `UiTheme`.
+
+| Style | Face | Size | Use |
+|---|---|---|---|
+| Display | IM Fell English | 14 | Start screen title |
+| Title | IM Fell English (system: Plex Mono bold) | 10 | "Day 2", a role's name, a prompt's title |
+| Heading | IM Fell English SC (system: Plex Mono bold, cyan) | 7 (6) | Section heads |
+| Body | Atkinson Hyperlegible (system: Plex Mono) | 6 | The roster, the chat, buttons |
+| Body large | Atkinson / Plex Mono | 8 | What's typed in a text field |
+| Caption | Atkinson / Plex Mono | 5 | Small notes that are never tapped |
+| Mono huge | Plex Mono | 22 | A minigame's countdown |
+
+The fonts are bundled (`assets/fonts`, all SIL Open Font License) so phones and the web build get the same letters; each falls back to Atkinson, then Godot's own font, for letters it lacks. Labels add no line spacing of their own.
+
+## Space and size
+
+Spacing steps (units): hair 1, xs 2, sm 3, md 4, lg 6, xl 8, xxl 12. Use a step, never an in-between number.
+
+- **Tap targets** on a phone: at least `TOUCH_MIN` 14 units tall (to settle against the roster's space at the roster review).
+- **Icons**: 16x16 units, drawn on a 16x16 pixel grid.
+- **Rules and borders**: 1 unit.
+
+## Surfaces
+
+- **Sheet** (`ParchmentPanel`, `Tier.SHEET`): the HUD's working panels. Flat edges, faint grain, darker toward the border.
+- **Document** (`Tier.DOCUMENT`): things handed to you: the role card, the text box, the will. A torn edge and darker margins.
+- **Glass** (`SystemPanel`): the machine's panels. Black at 92%, a hairline, cyan corner brackets, scanlines over everything; a moment of glitch when it opens (`glitch_in()`), never on its own.
+
+Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at the edges, lighter in the middle. Only the paper changes. The machine has no night.
+
+## Components
+
+| Component | Layer | Where it lives | Use |
+|---|---|---|---|
+| Button (stamped) | in-world | theme `Button` | Any choice; the current choice is filled ink |
+| WaxButton | in-world | theme variation | The one primary action on a screen (Start game, Send, Join) |
+| QuietButton | both | theme variation | Secondary actions as text (Cancel, Copy) |
+| IconButton | both | theme variation + `Icons` | Will, role card, chat tab; an icon, maybe a word |
+| SysPrimary | system | theme variation | The machine's primary action |
+| Text field | both | theme `LineEdit` / `TextEdit` | A ruled line on parchment; a boxed field on glass; thick caret |
+| ParchmentPanel / SystemPanel | each | `scripts/ui/kit/` | Every panel |
+| Icons | both | `Icons.get_icon(name)` | White woodcut icons tinted to the layer |
+
+More components (seat badge, chip, modal, card, sheet tab, notice) arrive with the screens that use them; each gets a row here.
+
+## Modals and dialogs
+
+- **Inline by default.** Results, refusals and status show where the player is already looking: the roster's prompt, a status line, the chat log.
+- **The text box (TextPrompt)** is only for typing: a whisper, the will, the lobby code and name, the chat on a phone. It opens in the upper middle, clear of a phone's keyboard. Never use it to show or confirm something.
+- **A card** is for reading something on purpose, or once at a natural moment: your role at the start of a game. One at a time; Close, Escape or a tap outside closes it. **Anything that reveals a role or faction lives only in a card.**
+- **A sheet** is a panel that slides over the town on a phone: only the chat.
+- **A notice** is the machine speaking about itself (reconnecting, connection lost, loading). It never blocks input.
+- **No confirmation dialogs.** People are talking; a destructive action (Leave) asks again inline if it must.
+- **Stacking**: town < HUD < sheet < minigame < notice < card < text box.
+
+## Display cases
+
+Every component is checked in each case that applies to it:
+
+- **Screen**: phone 405x720, wide 960x540.
+- **Time**: day, candlelit night.
+- **You**: alive, dead, spectator; host or not.
+- **Game**: lobby, in a game, game over.
+- **Content**: 4 players and 15; short and long names; empty and full chat.
+
+## Icons
+
+- 16x16 pixels, one color (white, tinted by the UI: ink on parchment, `SYS_TEXT` on glass), no antialiasing.
+- Woodcut style: bold strokes, two-pixel lines where it reads better than one, flat shapes, no gradients.
+- Drawn as text in `front/tools/icons/make_icons.gd` (run it to rebuild `assets/sprites/ui/icons/`). An artist can redraw any PNG in Pixelorama and take it out of that script.
+- The set: will, role, whisper, vote, chat, dead, day, night, time, host, customize, paste, copy, leave, close, send.
+
+## Gallery
+
+`just gallery` renders every page in `front/tools/gallery/pages/` at 405x720 and 960x540 to `front/reports/gallery/`, with an `index.html` showing both sizes side by side; `just gallery type buttons` renders just those. Pages build from the same tokens and components as the game. Add a page with each new component, alone and in context.

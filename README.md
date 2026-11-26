@@ -2,6 +2,8 @@
 
 A Town of Salem style social deduction game, played around one table with a phone or laptop each, in a top-down RPG town that runs in the browser. The repo and the code still call it `webgame`. The window and app are named Table of Salem, but saves stay in the `webgame` folder (`application/config/custom_user_dir_name` in `front/project.godot`), so renaming the game kept existing profiles.
 
+How the game looks and why (palette, type, components, when to use a dialog) is in [docs/DESIGN.md](docs/DESIGN.md), and the story behind it in [docs/LORE.md](docs/LORE.md).
+
 ## Layout
 
 | Path | Purpose |

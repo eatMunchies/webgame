@@ -109,6 +109,36 @@ clients count="4": build
     done
     wait
 
+# Pages to render can be named: `just gallery type buttons`. Frames go to front/reports/gallery
+# (or GALLERY_OUT), with an index.html showing each page at both sizes. Needs xvfb-run.
+# Render the style gallery (front/tools/gallery) at a phone's and a wide window's size
+[positional-arguments]
+gallery *pages: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    "{{ godot }}" --headless --path front --import > /dev/null 2>&1
+    out="$(realpath -m "${GALLERY_OUT:-front/reports/gallery}")"
+    only=""
+    if [[ $# -gt 0 ]]; then only="--pages=$(IFS=,; echo "$*")"; fi
+    for size in 405x720 960x540; do
+        xvfb-run -a -s "-screen 0 1920x1920x24" "{{ godot }}" --rendering-driver opengl3 \
+            --fixed-fps 60 --resolution "$size" --path front res://tools/gallery/gallery.tscn \
+            -- --out="$out/$size" $only 2>&1 | grep -E "Gallery:|SCRIPT ERROR|ERROR:" || true
+    done
+    {
+        echo '<!doctype html><meta charset="utf-8"><title>Style gallery</title>'
+        echo '<style>body{font:14px sans-serif;background:#222;color:#eee;margin:16px}'
+        echo 'section{margin:0 0 32px}h2{font-weight:600}img{max-width:100%;border:1px solid #555}'
+        echo '.row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}.row div{flex:0 1 auto}</style>'
+        for page in "$out"/960x540/*.png; do
+            name="$(basename "$page" .png)"
+            echo "<section><h2>$name</h2><div class=row>"
+            echo "<div><img src=\"405x720/$name.png\" width=405><br>phone 405x720</div>"
+            echo "<div><img src=\"960x540/$name.png\" width=960><br>wide 960x540</div></div></section>"
+        done
+    } > "$out/index.html"
+    echo "Gallery: open $out/index.html"
+
 # `just shots 405x720 --name=Ada --create` plays in a phone-shaped window; join a lobby terminal
 # bots are in with `--join=CODE`. Frames go to front/reports/shots, or SHOTS; see
 # front/tools/shoot.gd for SECS, EVERY, SCENE and TOUCH. Needs xvfb-run.

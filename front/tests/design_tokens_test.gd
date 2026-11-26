@@ -1,0 +1,84 @@
+extends GdUnitTestSuite
+
+## The design system's promises (docs/DESIGN.md): every ink you read is
+## readable on the paper it's on, by day and by candlelight; the machine's
+## text reads on its glass; seat numerals read on their dyes; the fonts load
+## with the letters the game prints; and both themes define every style.
+
+## Inks that text is set in, on parchment.
+const PAPER_TEXT := {
+	"ink": Tokens.INK, "secondary": Tokens.INK_SECONDARY, "faint": Tokens.INK_FAINT,
+	"you": Tokens.YOU, "dead": Tokens.DEAD, "safe": Tokens.SAFE, "danger": Tokens.DANGER,
+	"town": Tokens.FACTION_TOWN, "mafia": Tokens.FACTION_MAFIA, "neutral": Tokens.FACTION_NEUTRAL,
+	"said": Tokens.CHAT_SAID, "whisper": Tokens.CHAT_WHISPER, "game": Tokens.CHAT_GAME,
+	"system": Tokens.CHAT_SYSTEM, "wax": Tokens.WAX,
+}
+const READABLE := 4.5
+
+
+func after_test() -> void:
+	Tokens.use_night(false)
+
+
+func test_day_and_night_change_the_same_things() -> void:
+	assert_array(Palette.DAY.keys()).contains_exactly_in_any_order(Palette.NIGHT.keys())
+
+
+func test_text_inks_read_on_paper_by_day_and_night() -> void:
+	for night in [false, true]:
+		Tokens.use_night(night)
+		for paper: Color in [Tokens.paper_surface, Tokens.paper_raised]:
+			for ink_name: String in PAPER_TEXT:
+				var ratio := contrast(PAPER_TEXT[ink_name], paper)
+				assert_float(ratio).override_failure_message(
+						"%s on %s paper %s is %.2f" % [ink_name, "night" if night else "day", paper.to_html(false), ratio]
+				).is_greater_equal(READABLE)
+
+
+func test_the_machine_text_reads_on_its_glass() -> void:
+	for color: Color in [Tokens.SYS_TEXT, Tokens.SYS_DIM, Tokens.SYS_ACCENT, Tokens.SYS_FAULT]:
+		assert_float(contrast(color, Tokens.SYS_BG)).is_greater_equal(READABLE)
+
+
+func test_seat_numerals_read_on_their_dyes() -> void:
+	# Numerals are bold, so large-text contrast would do; ask a little more.
+	for n in range(1, 16):
+		assert_float(contrast(Tokens.INK_ON_DARK, Tokens.seat(n))).is_greater_equal(4.3)
+
+
+func test_fonts_have_the_letters_the_game_prints() -> void:
+	var needed := "0123456789:/.,!?'()-" + Session.CODE_ALPHABET + "abcdefghijklmnopqrstuvwxyz"
+	for font: FontFile in [Fonts.TITLE, Fonts.HEADING, Fonts.BODY, Fonts.BODY_BOLD, Fonts.MONO]:
+		for letter in needed:
+			assert_bool(font.has_char(letter.unicode_at(0))).override_failure_message(
+					"%s lacks '%s'" % [font.resource_path.get_file(), letter]).is_true()
+
+
+func test_themes_define_every_style() -> void:
+	var paper := UiTheme.paper()
+	for variation in ["Title", "Heading", "Body", "Caption", "Dim"]:
+		assert_bool(paper.has_font_size("font_size", variation)).is_true()
+	for variation in ["WaxButton", "QuietButton", "IconButton"]:
+		assert_bool(paper.has_stylebox("normal", variation)).is_true()
+	var system := UiTheme.system()
+	for variation in ["Title", "Heading", "Mono", "Accent", "Caption", "Dim"]:
+		assert_bool(system.has_font_size("font_size", variation)).is_true()
+	assert_bool(system.has_stylebox("normal", "SysPrimary")).is_true()
+
+
+func test_night_rebuilds_the_paper_theme() -> void:
+	var day := UiTheme.paper()
+	Tokens.use_night(true)
+	assert_object(UiTheme.paper()).is_not_same(day)
+
+
+static func contrast(a: Color, b: Color) -> float:
+	var la := _luminance(a)
+	var lb := _luminance(b)
+	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
+
+
+static func _luminance(c: Color) -> float:
+	var channel := func(v: float) -> float:
+		return v / 12.92 if v <= 0.03928 else pow((v + 0.055) / 1.055, 2.4)
+	return 0.2126 * channel.call(c.r) + 0.7152 * channel.call(c.g) + 0.0722 * channel.call(c.b)
