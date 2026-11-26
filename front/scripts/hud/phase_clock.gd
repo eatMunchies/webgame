@@ -6,8 +6,8 @@ extends ParchmentPanel
 ## the stage says how many are in the town, since that is what the host
 ## waits on.
 ##
-## Under a rule, the town's row: its code (Copy puts it on the clipboard, and
-## the code reads "Copied" for a moment) and Leave.
+## Under a rule, the town's row: its code, a copy icon (the code reads
+## "Copied" for a moment) and a leave icon (a door).
 ##
 ## Past choosing, a night shows only its title: the stages it plays through
 ## (roleblocks, fight rounds, protection, investigations) and their timers
@@ -101,9 +101,11 @@ func _ready() -> void:
 	_copy.add_theme_constant_override("icon_max_width", int(SKY_ICON))
 	_copy.pressed.connect(_on_copy_pressed)
 	_town_row.add_child(_copy)
-	_leave.theme_type_variation = "QuietButton"
-	_leave.text = "Leave"
+	_leave.theme_type_variation = "IconButton"
+	_leave.icon = Icons.get_icon("leave")
+	_leave.tooltip_text = "Leave the town"
 	_leave.focus_mode = Control.FOCUS_NONE
+	_leave.add_theme_constant_override("icon_max_width", int(SKY_ICON))
 	_leave.pressed.connect(_on_leave_pressed)
 	_town_row.add_child(_leave)
 	for button in [_copy, _leave]:
