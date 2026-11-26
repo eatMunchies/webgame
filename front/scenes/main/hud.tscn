@@ -3,8 +3,7 @@
 [ext_resource type="Script" path="res://scripts/hud/hud.gd" id="1_hud"]
 [ext_resource type="PackedScene" path="res://scenes/hud/roster.tscn" id="2_roster"]
 [ext_resource type="Script" path="res://scripts/hud/phase_clock.gd" id="3_clock"]
-[ext_resource type="Script" path="res://scripts/hud/chat_panel.gd" id="5_chat"]
-[ext_resource type="Texture2D" path="res://assets/sprites/ui/will.png" id="6_will"]
+[ext_resource type="PackedScene" path="res://scenes/hud/chat_panel.tscn" id="5_chat"]
 
 [node name="Hud" type="Control"]
 layout_mode = 3
@@ -74,39 +73,9 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="ChatPanel" type="PanelContainer" parent="Shell/Info/InfoBox"]
+[node name="ChatPanel" parent="Shell/Info/InfoBox" instance=ExtResource("5_chat")]
 unique_name_in_owner = true
 layout_mode = 2
-script = ExtResource("5_chat")
-
-[node name="Rows" type="VBoxContainer" parent="Shell/Info/InfoBox/ChatPanel"]
-layout_mode = 2
-theme_override_constants/separation = 2
-
-[node name="Log" type="RichTextLabel" parent="Shell/Info/InfoBox/ChatPanel/Rows"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 3
-focus_mode = 0
-theme_override_font_sizes/normal_font_size = 6
-scroll_following = true
-
-[node name="InputRow" type="HBoxContainer" parent="Shell/Info/InfoBox/ChatPanel/Rows"]
-layout_mode = 2
-theme_override_constants/separation = 2
-
-[node name="Input" type="LineEdit" parent="Shell/Info/InfoBox/ChatPanel/Rows/InputRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-placeholder_text = "Enter to chat"
-max_length = 1600
-
-[node name="SendButton" type="Button" parent="Shell/Info/InfoBox/ChatPanel/Rows/InputRow"]
-unique_name_in_owner = true
-layout_mode = 2
-focus_mode = 0
-text = "Send"
 
 [node name="Side" type="VBoxContainer" parent="Shell"]
 unique_name_in_owner = true
@@ -133,6 +102,5 @@ layout_mode = 2
 size_flags_horizontal = 0
 focus_mode = 0
 tooltip_text = "Last will"
-icon = ExtResource("6_will")
 
 

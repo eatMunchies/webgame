@@ -56,6 +56,8 @@ const TAB_RADIUS := 6
 const MINIGAME_SHARE := 0.5
 ## What the machine says while the connection is down (see docs/LORE.md).
 const RECONNECTING_LINES: PackedStringArray = ["desync detected, resyncing", "hold on, getting you back in"]
+## The will and role buttons' icons, in units.
+const ROW_ICON := 11
 const WILL_TITLE := "Last will"
 const WILL_PLACEHOLDER := "Everyone reads this when you die. N1: checked 3, not suspicious"
 
@@ -74,6 +76,10 @@ const WILL_PLACEHOLDER := "Everyone reads this when you die. N1: checked 3, not 
 @onready var minigame_space: Control = %MinigameSpace
 
 var prompt: TextPrompt
+## The Last will and role card buttons' row, on the paper theme.
+var _buttons_row: HBoxContainer
+## The candle the paper parts were last styled for.
+var _paper_candle := -1.0
 ## The machine's notice at the top of the town: resyncing after a drop.
 var notice := Notice.new()
 var role_card: RoleCard
@@ -123,6 +129,19 @@ func _ready() -> void:
 	Session.keyboard_minigame_changed.connect(_on_minigame_changed)
 	_update_will_button()
 	_apply_layout()
+
+
+func _process(_delta: float) -> void:
+	# The paper parts the HUD draws itself follow day and night.
+	if not is_equal_approx(_paper_candle, Tokens.candle):
+		_apply_paper()
+
+
+func _apply_paper() -> void:
+	_paper_candle = Tokens.candle
+	if _buttons_row != null:
+		_buttons_row.theme = UiTheme.paper()
+	chat_tab.queue_redraw()
 
 
 ## The notice hangs from the top middle of the town's part, over the town
@@ -246,22 +265,24 @@ func _slide_sheet(to: float) -> void:
 func _add_chat_tab() -> void:
 	chat_tab.focus_mode = Control.FOCUS_NONE
 	chat_tab.tooltip_text = "Chat"
-	for state in ["normal", "hover", "pressed", "hover_pressed"]:
-		var box := HudStyle.panel_box()
+	for state in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+		chat_tab.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+	# A tongue of the sheet's own paper, drawn here so it follows the night.
+	chat_tab.draw.connect(func() -> void:
+		var box := StyleBoxFlat.new()
+		box.bg_color = Tokens.paper_surface
 		box.corner_radius_top_left = TAB_RADIUS
 		box.corner_radius_top_right = TAB_RADIUS
-		box.corner_radius_bottom_left = 0
-		box.corner_radius_bottom_right = 0
-		box.border_width_bottom = 0
-		if state.begins_with("hover"):
-			box.border_color = RpgTheme.GOLD_BRIGHT
-		chat_tab.add_theme_stylebox_override(state, box)
-	chat_tab.draw.connect(func() -> void:
+		box.anti_aliasing = true
+		chat_tab.draw_style_box(box, Rect2(Vector2.ZERO, chat_tab.size + Vector2(0, 1)))
 		var x := roundf(chat_tab.size.x / 2.0)
+		var bars := Tokens.INK if chat_tab.is_hovered() else Tokens.INK_RULE
 		for y in [4.5, 7.5, 10.5]:
-			chat_tab.draw_line(Vector2(x - 6, y), Vector2(x + 6, y), RpgTheme.TEXT, 1.0)
+			chat_tab.draw_line(Vector2(x - 6, y), Vector2(x + 6, y), bars, 1.0)
 		if _unread > 0 and _sheet <= 0.5:
-			chat_tab.draw_circle(Vector2(chat_tab.size.x - 5, 4), 2.0, RpgTheme.GOLD_BRIGHT))
+			chat_tab.draw_circle(Vector2(chat_tab.size.x - 5, 4), 2.0, Tokens.WAX))
+	chat_tab.mouse_entered.connect(chat_tab.queue_redraw)
+	chat_tab.mouse_exited.connect(chat_tab.queue_redraw)
 	chat_tab.gui_input.connect(_on_handle_input)
 	middle.add_child(chat_tab)
 
@@ -269,14 +290,26 @@ func _add_chat_tab() -> void:
 ## The Last will and role card buttons, side by side under the roster.
 func _add_buttons() -> void:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 2)
+	row.add_theme_constant_override("separation", Tokens.SPACE_XS)
+	_buttons_row = row
 	side.add_child(row)
 	will_button.reparent(row, false)
-	role_button.icon = preload("res://assets/sprites/ui/role.png")
+	will_button.icon = Icons.get_icon("will")
+	role_button.icon = Icons.get_icon("role")
 	role_button.tooltip_text = "Your role"
 	role_button.focus_mode = Control.FOCUS_NONE
 	role_button.pressed.connect(role_card.open)
 	row.add_child(role_button)
+	# Stamped paper buttons with woodcut icons, in ink (paper when pressed).
+	for button: Button in [will_button, role_button]:
+		button.custom_minimum_size = Vector2(Tokens.TOUCH_MIN + Tokens.SPACE_SM, Tokens.TOUCH_MIN)
+		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.add_theme_constant_override("icon_max_width", ROW_ICON)
+		for state in ["icon_normal_color", "icon_hover_color", "icon_focus_color"]:
+			button.add_theme_color_override(state, Tokens.INK)
+		for state in ["icon_pressed_color", "icon_hover_pressed_color"]:
+			button.add_theme_color_override(state, Tokens.INK_ON_DARK)
+	_apply_paper()
 
 
 ## Shows the role card when a game starts (or when joining one in progress).

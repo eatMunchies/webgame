@@ -32,28 +32,44 @@ func _init() -> void:
 
 
 func _resize() -> void:
-	var digits := str(number).length()
-	custom_minimum_size = Vector2(HEIGHT if digits < 2 else HEIGHT + 3.0, HEIGHT)
+	custom_minimum_size = Vector2(width_for(number, HEIGHT), HEIGHT)
 	queue_redraw()
 
 
 func _draw() -> void:
+	paint(get_canvas_item(), Rect2(Vector2.ZERO, size), number, faded)
+
+
+## Draws the badge for player `number` into `rect` of canvas item `item`:
+## shared by the badge and its texture (SeatBadgeTexture, for the chat).
+static func paint(item: RID, rect: Rect2, number: int, faded := false) -> void:
 	var dye := Tokens.seat(number)
 	if faded:
 		dye = dye.lerp(Tokens.DEAD, 0.7)
 	var box := StyleBoxFlat.new()
 	box.bg_color = dye
-	box.set_corner_radius_all(ceili(size.y / 2.0))
+	box.set_corner_radius_all(ceili(rect.size.y / 2.0))
 	box.anti_aliasing = true
-	draw_style_box(box, Rect2(Vector2.ZERO, size))
+	box.draw(item, rect)
 
 	var font := Fonts.BODY_BOLD
-	var font_size := maxi(1, roundi(size.y * NUMERAL_SHARE))
+	var font_size := maxi(1, roundi(rect.size.y * NUMERAL_SHARE))
 	var text := str(number)
 	var bounds := glyph_bounds(font, text, font_size)
 	# Place the outline's middle on the badge's middle.
-	var origin := size / 2.0 - bounds.get_center()
-	draw_string(font, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Tokens.INK_ON_DARK)
+	var origin := rect.get_center() - bounds.get_center()
+	font.draw_string(item, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Tokens.INK_ON_DARK)
+
+
+## The badge's width for `number` at `height`: a circle, or a pill for two
+## digits.
+static func width_for(number: int, height: float) -> float:
+	return height if str(number).length() < 2 else height * (HEIGHT + 3.0) / HEIGHT
+
+
+## The badge as a texture, for places that take one (the chat's lines).
+static func texture(number: int, height := HEIGHT) -> Texture2D:
+	return SeatBadgeTexture.new(number, height)
 
 
 ## The box the glyphs of `text` actually cover, relative to where drawing

@@ -1,4 +1,4 @@
-extends PanelContainer
+extends ParchmentPanel
 
 ## The chat: a log of everything that happens, and a box to type in. The
 ## game is played around one table, out loud, so for people the log is mostly
@@ -6,9 +6,11 @@ extends PanelContainer
 ## terminal bots talk. It is always open; on a tall screen the HUD slides it
 ## over the town as a sheet, and the player can hide it to see the town.
 ##
-## Lines are colored by kind (see Session.log_line): what players said in
-## white, led by the speaker's number in a colored circle, whispers in blue, game updates (your role, its results, deaths, votes) in yellow, and
-## system lines (the lobby, the connection, errors, help) in purple.
+## It's a Sheet of parchment, and its lines are inked by kind (see
+## Session.log_line): what players said in ink, led by the speaker's
+## SeatBadge; whispers in woad; game updates (your role, its results, deaths,
+## votes) in ochre; and the machine's own lines (the lobby, the connection,
+## errors, help) in its teal ink and mono type, after a `>`.
 ##
 ## The box doesn't say which channel plain text goes to (town, jail, mafia,
 ## dead): someone looking over your shoulder would learn your role from it.
@@ -20,15 +22,24 @@ extends PanelContainer
 ## A line was added to the log.
 signal line_added
 
-## Whispers, in the log.
-const WHISPER_COLOR := Color(0.45, 0.72, 1)
 ## Line colors, by kind.
 const KIND_COLORS := {
-	Session.LINE_CHAT: Color(0.96, 0.95, 0.92),
-	Session.LINE_WHISPER: WHISPER_COLOR,
-	Session.LINE_GAME: Color(1, 0.84, 0.4),
-	Session.LINE_SYSTEM: Color(0.78, 0.62, 1),
+	Session.LINE_CHAT: Tokens.CHAT_SAID,
+	Session.LINE_WHISPER: Tokens.CHAT_WHISPER,
+	Session.LINE_GAME: Tokens.CHAT_GAME,
+	Session.LINE_SYSTEM: Tokens.CHAT_SYSTEM,
 }
+## The speaker's badge before a line, in units: about a line's height.
+const BADGE_HEIGHT := 7.0
+## The send icon, in units.
+const SEND_ICON := 11
+
+## A chat line's "Name (N):" at its start.
+static var _SPEAKER_NUMBER := RegEx.create_from_string("^([^\\n]*?) \\(\\d+\\):")
+
+## Set by the style gallery, so the panel shows only the lines it's given
+## (show_lines).
+var preview := false
 
 @onready var log_view: RichTextLabel = %Log
 @onready var input: LineEdit = %Input
@@ -49,8 +60,22 @@ func _process(_delta: float) -> void:
 
 
 func _ready() -> void:
-	for line in Session.log_lines:
-		_add_line(line["text"], line["kind"], line["lot"])
+	paper_theme = true
+	super()
+	log_view.add_theme_constant_override("line_separation", Tokens.SPACE_HAIR)
+	# Plex Mono runs larger than Atkinson at the same size.
+	log_view.add_theme_font_size_override("mono_font_size", Tokens.TYPE_MONO_SMALL)
+	send_button.theme_type_variation = "IconButton"
+	send_button.text = ""
+	send_button.icon = Icons.get_icon("send")
+	send_button.tooltip_text = "Send"
+	send_button.add_theme_constant_override("icon_max_width", SEND_ICON)
+	send_button.add_theme_color_override("icon_normal_color", Tokens.INK_SECONDARY)
+	for state in ["icon_hover_color", "icon_pressed_color"]:
+		send_button.add_theme_color_override(state, Tokens.WAX)
+	if preview:
+		return
+	show_lines(Session.log_lines)
 	Session.log_line.connect(_add_line)
 	# Wired here rather than in hud.tscn: the HUD moves this panel between
 	# screen shapes, and a scene connection is lost when its node path changes,
@@ -74,16 +99,34 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Adds one line to the log, a player's chat line led by their number in its
-## colored circle (NumberBadge). Lines are added as plain text, never BBCode,
-## because they include what other players typed.
+## Adds `lines` to the log: Dictionaries of text, kind and lot, as in
+## Session.log_lines.
+func show_lines(lines: Array) -> void:
+	for line: Dictionary in lines:
+		_add_line(line["text"], line["kind"], line["lot"])
+
+
+## Adds one line to the log, a player's chat line led by their SeatBadge.
+## Lines are added as plain text, never BBCode, because they include what
+## other players typed.
 func _add_line(text: String, kind: String, lot := -1) -> void:
 	if lot >= 0:
-		log_view.add_image(NumberBadge.texture(lot + 1), 0, 0, Color.WHITE, INLINE_ALIGNMENT_CENTER)
+		# "Bram (2): hi" reads "Bram: hi" after the badge, which has the 2.
+		text = _SPEAKER_NUMBER.sub(text, "$1:", false)
+		var badge := SeatBadge.texture(lot + 1, BADGE_HEIGHT)
+		log_view.add_image(badge, badge.get_width(), badge.get_height(), Color.WHITE,
+				INLINE_ALIGNMENT_CENTER)
 		log_view.add_text(" ")
+	var system := kind == Session.LINE_SYSTEM
+	if system:
+		log_view.push_mono()
+		if not text.begins_with("!"):
+			text = "> " + text
 	log_view.push_color(KIND_COLORS.get(kind, KIND_COLORS[Session.LINE_GAME]))
 	log_view.add_text(text)
 	log_view.pop()
+	if system:
+		log_view.pop()
 	log_view.newline()
 	line_added.emit()
 

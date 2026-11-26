@@ -100,7 +100,7 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | Component | Layer | Where it lives | Use |
 |---|---|---|---|
 | Button (stamped) | in-world | theme `Button` | Any choice; the current choice is filled ink |
-| WaxButton | in-world | theme variation | The one primary action on a screen (Start game, Send, Join): a wax seal, no outline, a darker lip, IM Fell small caps |
+| WaxButton | in-world | theme variation | The one primary action on a screen (Start game, Join): a wax seal, no outline, a darker lip, IM Fell small caps |
 | QuietButton | both | theme variation | Secondary actions as text (Cancel, Copy) |
 | IconButton | both | theme variation + `Icons` | Will, role card, chat tab; an icon, maybe a word |
 | SysPrimary | system | theme variation | The machine's primary action |
@@ -110,6 +110,9 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | SeatBadge | both | `scripts/ui/kit/seat_badge.gd` | A player's number on their seat's dye, numeral centered by the font's measurements; faded for the dead; a pill for two digits |
 | Roster | in-world | `scenes/hud/roster.tscn` | Every player and what you can do to each (below) |
 | Clock | in-world | `scripts/hud/phase_clock.gd` | The day or night, time and stage, and the town's code with Copy and Leave (below) |
+| Chat | in-world | `scenes/hud/chat_panel.tscn` | The log and the box to type in (below) |
+| Sheet tab | in-world | `hud.gd` (`_add_chat_tab`) | The phone's grip on the chat sheet: a tongue of the same paper, three ruled bars, a wax dot for unread lines |
+| SeatBadgeTexture | both | `scripts/ui/kit/seat_badge_texture.gd` | A SeatBadge as a texture (`SeatBadge.texture(n, height)`) for places that take one, like the chat; drawn with the font, sharp at any scale |
 | Notice | system | `scripts/ui/kit/notice.gd` | The machine speaking about itself: a glass pane at the top of the town, `say(lines)` / `clear()` |
 
 More components (modal, card, sheet tab) arrive with the screens that use them; each gets a row here.
@@ -128,6 +131,13 @@ More components (modal, card, sheet tab) arrive with the screens that use them; 
 - Under a rule, the town's code: "Town" in small caps, the code in bold, a copy icon (the code reads "Copied" for a moment, inline, no toast) and a leave icon, which asks again inline: the first tap turns it wax red and the row reads "Tap again to leave" for 3 seconds, and only a second tap leaves (a phone's echo of the first tap, within 400 ms, doesn't count).
 - At night only the choosing stage and its timer show (timing never leaks).
 - Reconnecting: Salem doesn't notice. The sheet fades to 45% and its time stops; the machine's Notice says "desync detected, resyncing".
+
+### The chat
+
+- A Sheet. On a wide screen it fills the clock's column; on a phone it's a sheet over the town with a tab on its top edge.
+- Lines are inked by kind (`Tokens.CHAT_*`): said in ink after the speaker's SeatBadge (7 units, the line's number dropped since the badge has it), whispers in woad, game news in ochre, the machine's lines in teal Plex Mono (one step smaller, since Plex runs large) after `> `. Errors keep their `!`.
+- The box is the paper's ruled field; Send is the envelope icon in secondary ink (wax on hover), not a wax seal, since Start game is the screen's primary action.
+- The Last will and role buttons under the roster are stamped paper buttons with the woodcut will and role icons.
 
 ### Night
 
