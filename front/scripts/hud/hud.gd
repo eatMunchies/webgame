@@ -260,27 +260,31 @@ func _slide_sheet(to: float) -> void:
 
 
 ## The chat tab: a small tab, well rounded on top, with three stacked bars
-## to grab, riding on the sheet's top edge. A gold dot on its corner says
+## to grab, riding on the sheet's top edge, in the log's glass. A cyan dot says
 ## new lines came in while the chat was down.
 func _add_chat_tab() -> void:
 	chat_tab.focus_mode = Control.FOCUS_NONE
 	chat_tab.tooltip_text = "Chat"
 	for state in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 		chat_tab.add_theme_stylebox_override(state, StyleBoxEmpty.new())
-	# A tongue of the sheet's own paper, drawn here so it follows the night.
+	# A tongue of the log's own glass.
 	chat_tab.draw.connect(func() -> void:
 		var box := StyleBoxFlat.new()
-		box.bg_color = Tokens.paper_surface
+		box.bg_color = Color(Tokens.SYS_BG, Tokens.LOG_GLASS_ALPHA)
+		box.border_color = Tokens.SYS_LINE
+		box.border_width_left = 1
+		box.border_width_top = 1
+		box.border_width_right = 1
 		box.corner_radius_top_left = TAB_RADIUS
 		box.corner_radius_top_right = TAB_RADIUS
 		box.anti_aliasing = true
 		chat_tab.draw_style_box(box, Rect2(Vector2.ZERO, chat_tab.size + Vector2(0, 1)))
 		var x := roundf(chat_tab.size.x / 2.0)
-		var bars := Tokens.INK if chat_tab.is_hovered() else Tokens.INK_RULE
+		var bars := Tokens.SYS_ACCENT if chat_tab.is_hovered() else Tokens.SYS_DIM
 		for y in [4.5, 7.5, 10.5]:
 			chat_tab.draw_line(Vector2(x - 6, y), Vector2(x + 6, y), bars, 1.0)
 		if _unread > 0 and _sheet <= 0.5:
-			chat_tab.draw_circle(Vector2(chat_tab.size.x - 5, 4), 2.0, Tokens.WAX))
+			chat_tab.draw_circle(Vector2(chat_tab.size.x - 5, 4), 2.0, Tokens.SYS_ACCENT))
 	chat_tab.mouse_entered.connect(chat_tab.queue_redraw)
 	chat_tab.mouse_exited.connect(chat_tab.queue_redraw)
 	chat_tab.gui_input.connect(_on_handle_input)

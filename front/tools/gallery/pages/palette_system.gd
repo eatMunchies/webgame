@@ -25,6 +25,8 @@ func build(stage: Control, _variant: String) -> void:
 		["bg", Tokens.SYS_BG], ["surface", Tokens.SYS_SURFACE], ["line", Tokens.SYS_LINE],
 		["text", Tokens.SYS_TEXT], ["dim", Tokens.SYS_DIM], ["accent", Tokens.SYS_ACCENT],
 		["accent dim", Tokens.SYS_ACCENT_DIM], ["fault", Tokens.SYS_FAULT],
+		["log: said", Tokens.LOG_SAID], ["log: whisper", Tokens.LOG_WHISPER],
+		["log: game", Tokens.LOG_GAME], ["log: machine", Tokens.LOG_MACHINE],
 	]
 	var box := vbox(Tokens.SPACE_HAIR)
 	var heading := Label.new()

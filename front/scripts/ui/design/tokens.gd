@@ -28,7 +28,7 @@ const INK_SECONDARY := Palette.INK_BROWN
 const INK_FAINT := Palette.INK_FADED
 const INK_RULE := Palette.INK_RULE
 ## Text on wax or ink fills.
-const INK_ON_DARK := Palette.PAPER_RAISED
+const INK_ON_DARK := Palette.PAPER_LIGHT
 const PAPER_SHADOW := Color(Palette.INK, 0.3)
 
 const WAX := Palette.WAX
@@ -51,12 +51,16 @@ const FACTION_TOWN := Palette.VERDIGRIS
 const FACTION_MAFIA := Palette.WAX
 const FACTION_NEUTRAL := Palette.LOGWOOD
 
-# The chat log, on paper.
-const CHAT_SAID := Palette.INK
-const CHAT_WHISPER := Palette.WOAD
-const CHAT_GAME := Palette.OCHRE_DARK
-## What the machine says, in its teal ink (and its mono type).
-const CHAT_SYSTEM := Palette.SYS_TEAL_INK
+# The chat, which is the machine's log of the session, on its glass.
+const LOG_SAID := Palette.SYS_TEXT
+const LOG_WHISPER := Palette.SYS_CYAN
+## Game news (deaths, votes, results): the log's one warm color, so the
+## news stands out from talk.
+const LOG_GAME := Palette.GOLD_GLOW
+## The machine's own lines (the connection, errors, help).
+const LOG_MACHINE := Palette.SYS_DIM
+## How much of the town shows through the log's glass.
+const LOG_GLASS_ALPHA := 0.82
 
 # The town by candlelight (shaders/candle_vignette.gdshader): the tint over
 # the middle of the pool of light, and the dark at the screen's edges.

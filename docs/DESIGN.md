@@ -21,7 +21,7 @@ Read [LORE.md](LORE.md) first: the game is a simulation, and that decides which 
 | Surface | `ParchmentPanel` (Sheet or Document) | `SystemPanel` (glass, brackets, scanlines) |
 | Type | IM Fell English (titles), IM Fell SC (headings), Atkinson Hyperlegible (everything read) | IBM Plex Mono |
 | Color | Ink on parchment; wax for the one primary action; dyes for meaning | Light grey on black; one cyan accent |
-| Uses | Roster, clock and lobby bar, chat, will, role card, text box, names over the town | Start screen, loading/phase-in, reconnecting, chat system lines, customizer ("subject setup"), every night minigame |
+| Uses | Roster, clock, will, role card, text box, names over the town | Start screen, loading/phase-in, reconnecting, the chat (the session's log), customizer ("subject setup"), every night minigame |
 
 ## Color
 
@@ -31,9 +31,9 @@ Raw colors are in `Palette`; components use the semantic names in `Tokens`. Neve
 
 | Token | Use | Day | Night |
 |---|---|---|---|
-| `paper_raised` | Text fields, stamped buttons | `#f2e8d2` | `#e2cfa6` |
-| `paper_surface` | Panels | `#e9dcc0` | `#dcc79c` |
-| `paper_sunken` | Disabled, wells | `#d9c7a1` | `#cdb589` |
+| `paper_raised` | Text fields, stamped buttons | `#eae0c8` | `#e2cfa6` |
+| `paper_surface` | Panels | `#e2d3b4` | `#dcc79c` |
+| `paper_sunken` | Disabled, wells | `#d2bf98` | `#cdb589` |
 | `paper_edge` | Burnt edges | `#b89b6a` | `#6e4f2c` |
 | `INK` | Text, borders, the current choice | `#1f1a14` | same |
 | `INK_SECONDARY` | Headings, quiet links | `#4a3f33` | same |
@@ -45,7 +45,6 @@ Raw colors are in `Palette`; components use the semantic names in `Tokens`. Neve
 | `DEAD` | The dead, struck through | ash `#554b3e` | same |
 | `SAFE` / `DANGER` | Innocent / Guilty | verdigris / wax | same |
 | `FACTION_*` | Role card only | town verdigris, mafia wax, neutral logwood `#5b3f7a` | same |
-| `CHAT_*` | Chat lines: said, whisper, game, system | ink, woad, ochre `#6e4a00`, teal `#0d5357` | same |
 
 Every text ink keeps a contrast of at least 4.5 on day and night paper (`tests/design_tokens_test.gd`). Night only changes the paper: ink stays the same, so text already on screen never needs repainting.
 
@@ -57,6 +56,7 @@ Every text ink keeps a contrast of at least 4.5 on day and night paper (`tests/d
 | `SYS_LINE` | Hairlines | `#2a3a40` |
 | `SYS_TEXT` / `SYS_DIM` | Text, notes | `#d7e3e6` / `#7f9399` |
 | `SYS_ACCENT` | The one accent: headings, focus, primary | cyan `#46e0e0` |
+| `LOG_*` | The chat's lines: said, whisper, game news, the machine's own | text, cyan, amber `#e8c060` (the log's one warm color), dim |
 | `SYS_FAULT` | A miss or failure, if used at all | `#e0466a` (to decide at the minigame review) |
 
 ### Seats
@@ -110,8 +110,8 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | SeatBadge | both | `scripts/ui/kit/seat_badge.gd` | A player's number on their seat's dye, numeral centered by the font's measurements; faded for the dead; a pill for two digits |
 | Roster | in-world | `scenes/hud/roster.tscn` | Every player and what you can do to each (below) |
 | Clock | in-world | `scripts/hud/phase_clock.gd` | The day or night, time and stage, and the town's code with Copy and Leave (below) |
-| Chat | in-world | `scenes/hud/chat_panel.tscn` | The log and the box to type in (below) |
-| Sheet tab | in-world | `hud.gd` (`_add_chat_tab`) | The phone's grip on the chat sheet: a tongue of the same paper, three ruled bars, a wax dot for unread lines |
+| Chat | system | `scenes/hud/chat_panel.tscn` | The session's log and the box to type in (below) |
+| Sheet tab | system | `hud.gd` (`_add_chat_tab`) | The phone's grip on the chat sheet: a tongue of the same glass, three bars, a cyan dot for unread lines |
 | SeatBadgeTexture | both | `scripts/ui/kit/seat_badge_texture.gd` | A SeatBadge as a texture (`SeatBadge.texture(n, height)`) for places that take one, like the chat; drawn with the font, sharp at any scale |
 | Notice | system | `scripts/ui/kit/notice.gd` | The machine speaking about itself: a glass pane at the top of the town, `say(lines)` / `clear()` |
 
@@ -134,9 +134,10 @@ More components (modal, card, sheet tab) arrive with the screens that use them; 
 
 ### The chat
 
-- A Sheet. On a wide screen it fills the clock's column; on a phone it's a sheet over the town with a tab on its top edge.
-- Lines are inked by kind (`Tokens.CHAT_*`): said in ink after the speaker's SeatBadge (7 units, the line's number dropped since the badge has it), whispers in woad, game news in ochre, the machine's lines in teal Plex Mono (one step smaller, since Plex runs large) after `> `. Errors keep their `!`.
-- The box is the paper's ruled field; Send is the envelope icon in secondary ink (wax on hover), not a wax seal, since Start game is the screen's primary action.
+- The chat is the machine's log of the session, not part of Salem: glass, Plex Mono, and see-through (`LOG_GLASS_ALPHA`) so the town shows behind it on a phone. Parchment there made a phone one wall of bright paper and hid the town.
+- On a wide screen it fills the clock's column; on a phone it's a sheet over the town with a tab on its top edge.
+- Lines by kind (`Tokens.LOG_*`), at the small mono size (Plex runs large): said in light grey after the speaker's SeatBadge (7 units, the line's number dropped since the badge has it), whispers in cyan, game news in amber, the machine's own lines dim after `> `. Errors keep their `!`. Amber is the log's one color beyond the machine's cyan, so news stands out from talk.
+- The box is the glass's boxed field; Send is the envelope icon (dim, cyan on hover), not a primary button, since Start game is the screen's primary action.
 - The Last will and role buttons under the roster are stamped paper buttons with the woodcut will and role icons.
 
 ### Night

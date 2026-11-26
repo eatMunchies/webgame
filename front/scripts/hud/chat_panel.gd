@@ -1,4 +1,4 @@
-extends ParchmentPanel
+extends SystemPanel
 
 ## The chat: a log of everything that happens, and a box to type in. The
 ## game is played around one table, out loud, so for people the log is mostly
@@ -6,11 +6,13 @@ extends ParchmentPanel
 ## terminal bots talk. It is always open; on a tall screen the HUD slides it
 ## over the town as a sheet, and the player can hide it to see the town.
 ##
-## It's a Sheet of parchment, and its lines are inked by kind (see
-## Session.log_line): what players said in ink, led by the speaker's
-## SeatBadge; whispers in woad; game updates (your role, its results, deaths,
-## votes) in ochre; and the machine's own lines (the lobby, the connection,
-## errors, help) in its teal ink and mono type, after a `>`.
+## The chat is the machine's log of the session (docs/LORE.md), so it's on
+## its glass, in its mono type, and see-through enough that the town shows
+## behind it on a phone. Lines are colored by kind (see Session.log_line):
+## what players said in light grey, led by the speaker's SeatBadge; whispers
+## in cyan; game news (your role, its results, deaths, votes) in amber; and
+## the machine's own lines (the lobby, the connection, errors, help) dim,
+## after a `>`.
 ##
 ## The box doesn't say which channel plain text goes to (town, jail, mafia,
 ## dead): someone looking over your shoulder would learn your role from it.
@@ -24,10 +26,10 @@ signal line_added
 
 ## Line colors, by kind.
 const KIND_COLORS := {
-	Session.LINE_CHAT: Tokens.CHAT_SAID,
-	Session.LINE_WHISPER: Tokens.CHAT_WHISPER,
-	Session.LINE_GAME: Tokens.CHAT_GAME,
-	Session.LINE_SYSTEM: Tokens.CHAT_SYSTEM,
+	Session.LINE_CHAT: Tokens.LOG_SAID,
+	Session.LINE_WHISPER: Tokens.LOG_WHISPER,
+	Session.LINE_GAME: Tokens.LOG_GAME,
+	Session.LINE_SYSTEM: Tokens.LOG_MACHINE,
 }
 ## The speaker's badge before a line, in units: about a line's height.
 const BADGE_HEIGHT := 7.0
@@ -60,19 +62,24 @@ func _process(_delta: float) -> void:
 
 
 func _ready() -> void:
-	paper_theme = true
+	theme = UiTheme.system()
 	super()
+	var glass := get_theme_stylebox("panel").duplicate() as StyleBoxFlat
+	glass.bg_color.a = Tokens.LOG_GLASS_ALPHA
+	add_theme_stylebox_override("panel", glass)
 	log_view.add_theme_constant_override("line_separation", Tokens.SPACE_HAIR)
 	# Plex Mono runs larger than Atkinson at the same size.
-	log_view.add_theme_font_size_override("mono_font_size", Tokens.TYPE_MONO_SMALL)
+	log_view.add_theme_font_size_override("normal_font_size", Tokens.TYPE_MONO_SMALL)
+	log_view.add_theme_font_size_override("bold_font_size", Tokens.TYPE_MONO_SMALL)
+	input.add_theme_font_size_override("font_size", Tokens.TYPE_MONO)
 	send_button.theme_type_variation = "IconButton"
 	send_button.text = ""
 	send_button.icon = Icons.get_icon("send")
 	send_button.tooltip_text = "Send"
 	send_button.add_theme_constant_override("icon_max_width", SEND_ICON)
-	send_button.add_theme_color_override("icon_normal_color", Tokens.INK_SECONDARY)
+	send_button.add_theme_color_override("icon_normal_color", Tokens.SYS_DIM)
 	for state in ["icon_hover_color", "icon_pressed_color"]:
-		send_button.add_theme_color_override(state, Tokens.WAX)
+		send_button.add_theme_color_override(state, Tokens.SYS_ACCENT)
 	if preview:
 		return
 	show_lines(Session.log_lines)
@@ -117,16 +124,11 @@ func _add_line(text: String, kind: String, lot := -1) -> void:
 		log_view.add_image(badge, badge.get_width(), badge.get_height(), Color.WHITE,
 				INLINE_ALIGNMENT_CENTER)
 		log_view.add_text(" ")
-	var system := kind == Session.LINE_SYSTEM
-	if system:
-		log_view.push_mono()
-		if not text.begins_with("!"):
-			text = "> " + text
+	if kind == Session.LINE_SYSTEM and not text.begins_with("!"):
+		text = "> " + text
 	log_view.push_color(KIND_COLORS.get(kind, KIND_COLORS[Session.LINE_GAME]))
 	log_view.add_text(text)
 	log_view.pop()
-	if system:
-		log_view.pop()
 	log_view.newline()
 	line_added.emit()
 

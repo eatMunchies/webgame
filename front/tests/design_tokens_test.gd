@@ -10,8 +10,7 @@ const PAPER_TEXT := {
 	"ink": Tokens.INK, "secondary": Tokens.INK_SECONDARY, "faint": Tokens.INK_FAINT,
 	"you": Tokens.YOU, "dead": Tokens.DEAD, "safe": Tokens.SAFE, "danger": Tokens.DANGER,
 	"town": Tokens.FACTION_TOWN, "mafia": Tokens.FACTION_MAFIA, "neutral": Tokens.FACTION_NEUTRAL,
-	"said": Tokens.CHAT_SAID, "whisper": Tokens.CHAT_WHISPER, "game": Tokens.CHAT_GAME,
-	"system": Tokens.CHAT_SYSTEM, "wax": Tokens.WAX,
+	"wax": Tokens.WAX,
 }
 const READABLE := 4.5
 
@@ -36,7 +35,8 @@ func test_text_inks_read_on_paper_by_day_and_night() -> void:
 
 
 func test_the_machine_text_reads_on_its_glass() -> void:
-	for color: Color in [Tokens.SYS_TEXT, Tokens.SYS_DIM, Tokens.SYS_ACCENT, Tokens.SYS_FAULT]:
+	for color: Color in [Tokens.SYS_TEXT, Tokens.SYS_DIM, Tokens.SYS_ACCENT, Tokens.SYS_FAULT,
+			Tokens.LOG_SAID, Tokens.LOG_WHISPER, Tokens.LOG_GAME, Tokens.LOG_MACHINE]:
 		assert_float(contrast(color, Tokens.SYS_BG)).is_greater_equal(READABLE)
 
 

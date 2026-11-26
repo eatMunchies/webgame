@@ -19,7 +19,7 @@ The players around the table are those subjects. They don't need to know any of 
 | What it is | The memory the subjects are living | The machine running it, and its view of them |
 | Looks like | Parchment, iron-gall ink, wax seals, woodcut icons | Black glass, monospace, one cyan accent, scanlines |
 | Speaks like | A 1692 town clerk: plain, period, a little formal | A terminal: terse, lower case, `>` prompts |
-| Where | The roster, the clock, the chat, the role card, the will, the text box | The start screen, loading and phase-in, reconnecting, the chat's system lines, the customizer, every night minigame |
+| Where | The roster, the clock, the role card, the will, the text box | The start screen, loading and phase-in, reconnecting, the chat (its log of the session), the customizer, every night minigame |
 
 **Why night minigames belong to the machine:** at night the Loom tests its subjects. Skill checks and fights are its evaluations, so they show through its interface, not the town's.
 
@@ -38,7 +38,7 @@ Use these words for the machine's side; in-world text stays in Salem's own words
 | A skill check | evaluation | |
 | A fight | confrontation | an attack in the night |
 | Your role | assignment | your station / your calling |
-| The chat's system lines | log | |
+| The chat | the log | |
 
 ## Tone
 

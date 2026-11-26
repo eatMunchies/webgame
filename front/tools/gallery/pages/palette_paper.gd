@@ -46,10 +46,6 @@ func build(stage: Control, _variant: String) -> void:
 		["town", Tokens.FACTION_TOWN], ["mafia", Tokens.FACTION_MAFIA],
 		["neutral", Tokens.FACTION_NEUTRAL],
 	], paper, true))
-	flow.add_child(_group("Chat", [
-		["said", Tokens.CHAT_SAID], ["whisper", Tokens.CHAT_WHISPER],
-		["game", Tokens.CHAT_GAME], ["system", Tokens.CHAT_SYSTEM],
-	], paper, true))
 
 
 ## A heading over a column of swatches, each [name, color].

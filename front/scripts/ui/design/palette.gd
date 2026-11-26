@@ -12,10 +12,12 @@ extends RefCounted
 ## running it, black glass with one cold cyan.
 
 # Parchment, by day and by candlelight.
-const PAPER_RAISED := Color("#f2e8d2")
-const PAPER := Color("#e9dcc0")
-const PAPER_SUNKEN := Color("#d9c7a1")
+const PAPER_RAISED := Color("#eae0c8")
+const PAPER := Color("#e2d3b4")
+const PAPER_SUNKEN := Color("#d2bf98")
 const PAPER_EDGE := Color("#b89b6a")
+## The palest parchment, for lettering on wax, ink and seat dyes.
+const PAPER_LIGHT := Color("#f2e8d2")
 const PAPER_RAISED_NIGHT := Color("#e2cfa6")
 const PAPER_NIGHT := Color("#dcc79c")
 const PAPER_SUNKEN_NIGHT := Color("#cdb589")
