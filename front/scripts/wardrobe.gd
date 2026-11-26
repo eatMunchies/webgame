@@ -170,11 +170,16 @@ func _build_stage() -> Control:
 	setup_label.theme_type_variation = "Accent"
 	setup_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(setup_label)
-	var name_label := Label.new()
-	name_label.text = PlayerProfile.username if PlayerProfile.username != "" else "unnamed subject"
-	name_label.theme_type_variation = "Title"
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(name_label)
+	var subject := PlayerProfile.username if PlayerProfile.username != "" else "unnamed subject"
+	if _portrait:
+		# On a phone the pedestal's height is precious: one line.
+		setup_label.text = "> subject setup: %s" % subject
+	else:
+		var name_label := Label.new()
+		name_label.text = subject
+		name_label.theme_type_variation = "Title"
+		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		column.add_child(name_label)
 
 	_stage = Stage.new()
 	_stage.size_flags_vertical = SIZE_EXPAND_FILL
