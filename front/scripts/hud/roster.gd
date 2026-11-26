@@ -81,7 +81,7 @@ var _needed := Label.new()
 func _ready() -> void:
 	super()
 	_apply_theme()
-	_needed.theme_type_variation = "Caption"
+	_needed.theme_type_variation = "Dim"
 	_needed.add_theme_color_override("font_color", Tokens.WAX)
 	_needed.add_theme_font_override("font", Fonts.BODY_BOLD)
 	_needed.visible = false
@@ -222,6 +222,7 @@ func _row(member: Dictionary, model: Dictionary, aimed: Array) -> HBoxContainer:
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label.clip_text = true
 	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	name_label.add_theme_font_size_override("font_size", Tokens.TYPE_NAME)
 	if member["is_me"]:
 		name_label.add_theme_color_override("font_color", Tokens.YOU)
 		name_label.add_theme_font_override("font", Fonts.BODY_BOLD)
@@ -229,7 +230,7 @@ func _row(member: Dictionary, model: Dictionary, aimed: Array) -> HBoxContainer:
 
 	# The note is never clipped; the name gives way instead.
 	var note := Label.new()
-	note.theme_type_variation = "Caption"
+	note.theme_type_variation = "Dim"
 	var votes: int = member["votes"]
 	if not alive:
 		# Struck through as well as greyed, so it reads without color too.

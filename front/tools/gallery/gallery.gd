@@ -21,6 +21,7 @@ const PAGES := [
 	preload("res://tools/gallery/pages/surfaces.gd"),
 	preload("res://tools/gallery/pages/icons.gd"),
 	preload("res://tools/gallery/pages/buttons.gd"),
+	preload("res://tools/gallery/pages/wax.gd"),
 	preload("res://tools/gallery/pages/fields.gd"),
 	preload("res://tools/gallery/pages/roster.gd"),
 	preload("res://tools/gallery/pages/in_game.gd"),

@@ -87,6 +87,10 @@ const TYPE_HEADING := 7
 const TYPE_BODY := 6
 ## What's being typed in the text box.
 const TYPE_BODY_LARGE := 8
+## A player's name where it's the thing you read: the roster's rows.
+const TYPE_NAME := 7
+## The primary action's words, set in IM Fell small caps on wax.
+const TYPE_SEAL := 8
 ## Small print that's never something to tap.
 const TYPE_CAPTION := 5
 const TYPE_MONO := 6

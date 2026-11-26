@@ -4,11 +4,16 @@ extends Control
 ## A player's number in a circle of their seat's dye (Tokens.seat), a
 ## parchment numeral in the middle: how a player is spotted at a glance, the
 ## same in the roster and before their lines in the chat. Two digits widen
-## the circle into a pill. The numeral is centered by the font's own
-## measurements, not its line box, so it sits in the middle of the dye.
+## the circle into a pill.
+##
+## The numeral is centered on its glyphs' actual outlines, measured from the
+## font (TextServer), not on the font's line box, whose ascent and descent
+## would leave it sitting low or high.
 
 ## How tall the badge is, in units; the numeral is sized to it.
-const HEIGHT := 9.0
+const HEIGHT := 10.0
+## The numeral's size, as a share of the badge's height.
+const NUMERAL_SHARE := 0.68
 
 @export var number := 1:
 	set(value):
@@ -43,15 +48,29 @@ func _draw() -> void:
 	draw_style_box(box, Rect2(Vector2.ZERO, size))
 
 	var font := Fonts.BODY_BOLD
-	var font_size := roundi(size.y * 0.72)
+	var font_size := maxi(1, roundi(size.y * NUMERAL_SHARE))
 	var text := str(number)
-	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	# The digits' own height is the font's ascent less its internal leading;
-	# center that, not the whole line box.
-	var ascent := font.get_ascent(font_size)
-	var digit_height := font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).y \
-			- font.get_descent(font_size)
-	var cap := minf(digit_height, ascent) * 0.92
-	var baseline := (size.y + cap) / 2.0
-	draw_string(font, Vector2((size.x - width) / 2.0, baseline), text,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Tokens.INK_ON_DARK)
+	var bounds := glyph_bounds(font, text, font_size)
+	# Place the outline's middle on the badge's middle.
+	var origin := size / 2.0 - bounds.get_center()
+	draw_string(font, origin, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Tokens.INK_ON_DARK)
+
+
+## The box the glyphs of `text` actually cover, relative to where drawing
+## starts on the baseline: y is negative above it.
+static func glyph_bounds(font: FontFile, text: String, font_size: int) -> Rect2:
+	var server := TextServerManager.get_primary_interface()
+	var rid := font.get_rids()[0]
+	var size := Vector2i(font_size, 0)
+	var bounds := Rect2()
+	var x := 0.0
+	for i in text.length():
+		var glyph := server.font_get_glyph_index(rid, font_size, text.unicode_at(i), 0)
+		# Metrics exist once the glyph is rendered at this size.
+		server.font_render_glyph(rid, size, glyph)
+		var offset := server.font_get_glyph_offset(rid, size, glyph)
+		var extent := server.font_get_glyph_size(rid, size, glyph)
+		var rect := Rect2(Vector2(x, 0) + offset, extent)
+		bounds = rect if i == 0 else bounds.merge(rect)
+		x += server.font_get_glyph_advance(rid, font_size, glyph).x
+	return bounds

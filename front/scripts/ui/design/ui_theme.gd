@@ -67,14 +67,9 @@ static func _build_paper(u: float) -> Theme:
 		"hover_pressed": [Tokens.SELECTED, Tokens.WAX, Tokens.INK_ON_DARK],
 		"disabled": [Tokens.paper_sunken, Tokens.INK_FAINT, Tokens.INK_FAINT],
 	}, 1, 0, u, Fonts.BODY)
-	# The primary action, sealed in wax.
-	_button(theme, "WaxButton", {
-		"normal": [Tokens.WAX, Tokens.WAX_PRESSED, Tokens.INK_ON_DARK],
-		"hover": [Tokens.WAX_HOVER, Tokens.WAX_PRESSED, Tokens.INK_ON_DARK],
-		"pressed": [Tokens.WAX_PRESSED, Tokens.WAX_PRESSED, Tokens.INK_ON_DARK],
-		"hover_pressed": [Tokens.WAX_PRESSED, Tokens.WAX_PRESSED, Tokens.INK_ON_DARK],
-		"disabled": [Tokens.paper_sunken, Tokens.INK_FAINT, Tokens.INK_FAINT],
-	}, 1, Tokens.SPACE_LG, u, Fonts.BODY_BOLD)
+	# The primary action, sealed in wax: no outline, softly rounded, a darker
+	# lip at the bottom as if pressed on; its words in IM Fell small caps.
+	_seal(theme, u)
 	_quiet_button(theme, "QuietButton", Tokens.INK_SECONDARY, Tokens.WAX, Tokens.INK_FAINT, u)
 	_quiet_button(theme, "IconButton", Tokens.INK, Tokens.WAX, Tokens.INK_FAINT, u)
 	theme.set_stylebox("hover", "IconButton", _box(Tokens.paper_sunken, Tokens.paper_sunken, 0, 0, Tokens.SPACE_XS, u))
@@ -206,6 +201,36 @@ static func _button(theme: Theme, type: String, states: Dictionary, border_units
 	theme.set_stylebox("focus", type, StyleBoxEmpty.new())
 	theme.set_font("font", type, font)
 	theme.set_font_size("font_size", type, _px(Tokens.TYPE_BODY, u))
+
+
+## The WaxButton variation: a seal of wax for the one primary action.
+static func _seal(theme: Theme, u: float) -> void:
+	theme.set_type_variation("WaxButton", "Button")
+	var states := {
+		"normal": Tokens.WAX, "hover": Tokens.WAX_HOVER, "pressed": Tokens.WAX_PRESSED,
+		"hover_pressed": Tokens.WAX_PRESSED, "disabled": Tokens.paper_sunken,
+	}
+	for state: String in states:
+		var box := seal_box(states[state], u)
+		if state == "disabled":
+			box.border_color = Tokens.paper_edge
+		theme.set_stylebox(state, "WaxButton", box)
+	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+		theme.set_color(key, "WaxButton", Tokens.INK_ON_DARK)
+	theme.set_color("font_disabled_color", "WaxButton", Tokens.INK_FAINT)
+	theme.set_stylebox("focus", "WaxButton", StyleBoxEmpty.new())
+	theme.set_font("font", "WaxButton", Fonts.HEADING)
+	theme.set_font_size("font_size", "WaxButton", _px(Tokens.TYPE_SEAL, u))
+
+
+## A wax seal's box in `fill`: no outline, softly rounded, a darker lip.
+static func seal_box(fill: Color, u: float) -> StyleBoxFlat:
+	var box := _box(fill, fill.darkened(0.35), 0, Tokens.SPACE_XS, Tokens.SPACE_MD, u)
+	box.border_width_bottom = maxi(1, roundi(1.5 * u))
+	box.content_margin_top = Tokens.SPACE_XS * u
+	box.content_margin_bottom = Tokens.SPACE_XS * u
+	box.anti_aliasing = true
+	return box
 
 
 ## A text-only button: no box, colored text.
