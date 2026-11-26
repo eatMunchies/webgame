@@ -2,6 +2,10 @@
 
 README.md is the full description of how the game, client, server and tools work, and it is kept current: read the parts you're touching first, and update it in the same commit as any change to behavior, layout or commands. It's written as plain, detailed prose; match that.
 
+## Look and feel
+
+docs/DESIGN.md is the design system: two visual layers (the simulated Salem in parchment and ink, and the machine running it in black glass and mono type; docs/LORE.md says why), the palette and type scale in `front/scripts/ui/design/`, the components in `front/scripts/ui/kit/`, and when to use a text box, card, sheet or notice. Build new UI from those tokens and components, never from color or size literals, and add a gallery page for it (`just gallery`).
+
 ## What the game is for
 
 - It's played **in person, around one table**, each player with a phone as their assistant. People talk out loud. The chat is mostly a record of what happened and the way terminal bots (`just cli`) talk; don't design features that need people to type.

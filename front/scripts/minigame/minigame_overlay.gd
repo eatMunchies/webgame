@@ -1,7 +1,11 @@
 class_name MinigameOverlay
-extends PanelContainer
+extends SystemPanel
 
-## The night's minigames, shown over the town while one is going.
+## The night's minigames, shown over the town while one is going. At night
+## the machine tests its subjects (docs/LORE.md), so this is its glass: the
+## game's name in its cyan, the time in mono, a skill check announced as an
+## "evaluation" and a fight as a "confrontation", and its colors (Tokens.SYS_*)
+## throughout.
 ##
 ## The server gives each living player one minigame per stage of the night.
 ## This shows it, takes the player's input, and reports through its signals;
@@ -54,14 +58,18 @@ signal fight_move(move: String)
 signal guard_changed(up: bool)
 
 const GOLD := SkillCheck.GOLD
-const YOU_COLOR := Color(0.45, 0.72, 1)
-const OPPONENT_COLOR := SkillCheck.MISS_COLOR
-const DAZED_COLOR := Color(0.55, 0.55, 0.6)
+const YOU_COLOR := Tokens.SYS_ACCENT
+const OPPONENT_COLOR := Tokens.SYS_FAULT
+const DAZED_COLOR := Tokens.SYS_DIM
+## The faint bars and pips not yet filled.
+const EMPTY_COLOR := Color(Tokens.SYS_TEXT, 0.15)
+## The masked opponent's head.
+const MASK_COLOR := Tokens.SYS_SURFACE
 const RESULT_TEXT := {
-	"passed": "Passed!",
-	"failed": "Failed. Your action won't work tonight.",
-	"won": "You won the fight!",
-	"lost": "You lost the fight.",
+	"passed": "evaluation passed",
+	"failed": "evaluation failed. your action won't work tonight.",
+	"won": "confrontation won",
+	"lost": "confrontation lost",
 }
 ## How long a hit flashes, in seconds.
 const FLASH_SECONDS := 0.25
@@ -70,8 +78,9 @@ const BUFFER_SECONDS := 0.35
 ## How long a popup ("HIT!", "BLOCKED!") floats, and how long a hit shakes.
 const POPUP_SECONDS := 0.7
 const SHAKE_SECONDS := 0.2
-const GRAB_COLOR := Color(1, 0.55, 0.45)
-const GUARD_COLOR := Color(0.85, 0.9, 1)
+const STRIKE_COLOR := Tokens.SYS_TEXT
+const GRAB_COLOR := Tokens.SYS_WARN
+const GUARD_COLOR := Tokens.SYS_TEXT
 
 ## The kinds of skill check to pick from when the chance counts.
 @export var skill_checks: Array[SkillCheckDef] = []
@@ -131,6 +140,8 @@ var _intro_ends_msec := 0
 
 
 func _ready() -> void:
+	theme = UiTheme.system()
+	super()
 	visible = false
 	canvas.draw.connect(_draw_canvas)
 	_rng.randomize()
@@ -246,6 +257,8 @@ func _start(new_kind: String) -> void:
 		_drop_practice()
 	if kind == "skill_check":
 		_start_check(false)
+	if kind == "skill_check" or kind == "fight":
+		glitch_in()
 	_intro_running = intro_seconds > 0.0 and (kind == "skill_check" or kind == "fight")
 	_intro_ends_msec = Time.get_ticks_msec() + int(intro_seconds * 1000)
 	if check != null and in_intro():
@@ -355,7 +368,7 @@ func _read_fight(view: Dictionary) -> void:
 		if now["hp"] < was["hp"]:
 			_hit_flash[side] = FLASH_SECONDS
 			var grabbed: bool = fight[other]["move"] == "grab"
-			_pop("GRABBED!" if grabbed else "HIT!", side, GRAB_COLOR if grabbed else GOLD)
+			_pop("GRABBED!" if grabbed else "HIT!", side, GRAB_COLOR if grabbed else STRIKE_COLOR)
 			if side == "you":
 				_shake_left = SHAKE_SECONDS
 		elif now["staggered_ms"] > 0 and was["staggered_ms"] == 0:
@@ -376,7 +389,7 @@ func _update_text() -> void:
 		"skill_check":
 			title.text = check.title() if check != null else "Skill check"
 		"fight":
-			title.text = "Fight"
+			title.text = "confrontation"
 		"passive":
 			title.text = check.title() if check != null else "Practice"
 	result_label.text = RESULT_TEXT.get(result, "")
@@ -395,6 +408,8 @@ func _update_text() -> void:
 	# Practice is titled by the game being played, even after a decided fight.
 	if practicing() and check != null:
 		title.text = check.title()
+	# The machine names things in lower case.
+	title.text = title.text.to_lower()
 	time_left.visible = not practicing() and kind != "fight"
 
 
@@ -448,19 +463,20 @@ func _draw_canvas() -> void:
 		_draw_fight()
 
 
-## "Skill Check" or "Fight starting" over a big 3, 2, 1, each number
+## "> evaluation" or "> confrontation" over a big 3, 2, 1, each number
 ## fading as its second runs out.
 func _draw_intro() -> void:
-	var font := ThemeDB.fallback_font
+	var font := Fonts.MONO
 	var middle := canvas.size / 2
-	var heading := "Fight starting" if kind == "fight" else "Skill Check"
-	_draw_centered(font, heading, middle + Vector2(0, -16), 10, GOLD)
+	var heading := "> confrontation" if kind == "fight" else "> evaluation"
+	_draw_centered(font, heading, middle + Vector2(0, -18), Tokens.TYPE_MONO + 1, Tokens.SYS_ACCENT)
 	if kind == "skill_check" and check != null:
-		_draw_centered(font, check.title(), middle + Vector2(0, -5), 7, Color.WHITE)
+		_draw_centered(font, check.title().to_lower(), middle + Vector2(0, -8), Tokens.TYPE_MONO_SMALL, Tokens.SYS_DIM)
 	var intro_left := _intro_left()
 	var second := maxi(ceili(intro_left), 1)
 	var fade := intro_left - (second - 1)
-	_draw_centered(font, str(second), middle + Vector2(0, 14), 22, Color(1, 1, 1, 0.35 + 0.65 * fade))
+	_draw_centered(Fonts.MONO_BOLD, str(second), middle + Vector2(0, 14), Tokens.TYPE_MONO_HUGE,
+			Color(Tokens.SYS_TEXT, 0.35 + 0.65 * fade))
 
 
 ## Draws `text` with its middle at `center`.
@@ -480,7 +496,7 @@ func _draw_fight() -> void:
 	var feet := {"you": Vector2(size.x * 0.3, ground), "opponent": Vector2(size.x * 0.7, ground)}
 	_draw_fighter(fight["you"], feet["you"], 1, YOU_COLOR, "you", false)
 	_draw_fighter(fight["opponent"], feet["opponent"], -1, OPPONENT_COLOR, "opponent", true)
-	var font := ThemeDB.fallback_font
+	var font := Fonts.MONO
 	for popup in _popups:
 		var t: float = popup["age"] / POPUP_SECONDS
 		var at: Vector2 = feet[popup["side"]] + Vector2(0, -62 - 10 * t)
@@ -494,7 +510,7 @@ func _draw_fight() -> void:
 ## left when -1. The opponent wears a mask.
 func _draw_fighter(fighter: Dictionary, feet: Vector2, facing: int, color: Color,
 		side: String, masked: bool) -> void:
-	var font := ThemeDB.fallback_font
+	var font := Fonts.MONO
 	var dazed: bool = fighter["staggered_ms"] > 0
 	var body_color := DAZED_COLOR if dazed else color
 	if _hit_flash[side] > 0.0:
@@ -502,15 +518,15 @@ func _draw_fighter(fighter: Dictionary, feet: Vector2, facing: int, color: Color
 	var body := Rect2(feet + Vector2(-6, -26), Vector2(12, 26))
 	canvas.draw_rect(body, body_color)
 	var head := feet + Vector2(0, -32)
-	canvas.draw_circle(head, 6, Color(0.1, 0.1, 0.12) if masked else body_color)
+	canvas.draw_circle(head, 6, MASK_COLOR if masked else body_color)
 	if masked:
-		canvas.draw_string(font, head + Vector2(-2.5, 3), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color.WHITE)
+		canvas.draw_string(font, head + Vector2(-2.5, 3), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Tokens.SYS_TEXT)
 
 	# Hits left, as pips over the head.
 	var max_hp: int = fight.get("max_hp", 3)
 	for i in max_hp:
 		var pip := Rect2(feet + Vector2(-max_hp * 3.5 + i * 7, -46), Vector2(5, 4))
-		canvas.draw_rect(pip, color if i < fighter["hp"] else Color(1, 1, 1, 0.15))
+		canvas.draw_rect(pip, color if i < fighter["hp"] else EMPTY_COLOR)
 
 	var shoulder := feet + Vector2(6 * facing, -20)
 	var move: String = fighter["move"]
@@ -518,7 +534,7 @@ func _draw_fighter(fighter: Dictionary, feet: Vector2, facing: int, color: Color
 		# The windup grows the arm toward the other fighter and fills a bar
 		# over its head, so it can be read and answered in time: guard a
 		# strike, strike a grab.
-		var move_color := GOLD if move == "strike" else GRAB_COLOR
+		var move_color := STRIKE_COLOR if move == "strike" else GRAB_COLOR
 		var windup := maxf(float(fighter["windup_ms"]), 1.0)
 		var progress := clampf(1.0 - float(fighter["lands_in_ms"]) / windup, 0.0, 1.0)
 		var reach := 6.0 + 18.0 * progress
@@ -528,7 +544,7 @@ func _draw_fighter(fighter: Dictionary, feet: Vector2, facing: int, color: Color
 			canvas.draw_line(shoulder, shoulder + Vector2(reach * facing, -5), move_color, 2.0)
 			canvas.draw_line(shoulder, shoulder + Vector2(reach * facing, 5), move_color, 2.0)
 		var bar := Rect2(feet + Vector2(-12, -54), Vector2(24, 3))
-		canvas.draw_rect(bar, Color(1, 1, 1, 0.15))
+		canvas.draw_rect(bar, EMPTY_COLOR)
 		canvas.draw_rect(Rect2(bar.position, Vector2(bar.size.x * progress, bar.size.y)), move_color)
 		_draw_centered(font, move.to_upper(), feet + Vector2(0, 8), 8, move_color)
 	elif fighter["guarding"]:
@@ -543,7 +559,7 @@ func _draw_fighter(fighter: Dictionary, feet: Vector2, facing: int, color: Color
 		var rising_color := Color(GUARD_COLOR, 0.35)
 		canvas.draw_rect(Rect2(feet + Vector2(9 * facing - 1.5, -6 - 24 * raise), Vector2(3, 24 * raise)), rising_color)
 		var bar := Rect2(feet + Vector2(-12, -54), Vector2(24, 3))
-		canvas.draw_rect(bar, Color(1, 1, 1, 0.15))
+		canvas.draw_rect(bar, EMPTY_COLOR)
 		canvas.draw_rect(Rect2(bar.position, Vector2(bar.size.x * raise, bar.size.y)), GUARD_COLOR)
 		_draw_centered(font, "GUARD", feet + Vector2(0, 8), 8, rising_color)
 	elif dazed:

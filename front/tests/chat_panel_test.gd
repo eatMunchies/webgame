@@ -28,3 +28,17 @@ func test_the_box_does_not_name_the_channel() -> void:
 	# The channel (town, jail, mafia, dead) would give a player's role away.
 	var panel := chat_panel()
 	assert_object(panel.find_child("Channel", true, false)).is_null()
+
+
+func test_a_speakers_number_is_left_to_their_badge() -> void:
+	var panel := chat_panel()
+	panel.log_view.clear()
+	panel.show_lines([{"text": "Bram (2): I was home (all night).", "kind": "chat", "lot": 1}])
+	assert_str(panel.log_view.get_parsed_text().strip_edges()).is_equal("Bram: I was home (all night).")
+
+
+func test_the_machine_speaks_after_a_prompt() -> void:
+	var panel := chat_panel()
+	panel.log_view.clear()
+	panel.show_lines([{"text": "Connected as Ada.", "kind": "system", "lot": -1}])
+	assert_str(panel.log_view.get_parsed_text().strip_edges()).is_equal("> Connected as Ada.")

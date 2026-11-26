@@ -40,8 +40,8 @@ const DOOR_GLOW := Color(1.2, 1.2, 1.12)
 ## The hint over the house saying how to go in: a click on it, or on a touch
 ## screen a tap. It shows, pulsing gently, while the player is within
 ## HINT_REACH of the door.
-const CLICK_HINT := "Click to Customize"
-const TAP_HINT := "Tap to Customize"
+const CLICK_HINT := "> click to customize"
+const TAP_HINT := "> tap to customize"
 const HINT_REACH := 48.0
 ## How far above the owner's name the hint sits, in world pixels.
 const HINT_GAP := 2.0
@@ -74,7 +74,12 @@ func _ready() -> void:
 	# The panel's flow was picked when it entered the tree, before the
 	# scaling above changed the screen's shape in units.
 	$UI/Shell.refresh()
-	$UI/Shell.theme = HudStyle.build()
+	# The start screen is the machine's (docs/LORE.md): its glass and type.
+	$UI/Shell.theme = UiTheme.system()
+	# Typed text is the body size here, so the panel fits a phone; typing
+	# happens in the larger text box anyway.
+	for field: LineEdit in [name_input, code_input]:
+		field.add_theme_font_size_override("font_size", Tokens.TYPE_MONO)
 	house.appearance = _shown_house()
 	player.character.appearance = PlayerProfile.appearance
 	player.position = house.position + DOOR_SPOT
@@ -88,11 +93,11 @@ func _ready() -> void:
 	# The name and code boxes type in a box in the middle of the screen,
 	# clear of a phone's keyboard. The code's has Paste, for a code sent in a
 	# message.
-	_prompt = TextPrompt.create($UI)
-	_prompt.attach(name_input, "Your name", false, {"always": true})
-	_prompt.attach(code_input, "Lobby code", true, {"always": true, "paste": true, "confirm": "Join"})
+	_prompt = TextPrompt.create($UI, true)
+	_prompt.attach(name_input, "subject name", false, {"always": true, "confirm": "done"})
+	_prompt.attach(code_input, "session key", true, {"always": true, "paste": true, "confirm": "join"})
 	# Say why the player is back here, if they were dropped from a lobby.
-	status_label.text = Session.last_error
+	_status(Session.last_error, true)
 	Session.last_error = ""
 	_follow_launch_options()
 
@@ -104,15 +109,23 @@ func _process(_delta: float) -> void:
 	_update_hint()
 
 
+## Says how a request is going under the panel: dim, or a failure in the
+## machine's fault color.
+func _status(text: String, fault := false) -> void:
+	status_label.text = text
+	status_label.add_theme_color_override("font_color", Tokens.SYS_FAULT if fault else Tokens.SYS_DIM)
+
+
 func _add_hint() -> void:
 	_hint.text = TAP_HINT if _touch else CLICK_HINT
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hint.z_index = 2
-	_hint.add_theme_font_size_override("font_size", 8)
-	_hint.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
-	_hint.add_theme_color_override("font_outline_color", Color.BLACK)
-	_hint.add_theme_constant_override("outline_size", 2)
+	_hint.add_theme_font_override("font", Fonts.MONO_BOLD)
+	_hint.add_theme_font_size_override("font_size", Tokens.TYPE_MONO)
+	_hint.add_theme_color_override("font_color", Tokens.SYS_ACCENT)
+	_hint.add_theme_color_override("font_outline_color", Tokens.SYS_BG)
+	_hint.add_theme_constant_override("outline_size", 3)
 	house.get_parent().add_child(_hint)
 
 
@@ -228,7 +241,7 @@ func _begin_request() -> void:
 	PlayerProfile.username = name_input.text.strip_edges()
 	PlayerProfile.save()
 	_waiting = true
-	status_label.text = "Connecting..."
+	_status("> connecting...")
 	_update_buttons()
 
 
@@ -278,12 +291,12 @@ func _on_session_request_failed(message: String) -> void:
 	if not _waiting:
 		return
 	_waiting = false
-	status_label.text = message
+	_status(message, true)
 	_update_buttons()
 
 
 func _on_name_input_text_changed(new_text: String) -> void:
-	status_label.text = ""
+	_status("")
 	house.owner_name = new_text.strip_edges()
 	_update_buttons()
 
@@ -296,7 +309,7 @@ func _on_code_input_text_changed(new_text: String) -> void:
 		var caret := code_input.caret_column
 		code_input.text = clean
 		code_input.caret_column = mini(caret, clean.length())
-	status_label.text = ""
+	_status("")
 	_update_buttons()
 
 

@@ -56,7 +56,15 @@ var _log_lines: Array[String] = []
 
 func _ready() -> void:
 	ScreenScale.for_world(get_window())
-	theme = HudStyle.build()
+	# The machine's screen, like the start screen it opens from.
+	theme = UiTheme.system()
+	$Background.color = Tokens.SYS_BG
+	# Plex Mono runs wider and taller than the old face; the list's buttons
+	# take the small mono size so it fits as before.
+	var compact := Theme.new()
+	compact.set_font_size("font_size", "Button", Tokens.TYPE_MONO_SMALL)
+	compact.set_font_size("font_size", "CheckBox", Tokens.TYPE_MONO_SMALL)
+	$Menu.theme = compact
 	_rng.randomize()
 	defs = find_defs()
 	_add_button("Night", play_night)

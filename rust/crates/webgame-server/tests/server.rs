@@ -468,16 +468,18 @@ async fn a_dropped_player_keeps_their_seat_in_the_lobby() {
     else {
         unreachable!()
     };
-    let seat = info.members.iter().find(|m| m.name == "Bram").expect("Bram keeps a seat");
+    let seat = info
+        .members
+        .iter()
+        .find(|m| m.name == "Bram")
+        .expect("Bram keeps a seat");
     assert!(!seat.connected);
     let slot = seat.slot;
 
     // Coming back under the same name puts them back in that seat.
     let mut back = Client::connect(addr, "Bram").await;
     back.send(ClientMessage::JoinLobby { code }).await;
-    let ServerMessage::Lobby(info) = back
-        .wait(|m| matches!(m, ServerMessage::Lobby(_)))
-        .await
+    let ServerMessage::Lobby(info) = back.wait(|m| matches!(m, ServerMessage::Lobby(_))).await
     else {
         unreachable!()
     };

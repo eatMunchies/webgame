@@ -7,8 +7,8 @@ extends Control
 ##
 ## Three parts, which an AspectFlowContainer (Shell) puts side by side on a
 ## wide screen and one above the other on a tall one:
-## - Info: the day or night, its stage and the time left (PhaseClock), and
-##   the lobby bar the town hands over (code, Copy, Leave). On a wide screen
+## - Info: the day or night, its stage and the time left, and the town's
+##   code with Copy and Leave, on one sheet (PhaseClock). On a wide screen
 ##   the chat (ChatPanel) fills the rest of this column.
 ## - Middle: where the town shows through (WorldSpace). The town centers its
 ##   camera there (see town.gd) and puts its touch joystick and the night's
@@ -34,8 +34,9 @@ extends Control
 ## screen, clear of a phone's keyboard: whispering from the roster, writing
 ## the last will (with Paste), and on a touch screen the chat's own box.
 ##
-## Every panel shares HudStyle's theme, set here so the scene file stays
-## free of styles.
+## Each panel carries its own layer's theme (UiTheme.paper() or
+## UiTheme.system(), see docs/DESIGN.md); the HUD's own is the paper one,
+## for anything placed straight under it.
 
 ## The gap between the parts on a wide screen.
 const SECTION_GAP := 2
@@ -54,6 +55,10 @@ const TAB_RADIUS := 6
 ## On a tall screen, the share of the town's part a night minigame takes,
 ## at the bottom, under the chat.
 const MINIGAME_SHARE := 0.5
+## What the machine says while the connection is down (see docs/LORE.md).
+const RECONNECTING_LINES: PackedStringArray = ["desync detected, resyncing", "hold on, getting you back in"]
+## The will and role buttons' icons, in units.
+const ROW_ICON := 11
 const WILL_TITLE := "Last will"
 const WILL_PLACEHOLDER := "Everyone reads this when you die. N1: checked 3, not suspicious"
 
@@ -72,6 +77,12 @@ const WILL_PLACEHOLDER := "Everyone reads this when you die. N1: checked 3, not 
 @onready var minigame_space: Control = %MinigameSpace
 
 var prompt: TextPrompt
+## The Last will and role card buttons' row, on the paper theme.
+var _buttons_row: HBoxContainer
+## The candle the paper parts were last styled for.
+var _paper_candle := -1.0
+## The machine's notice at the top of the town: resyncing after a drop.
+var notice := Notice.new()
 var role_card: RoleCard
 ## The tall screen's tab on the chat sheet's top edge.
 var chat_tab := Button.new()
@@ -79,7 +90,6 @@ var role_button := Button.new()
 ## Whether a game was running at the last check, to show the role card when
 ## one starts.
 var _was_in_game := false
-var _band := HudStyle.band_box()
 ## On a tall screen, how much of the town the chat sheet covers, 0 to 1.
 var _sheet := 1.0
 ## Whether the player wants the sheet open; a minigame hides it meanwhile.
@@ -99,12 +109,13 @@ var _keyboard_was := false
 
 
 func _ready() -> void:
-	theme = HudStyle.build()
+	theme = UiTheme.paper()
 	prompt = TextPrompt.create(self)
 	role_card = RoleCard.create(self)
 	chat_panel.prompt = prompt
 	_add_buttons()
 	_add_chat_tab()
+	_add_notice()
 	will_button.pressed.connect(_open_will)
 	roster.whisper_requested.connect(_whisper)
 	chat_panel.line_added.connect(_on_chat_line_added)
@@ -121,10 +132,35 @@ func _ready() -> void:
 	_apply_layout()
 
 
-## Puts the lobby bar in the Info column, under the clock.
-func add_lobby_bar(bar: Control) -> void:
-	bar.reparent(info_box, false)
-	info_box.move_child(bar, 1)
+func _process(_delta: float) -> void:
+	# The paper parts the HUD draws itself follow day and night.
+	if not is_equal_approx(_paper_candle, Tokens.candle):
+		_apply_paper()
+
+
+func _apply_paper() -> void:
+	_paper_candle = Tokens.candle
+	if _buttons_row != null:
+		_buttons_row.theme = UiTheme.paper()
+	chat_tab.queue_redraw()
+
+
+## The notice hangs from the top middle of the town's part, over the town
+## (and on a tall screen under the faded clock).
+func _add_notice() -> void:
+	world_space.add_child(notice)
+	notice.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE,
+			Tokens.SPACE_MD)
+	notice.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	Session.reconnecting_changed.connect(_update_notice)
+	_update_notice()
+
+
+func _update_notice() -> void:
+	if Session.reconnecting:
+		notice.say(RECONNECTING_LINES)
+	else:
+		notice.clear()
 
 
 func _apply_layout() -> void:
@@ -132,7 +168,7 @@ func _apply_layout() -> void:
 	# Stacked, the parts sit flush, so the chat tab rests right on what's
 	# under it.
 	shell.add_theme_constant_override("separation", 0 if tall else SECTION_GAP)
-	info.add_theme_stylebox_override("panel", _band if tall else StyleBoxEmpty.new())
+	info.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	info.custom_minimum_size.x = 0.0 if tall else INFO_WIDTH
 	side.custom_minimum_size.x = 0.0 if tall else SIDE_WIDTH
 	# The roster fills its column on a wide screen; on a tall one it is as
@@ -225,27 +261,33 @@ func _slide_sheet(to: float) -> void:
 
 
 ## The chat tab: a small tab, well rounded on top, with three stacked bars
-## to grab, riding on the sheet's top edge. A gold dot on its corner says
+## to grab, riding on the sheet's top edge, in the log's glass. A cyan dot says
 ## new lines came in while the chat was down.
 func _add_chat_tab() -> void:
 	chat_tab.focus_mode = Control.FOCUS_NONE
 	chat_tab.tooltip_text = "Chat"
-	for state in ["normal", "hover", "pressed", "hover_pressed"]:
-		var box := HudStyle.panel_box()
+	for state in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+		chat_tab.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+	# A tongue of the log's own glass.
+	chat_tab.draw.connect(func() -> void:
+		var box := StyleBoxFlat.new()
+		box.bg_color = Color(Tokens.SYS_BG, Tokens.LOG_GLASS_ALPHA)
+		box.border_color = Tokens.SYS_LINE
+		box.border_width_left = 1
+		box.border_width_top = 1
+		box.border_width_right = 1
 		box.corner_radius_top_left = TAB_RADIUS
 		box.corner_radius_top_right = TAB_RADIUS
-		box.corner_radius_bottom_left = 0
-		box.corner_radius_bottom_right = 0
-		box.border_width_bottom = 0
-		if state.begins_with("hover"):
-			box.border_color = RpgTheme.GOLD_BRIGHT
-		chat_tab.add_theme_stylebox_override(state, box)
-	chat_tab.draw.connect(func() -> void:
+		box.anti_aliasing = true
+		chat_tab.draw_style_box(box, Rect2(Vector2.ZERO, chat_tab.size + Vector2(0, 1)))
 		var x := roundf(chat_tab.size.x / 2.0)
+		var bars := Tokens.SYS_ACCENT if chat_tab.is_hovered() else Tokens.SYS_DIM
 		for y in [4.5, 7.5, 10.5]:
-			chat_tab.draw_line(Vector2(x - 6, y), Vector2(x + 6, y), RpgTheme.TEXT, 1.0)
+			chat_tab.draw_line(Vector2(x - 6, y), Vector2(x + 6, y), bars, 1.0)
 		if _unread > 0 and _sheet <= 0.5:
-			chat_tab.draw_circle(Vector2(chat_tab.size.x - 5, 4), 2.0, RpgTheme.GOLD_BRIGHT))
+			chat_tab.draw_circle(Vector2(chat_tab.size.x - 5, 4), 2.0, Tokens.SYS_ACCENT))
+	chat_tab.mouse_entered.connect(chat_tab.queue_redraw)
+	chat_tab.mouse_exited.connect(chat_tab.queue_redraw)
 	chat_tab.gui_input.connect(_on_handle_input)
 	middle.add_child(chat_tab)
 
@@ -253,14 +295,26 @@ func _add_chat_tab() -> void:
 ## The Last will and role card buttons, side by side under the roster.
 func _add_buttons() -> void:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 2)
+	row.add_theme_constant_override("separation", Tokens.SPACE_XS)
+	_buttons_row = row
 	side.add_child(row)
 	will_button.reparent(row, false)
-	role_button.icon = preload("res://assets/sprites/ui/role.png")
+	will_button.icon = Icons.get_icon("will")
+	role_button.icon = Icons.get_icon("role")
 	role_button.tooltip_text = "Your role"
 	role_button.focus_mode = Control.FOCUS_NONE
 	role_button.pressed.connect(role_card.open)
 	row.add_child(role_button)
+	# Stamped paper buttons with woodcut icons, in ink (paper when pressed).
+	for button: Button in [will_button, role_button]:
+		button.custom_minimum_size = Vector2(Tokens.TOUCH_MIN + Tokens.SPACE_SM, Tokens.TOUCH_MIN)
+		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.add_theme_constant_override("icon_max_width", ROW_ICON)
+		for state in ["icon_normal_color", "icon_hover_color", "icon_focus_color"]:
+			button.add_theme_color_override(state, Tokens.INK)
+		for state in ["icon_pressed_color", "icon_hover_pressed_color"]:
+			button.add_theme_color_override(state, Tokens.INK_ON_DARK)
+	_apply_paper()
 
 
 ## Shows the role card when a game starts (or when joining one in progress).

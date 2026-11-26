@@ -18,7 +18,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.09, 0.07, 0.06, 1)
+color = Color(0.039, 0.055, 0.063, 1)
 
 [node name="Menu" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -33,8 +33,8 @@ theme_override_constants/separation = 2
 
 [node name="Title" type="Label" parent="Menu"]
 layout_mode = 2
-theme_type_variation = &"HudTitle"
-text = "Minigames"
+theme_type_variation = &"Heading"
+text = "evaluations"
 
 [node name="List" type="VBoxContainer" parent="Menu"]
 unique_name_in_owner = true
@@ -45,12 +45,12 @@ theme_override_constants/separation = 1
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
-text = "Practice"
+text = "practice"
 
 [node name="AgainButton" type="Button" parent="Menu"]
 layout_mode = 2
 focus_mode = 0
-text = "Again"
+text = "again"
 
 [node name="Spacer" type="Control" parent="Menu"]
 layout_mode = 2
@@ -59,7 +59,7 @@ size_flags_vertical = 3
 [node name="BackButton" type="Button" parent="Menu"]
 layout_mode = 2
 focus_mode = 0
-text = "Back"
+text = "back"
 
 [node name="Stage" type="Control" parent="."]
 unique_name_in_owner = true
@@ -85,7 +85,7 @@ offset_left = 8.0
 offset_right = -8.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_type_variation = &"HudTitle"
+theme_type_variation = &"Heading"
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 3
@@ -101,7 +101,7 @@ offset_top = 2.0
 offset_right = 81.0
 offset_bottom = 15.0
 grow_horizontal = 2
-theme_type_variation = &"HudHeading"
+theme_type_variation = &"Heading"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -121,20 +121,20 @@ theme_override_constants/separation = 4
 
 [node name="ControlsHeading" type="Label" parent="Info"]
 layout_mode = 2
-theme_type_variation = &"HudHeading"
-text = "Controls"
+theme_type_variation = &"Heading"
+text = "controls"
 
 [node name="Controls" type="Label" parent="Info"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(72, 0)
 layout_mode = 2
-theme_type_variation = &"HudDim"
+theme_type_variation = &"Dim"
 autowrap_mode = 3
 
 [node name="LogHeading" type="Label" parent="Info"]
 layout_mode = 2
-theme_type_variation = &"HudHeading"
-text = "Log"
+theme_type_variation = &"Heading"
+text = "log"
 
 [node name="Log" type="Label" parent="Info"]
 unique_name_in_owner = true

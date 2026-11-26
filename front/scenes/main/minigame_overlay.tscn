@@ -10,22 +10,6 @@
 [ext_resource type="Resource" path="res://skill_checks/fruit.tres" id="8_fruit"]
 [ext_resource type="Resource" path="res://skill_checks/blackjack.tres" id="9_blackjack"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBox_panel"]
-content_margin_left = 3.0
-content_margin_top = 3.0
-content_margin_right = 3.0
-content_margin_bottom = 3.0
-bg_color = Color(0.06, 0.06, 0.1, 0.9)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(1, 0.8, 0.3, 0.6)
-corner_radius_top_left = 2
-corner_radius_top_right = 2
-corner_radius_bottom_right = 2
-corner_radius_bottom_left = 2
-
 [node name="MinigameOverlay" type="PanelContainer"]
 anchor_left = 0.5
 anchor_right = 0.5
@@ -36,7 +20,6 @@ offset_right = 60.0
 offset_bottom = -2.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBox_panel")
 script = ExtResource("1_script")
 skill_checks = Array[ExtResource("3_def")]([ExtResource("2_wheel"), ExtResource("4_typing"), ExtResource("6_flappy"), ExtResource("7_golf"), ExtResource("8_fruit"), ExtResource("9_blackjack")])
 practice_checks = Array[ExtResource("3_def")]([ExtResource("4_typing"), ExtResource("5_memory"), ExtResource("6_flappy"), ExtResource("7_golf"), ExtResource("8_fruit"), ExtResource("9_blackjack")])
@@ -52,14 +35,13 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(1, 0.8, 0.3, 1)
-theme_override_font_sizes/font_size = 8
+theme_type_variation = &"Heading"
 text = "Skill check"
 
 [node name="TimeLeft" type="Label" parent="Rows/Header"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 7
+theme_type_variation = &"Mono"
 text = "0.0s"
 
 [node name="Canvas" type="Control" parent="Rows"]
@@ -70,7 +52,7 @@ size_flags_vertical = 3
 [node name="Result" type="Label" parent="Rows"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 7
+theme_type_variation = &"Body"
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -84,22 +66,19 @@ theme_override_constants/separation = 2
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
-theme_override_font_sizes/font_size = 7
-text = "Strike (J)"
+text = "strike (J)"
 
 [node name="GrabButton" type="Button" parent="Rows/FightButtons"]
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
-theme_override_font_sizes/font_size = 7
-text = "Grab (K)"
+text = "grab (K)"
 
 [node name="GuardButton" type="Button" parent="Rows/FightButtons"]
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
-theme_override_font_sizes/font_size = 7
-text = "Guard (L)"
+text = "guard (L)"
 
 [connection signal="pressed" from="Rows/FightButtons/StrikeButton" to="." method="_on_strike_button_pressed"]
 [connection signal="pressed" from="Rows/FightButtons/GrabButton" to="." method="_on_grab_button_pressed"]

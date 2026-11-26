@@ -17,11 +17,11 @@ func _ready() -> void:
 
 func _footer_buttons() -> Array[Button]:
 	var cancel := Button.new()
-	cancel.text = "Cancel"
+	cancel.text = "cancel"
 	cancel.pressed.connect(_on_cancel_pressed)
 	var save := Button.new()
-	save.text = "Save"
-	save.theme_type_variation = "PrimaryButton"
+	save.text = "save"
+	save.theme_type_variation = "SysPrimary"
 	save.pressed.connect(_on_save_pressed)
 	return [cancel, save]
 

@@ -5,12 +5,14 @@ extends SkillCheck
 ## Fruit Ninja and Blackjack. Each game's model works in field units (FIELD,
 ## 140 by 100), and this fits the field to whatever room the overlay gives,
 ## centered and scaled evenly, so a game never has to know the panel's size.
+## The field is the simulation's: dark, a faint grid, a thin edge.
 ##
 ## A kind draws after fit_field() and turns taps and swipes into field
 ## units with to_field().
 
 const FIELD := Vector2(140, 100)
-const SKY := Color(0.1, 0.11, 0.18)
+## The field's grid, every this many field units.
+const GRID_STEP := 10.0
 
 
 ## How much the field is scaled to fit.
@@ -31,7 +33,12 @@ func fit_field() -> void:
 	RenderingServer.canvas_item_set_custom_rect(item, true, Rect2(field_corner(), FIELD * field_scale()))
 	RenderingServer.canvas_item_set_clip(item, true)
 	field_transform()
-	draw_rect(Rect2(Vector2.ZERO, FIELD), SKY)
+	draw_rect(Rect2(Vector2.ZERO, FIELD), SIM_FIELD)
+	for x in range(1, int(FIELD.x / GRID_STEP)):
+		draw_line(Vector2(x * GRID_STEP, 0), Vector2(x * GRID_STEP, FIELD.y), SIM_GRID, 0.3)
+	for y in range(1, int(FIELD.y / GRID_STEP)):
+		draw_line(Vector2(0, y * GRID_STEP), Vector2(FIELD.x, y * GRID_STEP), SIM_GRID, 0.3)
+	draw_rect(Rect2(Vector2.ZERO, FIELD), SIM_EDGE, false, 0.5)
 
 
 ## Draws from here on in field units, without painting the background, as
@@ -48,7 +55,7 @@ func to_field(point: Vector2) -> Vector2:
 ## Draws text centered on `center`, in field units, outlined so it reads
 ## over anything.
 func draw_centered(text: String, center: Vector2, font_size: int, color: Color) -> void:
-	var font := ThemeDB.fallback_font
+	var font := Fonts.MONO
 	var at := Vector2(center.x - 200, center.y + font.get_ascent(font_size) / 2 - 1)
-	draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_CENTER, 400, font_size, 2, Color(0, 0, 0, 0.8))
+	draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_CENTER, 400, font_size, 2, Color(SIM_FIELD, 0.85))
 	draw_string(font, at, text, HORIZONTAL_ALIGNMENT_CENTER, 400, font_size, color)

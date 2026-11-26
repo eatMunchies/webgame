@@ -9,7 +9,8 @@ extends ArcadeCheck
 ##
 ## H, Left or Space hits; S, Right or Enter stands; or tap the buttons.
 
-const FELT := Color(0.1, 0.36, 0.2)
+## The room a right-aligned label has to its left.
+const LABEL_ROOM := 100.0
 const CARD_SIZE := Vector2(13, 18)
 const CARD_STEP := 9.0
 ## The buttons fill the bottom of the table, so they're easy to hit with a thumb.
@@ -134,20 +135,19 @@ func _gui_input(event: InputEvent) -> void:
 
 func _draw() -> void:
 	fit_field()
-	draw_rect(Rect2(Vector2.ZERO, FIELD), FELT)
 	var dealer_label := "Dealer %d" % game.dealer_shown_total()
 	_draw_label(dealer_label, Vector2(4, 9))
 	_draw_hand(game.dealer, Vector2(FIELD.x / 2, 12), game.hole_hidden)
 	_draw_label("You %d" % BlackjackGame.total(game.player), Vector2(4, 45))
 	_draw_hand(game.player, Vector2(FIELD.x / 2, 48), false)
 	if game.turn == "player":
-		_draw_label("Hit busts %d%%" % roundi(game.bust_chance() * 100), Vector2(FIELD.x - 52, 45))
+		_draw_label("Hit busts %d%%" % roundi(game.bust_chance() * 100), Vector2(FIELD.x - 4, 45), true)
 		_draw_button(HIT_RECT, "Hit")
 		_draw_button(STAND_RECT, "Stand")
 	elif game.turn == "over":
-		var color := GOLD if game.outcome in ["blackjack", "win"] else (Color.WHITE if game.outcome == "push" else MISS_COLOR)
+		var color := GOLD if game.outcome in ["blackjack", "win"] else (SIM_TEXT if game.outcome == "push" else MISS_COLOR)
 		draw_centered(OUTCOME_TEXT[game.outcome], Vector2(FIELD.x / 2, 89), 10, color)
-	_draw_label("Shoe %d" % game.shoe.size(), Vector2(FIELD.x - 32, 9))
+	_draw_label("Shoe %d" % game.shoe.size(), Vector2(FIELD.x - 4, 9), true)
 
 
 ## A hand fanned out, centered on `top_middle`.
@@ -161,14 +161,14 @@ func _draw_hand(hand: Array[int], top_middle: Vector2, hide_second: bool) -> voi
 func _draw_card(card: int, at: Vector2, face_down: bool) -> void:
 	var rect := Rect2(at, CARD_SIZE)
 	if face_down:
-		draw_rect(rect, Color(0.55, 0.15, 0.18))
-		draw_rect(rect.grow(-1.5), Color(0.8, 0.3, 0.3), false, 0.6)
-		draw_rect(rect, Color.BLACK, false, 0.5)
+		draw_rect(rect, SIM_FIELD)
+		draw_rect(rect.grow(-1.5), Tokens.SYS_ACCENT_DIM, false, 0.6)
+		draw_rect(rect, SIM_EDGE, false, 0.5)
 		return
-	draw_rect(rect, Color(0.97, 0.95, 0.9))
-	draw_rect(rect, Color(0, 0, 0, 0.5), false, 0.5)
-	var color := Color(0.8, 0.12, 0.15) if BlackjackGame.is_red(card) else Color(0.1, 0.1, 0.12)
-	draw_string(ThemeDB.fallback_font, at + Vector2(1.2, 6.5), BlackjackGame.rank_name(card),
+	draw_rect(rect, SIM_SOLID)
+	draw_rect(rect, SIM_EDGE, false, 0.5)
+	var color := SIM_DANGER if BlackjackGame.is_red(card) else SIM_TEXT
+	draw_string(Fonts.MONO, at + Vector2(1.2, 6.5), BlackjackGame.rank_name(card),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 6, color)
 	# Under the rank, where the next card in the hand doesn't cover it.
 	_draw_suit(card / 13 % 4, at + Vector2(4, 11), 2.4, color)
@@ -201,11 +201,14 @@ func _draw_suit(suit: int, center: Vector2, r: float, color: Color) -> void:
 			draw_line(center, center + Vector2(0, r), color, 0.7)
 
 
-func _draw_label(text: String, at: Vector2) -> void:
-	draw_string(ThemeDB.fallback_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 7, Color(1, 1, 1, 0.85))
+func _draw_label(text: String, at: Vector2, right := false) -> void:
+	if right:
+		draw_string(Fonts.MONO, at - Vector2(LABEL_ROOM, 0), text, HORIZONTAL_ALIGNMENT_RIGHT, LABEL_ROOM, 7, SIM_TEXT)
+	else:
+		draw_string(Fonts.MONO, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 7, SIM_TEXT)
 
 
 func _draw_button(rect: Rect2, text: String) -> void:
-	draw_rect(rect, Color(0.29, 0.21, 0.15))
-	draw_rect(rect, GOLD, false, 0.7)
-	draw_centered(text, rect.get_center(), 8, Color.WHITE)
+	draw_rect(rect, SIM_SOLID)
+	draw_rect(rect, SIM_PLAYER, false, 0.7)
+	draw_centered(text, rect.get_center(), 8, SIM_PLAYER)

@@ -13,13 +13,15 @@ extends Node2D
 ## out around a part of the screen it leaves for the town (its world_space),
 ## and the camera keeps the player in the middle of that part, at a zoom
 ## that keeps the pixel art square (ScreenScale.world_zoom). The town hands
-## the HUD its lobby bar (code, Copy, Leave) and puts its touch joystick in
-## that part, so dragging anywhere on the town walks.
+## puts its touch joystick in that part, so dragging anywhere on the town
+## walks.
 ##
 ## Houses are rebuilt whenever the lobby changes: when someone joins or
 ## leaves, and when someone dies, whose house goes grey. Each house is labeled
 ## with its owner's number, which is how commands like `/vote 3` name them.
-## The town darkens at night.
+## At night the town is candlelit: a warm pool of light where it shows
+## through the HUD, dark toward the edges (shaders/candle_vignette.gdshader),
+## and the parchment turns candlelit with it (Tokens.use_night).
 ##
 ## Everyone else in the lobby walks around here too. This player's position
 ## goes to the server a few times a second (only when it changes), and each
@@ -48,7 +50,9 @@ const DEAD_HOUSE_COLOR := Color(0.55, 0.55, 0.6)
 ## How see-through a dead player's own character is, as RemotePlayer draws
 ## other dead players.
 const DEAD_ALPHA := RemotePlayer.DEAD_ALPHA
-const NIGHT_COLOR := Color(0.42, 0.45, 0.7)
+const CANDLE_SHADER := preload("res://shaders/candle_vignette.gdshader")
+## The candle layer sits over the town and under the HUD (layer 2).
+const CANDLE_LAYER := 1
 const DAY_FADE_SECONDS := 1.5
 ## How long the start screen's floor takes to dissolve into the town, after
 ## showing for PHASE_IN_DELAY.
@@ -68,12 +72,6 @@ const ARRIVAL_PAN_SECONDS := 0.9
 @onready var player: CharacterBody2D = $World/Player
 @onready var houses: Node2D = %Houses
 @onready var world: Node2D = $World
-@onready var lobby_label: Label = %LobbyLabel
-@onready var bar: Control = $HUD/Bar
-
-@onready var copy_button: Button = %CopyButton
-
-@onready var copy_reset_timer: Timer = %CopyResetTimer
 @onready var camera: Camera2D = $World/Player/Camera2D
 @onready var joystick: Control = $HUD/Joystick
 ## The player's footprint, what bumps into houses.
@@ -84,7 +82,10 @@ const ARRIVAL_PAN_SECONDS := 0.9
 @onready var _camera_lift := camera.position
 ## The HUD, while in a lobby.
 var _hud: Control
-var _sky := CanvasModulate.new()
+## The candlelight over the town at night, on its own layer under the HUD.
+var _candle_layer := CanvasLayer.new()
+var _candle := ColorRect.new()
+var _candle_material := ShaderMaterial.new()
 var _minigame: MinigameOverlay
 ## The other players' characters, by lot.
 var _remote_players: Dictionary[int, RemotePlayer] = {}
@@ -117,7 +118,7 @@ func _ready() -> void:
 	$Bounds/Bottom.position.y = CulDeSac.SIZE.y
 	$World/Podium.position = CulDeSac.CENTER + PODIUM_OFFSET
 
-	add_child(_sky)
+	_add_candle()
 	_build_houses()
 	if Session.me == null:
 		player.position = ENTRANCE
@@ -134,14 +135,9 @@ func _ready() -> void:
 	Session.arrival_view_center = null
 	_let_out_of_houses()
 
-	copy_button.visible = Session.in_lobby()
-	# The lobby bar sits above the chat, so it shares the HUD's small look.
-	bar.theme = HudStyle.build()
-	_update_label()
 	if Session.in_lobby():
 		_hud = HUD_SCENE.instantiate()
 		$HUD.add_child(_hud)
-		_hud.add_lobby_bar(bar)
 		joystick.reparent(_hud.world_space, false)
 		_hud.world_space.move_child(joystick, 0)
 		joystick.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -177,6 +173,7 @@ func _on_session_minigame_changed() -> void:
 
 
 func _process(delta: float) -> void:
+	_aim_candle()
 	_frame_camera()
 	if _phase_floor != null:
 		_phase_floor.focus = player.position + PlazaFloor.FOCUS_LIFT
@@ -291,13 +288,6 @@ func _send_movement() -> void:
 		Session.client.send_movement(player.position, player.facing, player.velocity != Vector2.ZERO)
 
 
-func _update_label() -> void:
-	if not Session.in_lobby():
-		lobby_label.text = "Not in a lobby"
-	else:
-		# The player list marks the host, so the narrow bar only needs the code.
-		lobby_label.text = "Lobby %s" % Session.code
-
 
 ## Puts a house on every lot: the owner's house where someone lives, and a
 ## For Sale sign everywhere else.
@@ -328,7 +318,6 @@ func _on_session_lobby_changed() -> void:
 	_build_houses()
 	_lift_own_house()
 	_let_out_of_houses()
-	_update_label()
 	_sync_remote_players()
 
 
@@ -371,19 +360,43 @@ func _on_session_player_moved(lot: int, to: Vector2, facing: int, walking: bool)
 		remote.move_to(to, facing as Character.Facing, walking)
 
 
+func _add_candle() -> void:
+	_candle_layer.layer = CANDLE_LAYER
+	add_child(_candle_layer)
+	_candle_material.shader = CANDLE_SHADER
+	_candle_material.set_shader_parameter("night", Vector4.ZERO)
+	_candle_material.set_shader_parameter("glow", Tokens.NIGHT_CANDLE)
+	_candle_material.set_shader_parameter("dark", Tokens.NIGHT_DARK)
+	_candle.material = _candle_material
+	_candle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_candle.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_candle_layer.add_child(_candle)
+
+
+## Centers the candle's light on the part of the screen the town shows
+## through, reaching to its edges.
+func _aim_candle() -> void:
+	var screen := _candle.size
+	if screen.x <= 0.0 or screen.y <= 0.0:
+		return
+	var area := Rect2(Vector2.ZERO, screen)
+	if _hud != null:
+		area = _hud.world_space.get_global_rect()
+	var center := area.get_center() / screen
+	var reach := area.size / screen * 0.8
+	_candle_material.set_shader_parameter("pool", Vector4(center.x, center.y, reach.x, reach.y))
+
+
 func _update_sky() -> void:
-	var color := NIGHT_COLOR if Session.client.is_night() else Color.WHITE
-	create_tween().tween_property(_sky, "color", color, DAY_FADE_SECONDS)
+	var night: bool = Session.client.is_night()
+	Tokens.use_night(night)
+	var from: float = (_candle_material.get_shader_parameter("night") as Vector4).x
+	create_tween().tween_method(func(value: float) -> void:
+		_candle_material.set_shader_parameter("night", Vector4(value, 0, 0, 0)), from, 1.0 if night else 0.0,
+		DAY_FADE_SECONDS)
 
 
-func _on_leave_button_pressed() -> void:
-	Session.leave_lobby()
+func _exit_tree() -> void:
+	# The parchment of the screens after the town is daylit.
+	Tokens.use_night(false)
 
-
-func _on_copy_button_pressed() -> void:
-	DisplayServer.clipboard_set(Session.code)
-	copy_button.text = "Copied!"
-	copy_reset_timer.start()
-
-func _on_copy_reset_timer_timeout() -> void:
-	copy_button.text = "Copy"
