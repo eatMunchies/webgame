@@ -6,8 +6,8 @@ extends ParchmentPanel
 ## tall one (see hud.gd). docs/DESIGN.md has the rules it follows.
 ##
 ## From the top:
-## - the prompt, saying what to do now as a title ("The Town Votes", "Night
-##   Action"), with
+## - the prompt, saying what to do now as a title ("The Town Votes",
+##   "Night"), with
 ##   how many votes put someone on trial in wax; hidden when there's nothing
 ##   to do;
 ## - the buttons that stand alone (Guilty / Innocent / Abstain in a trial,
@@ -23,9 +23,9 @@ extends ParchmentPanel
 ##
 ## Nothing here gives your role away to someone looking at your screen: your
 ## role isn't written, the prompt for your night ability or the Jailer's
-## choice is just "Night Action" or "Day Action", and their buttons say
-## "Choose" or "Use" instead of the ability's name (the role card says what
-## it does). Votes are a ballot-box icon.
+## choice is just "Night" or "Day", and their buttons say "Choose" or "Use"
+## instead of the ability's name (the role card says what it does). A vote
+## is a ballot-box icon, wax red once it's yours.
 ##
 ## Action buttons come from client.actions() and submit the same command
 ## typing would, so the server's answer shows in the chat log either way. The
@@ -173,7 +173,7 @@ func _update_prompt(model: Dictionary) -> void:
 			if action["label"] == "Vote":
 				text = "The Town Votes"
 			else:
-				text = "Night Action" if model["night"] else "Day Action"
+				text = "Night" if model["night"] else "Day"
 			break
 	if text == "" and model["judging"]:
 		text = "Judge the Accused"
@@ -274,18 +274,19 @@ func _action_button(action: Dictionary) -> Button:
 	var label: String = action["label"]
 	var button := Button.new()
 	if label == "Vote" and action["lot"] >= 0:
-		# The ballot box, ink on paper; parchment on ink once it's your vote.
+		# The ballot box, drawn straight on the paper like the whisper icon;
+		# wax red once it's your vote.
 		button.icon = Icons.get_icon(&"vote")
+		button.theme_type_variation = "IconButton"
 		button.expand_icon = true
 		button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		button.tooltip_text = "Vote"
-		button.custom_minimum_size.x = ROW_HEIGHT + Tokens.SPACE_SM
+		button.custom_minimum_size.x = ROW_ICON
 		button.add_theme_constant_override("icon_max_width", int(ROW_ICON))
-		for state in ["icon_normal_color", "icon_hover_color", "icon_focus_color"]:
+		for state in ["icon_normal_color", "icon_focus_color"]:
 			button.add_theme_color_override(state, Tokens.INK)
-		for state in ["icon_pressed_color", "icon_hover_pressed_color"]:
-			button.add_theme_color_override(state, Tokens.INK_ON_DARK)
-		button.add_theme_color_override("icon_hover_color", Tokens.WAX)
+		for state in ["icon_hover_color", "icon_pressed_color", "icon_hover_pressed_color"]:
+			button.add_theme_color_override(state, Tokens.WAX)
 	else:
 		button.text = label if label in PUBLIC_ACTIONS else (CHOOSE if action["lot"] >= 0 else USE)
 	# Buttons never take keyboard focus, so arrow keys keep walking.

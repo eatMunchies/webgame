@@ -114,9 +114,9 @@ More components (modal, card, sheet tab, notice) arrive with the screens that us
 
 ### The roster
 
-- A Sheet. The prompt is a Title saying what to do now in Salem's words ("The Town Votes", "Night Action", "Judge the Accused"); the votes a trial needs follow in wax, close under it.
-- Rows are at least `TOUCH_MIN` (14 units) tall; badge, name (your own in woad, bold), a caption note, then buttons: a stamped ballot-box icon to vote, stamped buttons for other actions, the whisper icon at 13 units.
-- **Role-neutral labels.** Only actions everyone has say what they are (Vote, Guilty, Innocent, Abstain, Cancel, Unvote). A role's own action reads **Choose** (aimed at a player) or **Use** (alone), and the prompt says "Night Action" (or "Day Action" for the Jailer's pick), so an onlooker learns nothing.
+- A Sheet. The prompt is a Title saying what to do now in Salem's words ("The Town Votes", "Night", "Judge the Accused"); the votes a trial needs follow in wax, close under it.
+- Rows are at least `TOUCH_MIN` (14 units) tall; badge, name (your own in woad, bold), a caption note, then buttons: the ballot-box icon to vote (plain on the paper like the whisper icon, wax red once it's your vote), stamped buttons for other actions, the whisper icon; icons at 13 units.
+- **Role-neutral labels.** Only actions everyone has say what they are (Vote, Guilty, Innocent, Abstain, Cancel, Unvote). A role's own action reads **Choose** (aimed at a player) or **Use** (alone), and the prompt says "Night" (or "Day" for the Jailer's pick), so an onlooker learns nothing.
 - Verdicts carry meaning in ink color: Guilty wax, Innocent verdigris.
 - The dead: ash, struck through, faded badge, revealed role as the note.
 
