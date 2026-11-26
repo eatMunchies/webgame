@@ -8,14 +8,17 @@ const TOWN := preload("res://scenes/main/town.tscn")
 
 
 func _init() -> void:
-	variants = ["lobby_host_4", "lobby_full_15", "day_voting", "day_trial", "night_choosing", "spectating"]
-	settle_frames = 90
+	variants = ["lobby_host_4", "lobby_full_15", "day_voting", "day_trial", "night_choosing", "spectating", "reconnecting"]
+	# Past the candle's fade in (town.gd DAY_FADE_SECONDS).
+	settle_frames = 120
 
 
 func build(stage: Control, variant: String) -> void:
 	var session := stage.get_node("/root/Session")
 	session.arrival_spot = null
-	var error: String = session.client.load_fixture(variant)
+	# Reconnecting is a voting day with the connection down.
+	var fixture := "day_voting" if variant == "reconnecting" else variant
+	var error: String = session.client.load_fixture(fixture)
 	if error != "":
 		stage.add_child(caption(error, Color.RED, 8))
 		return
@@ -23,6 +26,9 @@ func build(stage: Control, variant: String) -> void:
 	if session.client.is_night():
 		Tokens.use_night(true)
 	stage.add_child(TOWN.instantiate())
+	if variant == "reconnecting":
+		session.reconnecting = true
+		session.reconnecting_changed.emit()
 
 
 func after_settle(stage: Control) -> void:
@@ -33,4 +39,5 @@ func after_settle(stage: Control) -> void:
 
 
 func teardown(stage: Control) -> void:
+	stage.get_node("/root/Session").reconnecting = false
 	stage.get_node("/root/Session").client.load_fixture("reset")

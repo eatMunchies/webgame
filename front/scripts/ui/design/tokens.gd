@@ -58,6 +58,11 @@ const CHAT_GAME := Palette.OCHRE_DARK
 ## What the machine says, in its teal ink (and its mono type).
 const CHAT_SYSTEM := Palette.SYS_TEAL_INK
 
+# The town by candlelight (shaders/candle_vignette.gdshader): the tint over
+# the middle of the pool of light, and the dark at the screen's edges.
+const NIGHT_CANDLE := Color(0.16, 0.08, 0.02, 0.58)
+const NIGHT_DARK := Color(Palette.SYS_BLACK, 0.94)
+
 # Labels over the town itself (names over houses and people, hints).
 const WORLD_LABEL := Palette.PAPER_RAISED
 const WORLD_LABEL_OUTLINE := Palette.INK

@@ -27,6 +27,12 @@ const SHADER := preload("res://shaders/parchment.gdshader")
 	set(value):
 		seed = value
 		_apply()
+## Give everything in the panel the paper theme (UiTheme.paper()), kept in
+## step with the night like the paper itself.
+@export var paper_theme := false:
+	set(value):
+		paper_theme = value
+		_apply()
 
 var _material := ShaderMaterial.new()
 var _candle := -1.0
@@ -72,4 +78,6 @@ func _apply() -> void:
 	_material.set_shader_parameter("edge_day", Palette.PAPER_EDGE)
 	_material.set_shader_parameter("edge_night", Palette.PAPER_EDGE_NIGHT)
 	_material.set_shader_parameter("candle_light", Palette.CANDLE)
+	if paper_theme:
+		theme = UiTheme.paper()
 	queue_redraw()

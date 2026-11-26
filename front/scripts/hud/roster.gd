@@ -67,7 +67,6 @@ const ROW_ICON := 13.0
 ## What the panel was last built from, to skip rebuilding when nothing
 ## changed: actions_changed fires for every server message.
 var _shown := {}
-var _theme_candle := -1.0
 ## The most the player rows may take before they scroll, in units, or 0 for
 ## no limit (where the panel has a column of its own). Set by the HUD.
 var max_rows_height := 0.0:
@@ -81,8 +80,8 @@ var _needed := Label.new()
 
 
 func _ready() -> void:
+	paper_theme = true
 	super()
-	_apply_theme()
 	_needed.theme_type_variation = "Dim"
 	_needed.add_theme_color_override("font_color", Tokens.WAX)
 	_needed.add_theme_font_override("font", Fonts.BODY_BOLD)
@@ -95,18 +94,6 @@ func _ready() -> void:
 	Session.phase_changed.connect(_update)
 	Session.actions_changed.connect(_update)
 	_update()
-
-
-func _process(delta: float) -> void:
-	super(delta)
-	# The theme's paper colors follow day and night.
-	if not is_equal_approx(_theme_candle, Tokens.candle):
-		_apply_theme()
-
-
-func _apply_theme() -> void:
-	_theme_candle = Tokens.candle
-	theme = UiTheme.paper()
 
 
 func _update() -> void:

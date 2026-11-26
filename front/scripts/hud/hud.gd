@@ -7,8 +7,8 @@ extends Control
 ##
 ## Three parts, which an AspectFlowContainer (Shell) puts side by side on a
 ## wide screen and one above the other on a tall one:
-## - Info: the day or night, its stage and the time left (PhaseClock), and
-##   the lobby bar the town hands over (code, Copy, Leave). On a wide screen
+## - Info: the day or night, its stage and the time left, and the town's
+##   code with Copy and Leave, on one sheet (PhaseClock). On a wide screen
 ##   the chat (ChatPanel) fills the rest of this column.
 ## - Middle: where the town shows through (WorldSpace). The town centers its
 ##   camera there (see town.gd) and puts its touch joystick and the night's
@@ -54,6 +54,8 @@ const TAB_RADIUS := 6
 ## On a tall screen, the share of the town's part a night minigame takes,
 ## at the bottom, under the chat.
 const MINIGAME_SHARE := 0.5
+## What the machine says while the connection is down (see docs/LORE.md).
+const RECONNECTING_LINES: PackedStringArray = ["desync detected, resyncing", "hold on, getting you back in"]
 const WILL_TITLE := "Last will"
 const WILL_PLACEHOLDER := "Everyone reads this when you die. N1: checked 3, not suspicious"
 
@@ -72,6 +74,8 @@ const WILL_PLACEHOLDER := "Everyone reads this when you die. N1: checked 3, not 
 @onready var minigame_space: Control = %MinigameSpace
 
 var prompt: TextPrompt
+## The machine's notice at the top of the town: resyncing after a drop.
+var notice := Notice.new()
 var role_card: RoleCard
 ## The tall screen's tab on the chat sheet's top edge.
 var chat_tab := Button.new()
@@ -79,7 +83,6 @@ var role_button := Button.new()
 ## Whether a game was running at the last check, to show the role card when
 ## one starts.
 var _was_in_game := false
-var _band := HudStyle.band_box()
 ## On a tall screen, how much of the town the chat sheet covers, 0 to 1.
 var _sheet := 1.0
 ## Whether the player wants the sheet open; a minigame hides it meanwhile.
@@ -105,6 +108,7 @@ func _ready() -> void:
 	chat_panel.prompt = prompt
 	_add_buttons()
 	_add_chat_tab()
+	_add_notice()
 	will_button.pressed.connect(_open_will)
 	roster.whisper_requested.connect(_whisper)
 	chat_panel.line_added.connect(_on_chat_line_added)
@@ -121,10 +125,22 @@ func _ready() -> void:
 	_apply_layout()
 
 
-## Puts the lobby bar in the Info column, under the clock.
-func add_lobby_bar(bar: Control) -> void:
-	bar.reparent(info_box, false)
-	info_box.move_child(bar, 1)
+## The notice hangs from the top middle of the town's part, over the town
+## (and on a tall screen under the faded clock).
+func _add_notice() -> void:
+	world_space.add_child(notice)
+	notice.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE,
+			Tokens.SPACE_MD)
+	notice.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	Session.reconnecting_changed.connect(_update_notice)
+	_update_notice()
+
+
+func _update_notice() -> void:
+	if Session.reconnecting:
+		notice.say(RECONNECTING_LINES)
+	else:
+		notice.clear()
 
 
 func _apply_layout() -> void:
@@ -132,7 +148,7 @@ func _apply_layout() -> void:
 	# Stacked, the parts sit flush, so the chat tab rests right on what's
 	# under it.
 	shell.add_theme_constant_override("separation", 0 if tall else SECTION_GAP)
-	info.add_theme_stylebox_override("panel", _band if tall else StyleBoxEmpty.new())
+	info.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	info.custom_minimum_size.x = 0.0 if tall else INFO_WIDTH
 	side.custom_minimum_size.x = 0.0 if tall else SIDE_WIDTH
 	# The roster fills its column on a wide screen; on a tall one it is as
