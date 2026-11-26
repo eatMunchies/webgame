@@ -30,6 +30,8 @@ const INK_RULE := Palette.INK_RULE
 ## Text on wax or ink fills.
 const INK_ON_DARK := Palette.PAPER_LIGHT
 const PAPER_SHADOW := Color(Palette.INK, 0.3)
+## The dim over the screen behind a parchment card or text box.
+const PAPER_SCRIM := Color(Palette.INK, 0.55)
 
 const WAX := Palette.WAX
 const WAX_HOVER := Palette.WAX_BRIGHT

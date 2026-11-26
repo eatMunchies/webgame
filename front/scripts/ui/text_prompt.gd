@@ -1,5 +1,5 @@
 class_name TextPrompt
-extends Control
+extends Modal
 
 ## A text box that opens in the middle of the screen, over everything, to
 ## type into: a whisper, the last will, or on a touch screen any text field
@@ -16,28 +16,24 @@ extends Control
 ## `attach()` makes a LineEdit open the prompt when tapped on a touch screen,
 ## instead of taking the keyboard where it sits.
 ##
+## It's a Modal: a parchment Document in Salem with the title in IM Fell, the
+## paper's ruled field, and a wax seal to confirm; on the machine's screens
+## (`create(parent, true)`) the same on glass.
+##
 ## Make one per screen with `TextPrompt.create(parent)`, which fills the
 ## parent and stays hidden until asked.
 
-## Where the panel's top sits, as a share of the screen's height.
-const TOP_SHARE := 0.14
-## The panel's width in units, and its share of the screen at most.
+## The panel's width in units.
 const WIDTH := 220.0
-const WIDTH_SHARE := 0.92
 ## How tall the multiline box is, in units.
 const MULTILINE_HEIGHT := 84.0
-const BACKDROP := Color(0, 0, 0, 0.55)
-## The text size in the boxes, and the room between a multiline box's lines.
-const TEXT_SIZE := 8
+## The room between a multiline box's lines.
 const LINE_SPACING := 3
-## The caret is thick and doesn't blink, so it's always clear where typing
-## goes; a multiline box also tints the line the caret is on.
-const CARET_WIDTH := 2
-const CURRENT_LINE := Color(1, 1, 1, 0.07)
-## How long after opening a tap on the backdrop is ignored. One tap on a
-## phone arrives as a touch and a made-up mouse click; when the first opens
-## the prompt, the second would land on the backdrop and close it again.
-const BACKDROP_GRACE_MSEC := 400
+## The caret is thick (the theme's) and doesn't blink, so it's always clear
+## where typing goes; a multiline box also tints the line the caret is on.
+const CURRENT_LINE := Color(Palette.INK, 0.06)
+## The Paste button's icon, in units.
+const PASTE_ICON := 9
 
 ## Whether this device has a touch screen, where tapped text fields open the
 ## prompt. A browser doesn't always say so up front, so a phone's browser
@@ -50,69 +46,59 @@ static func _detect_touch() -> bool:
 	return DisplayServer.is_touchscreen_available() or OS.has_feature("mobile") \
 			or OS.has_feature("web_android") or OS.has_feature("web_ios")
 
-var _panel := PanelContainer.new()
 var _title := Label.new()
 var _line := LineEdit.new()
 var _multi := TextEdit.new()
 var _paste := Button.new()
 var _confirm := Button.new()
 var _on_done := Callable()
-## When the prompt last opened, for BACKDROP_GRACE_MSEC.
-var _opened_msec := 0
-var _backdrop := ColorRect.new()
 ## Kept while the browser reads the clipboard, which calls it back later.
 var _paste_callback: JavaScriptObject
 
 
 ## Makes a hidden prompt that fills `parent` (a Control, or a CanvasLayer
-## for the whole screen), drawn over its other children.
-static func create(parent: Node) -> TextPrompt:
+## for the whole screen), drawn over its other children; on the machine's
+## glass with `on_glass`.
+static func create(parent: Node, on_glass := false) -> TextPrompt:
 	var prompt := TextPrompt.new()
-	parent.add_child(prompt)
-	prompt.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	prompt.system = on_glass
+	prompt.fill(parent)
 	return prompt
 
 
 func _init() -> void:
-	visible = false
-	z_index = 100
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	super()
+	z_index = Tokens.Z_PROMPT
+	width = WIDTH
+	place = Place.UPPER
 
 
 func _ready() -> void:
-	theme = HudStyle.build()
-	_backdrop.color = BACKDROP
-	_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_backdrop.gui_input.connect(_on_backdrop_input)
-	add_child(_backdrop)
-
-	add_child(_panel)
-	var rows := VBoxContainer.new()
-	rows.add_theme_constant_override("separation", 4)
-	_panel.add_child(rows)
-	_title.theme_type_variation = "HudTitle"
+	super()
+	_title.theme_type_variation = "Title"
 	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rows.add_child(_title)
 	_line.text_submitted.connect(func(_text: String) -> void: _finish())
 	_line.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_DEFAULT
 	rows.add_child(_line)
 	_multi.custom_minimum_size.y = MULTILINE_HEIGHT
-	for box: Control in [_line, _multi]:
-		box.add_theme_font_size_override("font_size", TEXT_SIZE)
-		box.add_theme_constant_override("caret_width", CARET_WIDTH)
-		box.add_theme_color_override("caret_color", RpgTheme.GOLD_BRIGHT)
 	_line.caret_blink = false
 	_multi.caret_blink = false
 	_multi.highlight_current_line = true
-	_multi.add_theme_color_override("current_line_color", CURRENT_LINE)
+	_multi.add_theme_color_override("current_line_color",
+			Color(Tokens.SYS_ACCENT, 0.08) if system else CURRENT_LINE)
 	_multi.add_theme_constant_override("line_spacing", LINE_SPACING)
 	_multi.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	rows.add_child(_multi)
 
 	var buttons := HBoxContainer.new()
-	buttons.add_theme_constant_override("separation", 4)
+	buttons.add_theme_constant_override("separation", Tokens.SPACE_SM)
+	buttons.alignment = BoxContainer.ALIGNMENT_END
 	rows.add_child(buttons)
 	_paste.text = "Paste"
+	_paste.theme_type_variation = "QuietButton"
+	_paste.icon = Icons.get_icon("paste")
+	_paste.add_theme_constant_override("icon_max_width", PASTE_ICON)
 	_paste.focus_mode = Control.FOCUS_NONE
 	_paste.pressed.connect(_on_paste_pressed)
 	buttons.add_child(_paste)
@@ -121,13 +107,14 @@ func _ready() -> void:
 	buttons.add_child(spacer)
 	var cancel := Button.new()
 	cancel.text = "Cancel"
+	cancel.theme_type_variation = "QuietButton"
 	cancel.focus_mode = Control.FOCUS_NONE
 	cancel.pressed.connect(close)
 	buttons.add_child(cancel)
+	_confirm.theme_type_variation = "SysPrimary" if system else "WaxButton"
 	_confirm.focus_mode = Control.FOCUS_NONE
 	_confirm.pressed.connect(_finish)
 	buttons.add_child(_confirm)
-	resized.connect(_place)
 
 
 ## Opens the prompt. `on_done` gets the text when the player confirms.
@@ -145,9 +132,7 @@ func ask(title: String, text: String, on_done: Callable, options := {}) -> void:
 	var box: Control = _multi if multiline else _line
 	box.set("text", text)
 	box.set("placeholder_text", options.get("placeholder", ""))
-	visible = true
-	_opened_msec = Time.get_ticks_msec()
-	_place()
+	show_modal()
 	box.grab_focus()
 	if multiline:
 		_multi.set_caret_line(_multi.get_line_count() - 1)
@@ -160,8 +145,8 @@ func ask(title: String, text: String, on_done: Callable, options := {}) -> void:
 func close() -> void:
 	_line.release_focus()
 	_multi.release_focus()
-	visible = false
 	_on_done = Callable()
+	super()
 
 
 ## Makes `field` open the prompt when tapped, titled `title`. Confirming puts
@@ -193,26 +178,6 @@ func attach(field: LineEdit, title: String, submit := false, options := {}) -> v
 				"paste": options.get("paste", false)}))
 
 
-func _place() -> void:
-	if not visible:
-		return
-	var width := minf(WIDTH, size.x * WIDTH_SHARE)
-	# The wrapped title gets the panel's inner width up front: a wrapping label
-	# measures its height at the width it has, and with none it would wrap
-	# every word onto its own line and stretch the panel.
-	var inner := width - _panel.get_theme_stylebox("panel").get_minimum_size().x
-	_title.custom_minimum_size.x = inner
-	_panel.custom_minimum_size.x = width
-	_panel.size = Vector2(width, 0)
-	_panel.position = Vector2((size.x - width) / 2.0, roundf(size.y * TOP_SHARE))
-	# Wrapped labels only know their height after a layout pass.
-	_shrink.call_deferred()
-
-
-func _shrink() -> void:
-	_panel.size = Vector2(_panel.size.x, 0)
-
-
 func _finish() -> void:
 	var text: String = _multi.text if _multi.visible else _line.text
 	var done := _on_done
@@ -224,17 +189,7 @@ func _finish() -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		touch = true
-	if visible and event.is_action_pressed("ui_cancel"):
-		close()
-		get_viewport().set_input_as_handled()
-
-
-func _on_backdrop_input(event: InputEvent) -> void:
-	if Time.get_ticks_msec() - _opened_msec < BACKDROP_GRACE_MSEC:
-		return
-	if (event is InputEventMouseButton and event.pressed) \
-			or (event is InputEventScreenTouch and event.pressed):
-		close()
+	super(event)
 
 
 func _on_paste_pressed() -> void:

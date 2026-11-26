@@ -113,6 +113,10 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | Chat | system | `scenes/hud/chat_panel.tscn` | The session's log and the box to type in (below) |
 | Sheet tab | system | `hud.gd` (`_add_chat_tab`) | The phone's grip on the chat sheet: a tongue of the same glass, three bars, a cyan dot for unread lines |
 | SeatBadgeTexture | both | `scripts/ui/kit/seat_badge_texture.gd` | A SeatBadge as a texture (`SeatBadge.texture(n, height)`) for places that take one, like the chat; drawn with the font, sharp at any scale |
+| Modal | both | `scripts/ui/kit/modal.gd` | The base of the text box and the card: a dimmed backdrop and one panel (a parchment Document, or glass with `system`), upper middle or middle; Escape or a tap outside closes it, after a 400 ms grace for a phone's echo of the opening tap |
+| TextPrompt | both | `scripts/ui/text_prompt.gd` | The text box (below) |
+| RoleCard | in-world | `scripts/hud/role_card.gd` | Your role on a card (below) |
+| WaxSeal | in-world | `scripts/ui/kit/wax_seal.gd` | A round wax seal pressed with a letter: the role card's faction mark |
 | Notice | system | `scripts/ui/kit/notice.gd` | The machine speaking about itself: a glass pane at the top of the town, `say(lines)` / `clear()` |
 
 More components (modal, card, sheet tab) arrive with the screens that use them; each gets a row here.
@@ -143,6 +147,14 @@ More components (modal, card, sheet tab) arrive with the screens that use them; 
 ### Night
 
 `town.gd` turns on `Tokens.use_night` at nightfall, so every parchment panel turns candlelit, and fades in a candle vignette over the town (`shaders/candle_vignette.gdshader`, colors `Tokens.NIGHT_CANDLE` and `NIGHT_DARK`): a warm pool of light centered on the part of the screen the town shows through, dark toward the edges. It is alpha-blended, not multiplied, and its uniforms are all set from code: the Compatibility renderer the web build uses doesn't draw `blend_mul`.
+
+### The text box
+
+A Modal in the upper middle (clear of a phone's keyboard), 220 units wide at most: the title in IM Fell, the paper's ruled field (wax when focused, a thick wax caret that doesn't blink), then Paste (a quiet button with the paste icon, when asked for), Cancel (quiet) and the confirm as a wax seal ("Send", "Save", "Join"). On the machine's screens the same on glass, with a cyan primary.
+
+### The role card
+
+A Modal in the middle, 200 units wide at most, on a torn Document: a WaxSeal in the faction's color with its initial, the role's name (Title) and category (Dim), the close icon; a rule; then Ability, Goal, and when they apply Your target and Your team, each a small-caps Heading over Body text. A spectator's card has no seal.
 
 ## Modals and dialogs
 
