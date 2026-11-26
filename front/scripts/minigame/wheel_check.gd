@@ -93,7 +93,7 @@ func _gui_input(event: InputEvent) -> void:
 func _draw() -> void:
 	var center := size / 2
 	var radius := minf(size.x, size.y) * 0.4
-	var ring := Color(1, 1, 1, 0.25)
+	var ring := Color(SIM_TEXT, 0.25)
 	if _flash > 0.0:
 		ring = ring.lerp(_flash_color, _flash / FLASH_SECONDS)
 	draw_arc(center, radius, 0, TAU, 48, ring, 3.0)
@@ -101,8 +101,8 @@ func _draw() -> void:
 	var start := wheel.zone_start - PI / 2
 	draw_arc(center, radius, start, start + wheel.zone, 12, GOLD, 5.0)
 	var tip := center + Vector2.from_angle(wheel.angle - PI / 2) * (radius + 3)
-	draw_line(center, tip, Color.WHITE, 2.0)
-	draw_circle(center, 2.5, Color.WHITE)
+	draw_line(center, tip, SIM_TEXT, 2.0)
+	draw_circle(center, 2.5, SIM_TEXT)
 	if not practice or not marks.is_empty():
 		_draw_marks(Vector2(center.x, center.y + radius + 10))
 
@@ -115,4 +115,4 @@ func _draw_marks(middle: Vector2) -> void:
 		if i < marks.size():
 			draw_circle(at, 3, GOLD if marks[i] else MISS_COLOR)
 		else:
-			draw_arc(at, 3, 0, TAU, 12, Color(1, 1, 1, 0.4), 1.0)
+			draw_arc(at, 3, 0, TAU, 12, Color(SIM_TEXT, 0.4), 1.0)

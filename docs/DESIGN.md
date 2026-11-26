@@ -152,7 +152,7 @@ More components (modal, card, sheet tab) arrive with the screens that use them; 
 - The countdown before a skill check or fight reads `> evaluation` or `> confrontation`, the game's name dim under it, then a big mono 3, 2, 1.
 - Results in the machine's voice: "evaluation passed", "evaluation failed. your action won't work tonight.", "confrontation won", "confrontation lost".
 - Fights: you in cyan, the masked opponent in `SYS_FAULT`; a strike in light grey, a grab in amber (`SYS_WARN`), a guard in light grey; empty pips and bars faint. Buttons are the machine's.
-- Every game's text is Plex Mono. A hit is cyan and a miss `SYS_FAULT` across the skill checks (`SkillCheck.GOLD` / `MISS_COLOR`).
+- Every game is drawn as the machine's simulation, from `SkillCheck`'s `SIM_*` palette: a dark field with a faint grid and a thin edge (`ArcadeCheck.fit_field`), solid things (ground, pipes, blocks, cards) in the glass's surface color with grey edges, what the player moves in cyan (`SIM_PLAYER`), what they aim for in amber (`SIM_TARGET`: the flag, fruit), danger in `SIM_FAULT` (bombs, red suits), text in Plex Mono. A hit is cyan and a miss `SYS_FAULT`. Card Memory's faces differ by shape first, then by one of four colors.
 
 ### Night
 

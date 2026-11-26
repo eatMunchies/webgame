@@ -12,13 +12,15 @@ extends SkillCheck
 ##
 ## Tap a card to turn it, or move with the arrow keys and press Space.
 
-const MATCH_COLOR := Color(0.45, 0.85, 0.45)
-const CARD_BACK := Color(0.29, 0.21, 0.15)
-const CARD_FACE := Color(0.93, 0.87, 0.74)
-## One color per card face, so a pair reads at a glance even when tiny.
+const MATCH_COLOR := SIM_PLAYER
+## A card's back (dark, an accent-edged inset) and face (a lit panel).
+const CARD_BACK := SIM_FIELD
+const CARD_FACE := SIM_SOLID
+## The faces' colors, from the simulation's few. Every face has its own
+## shape too, so a pair reads by shape first and color second.
 const FACE_COLORS: Array[Color] = [
-	Color(0.85, 0.2, 0.25), Color(0.2, 0.45, 0.9), Color(0.15, 0.65, 0.3), Color(0.9, 0.65, 0.1),
-	Color(0.6, 0.3, 0.85), Color(0.95, 0.45, 0.15), Color(0.1, 0.7, 0.75), Color(0.9, 0.35, 0.65),
+	SIM_PLAYER, SIM_TARGET, SIM_TEXT, SIM_DANGER,
+	SIM_TARGET, SIM_PLAYER, SIM_DANGER, SIM_TEXT,
 ]
 const ARROW_STEPS := {
 	KEY_LEFT: Vector2i.LEFT, KEY_RIGHT: Vector2i.RIGHT, KEY_UP: Vector2i.UP, KEY_DOWN: Vector2i.DOWN,
@@ -111,31 +113,34 @@ func _draw() -> void:
 	for card in MemoryGame.CARDS:
 		var rect := card_rect(card)
 		if game.face_up(card):
-			draw_rect(rect, CARD_FACE.darkened(0.35) if game.matched[card] else CARD_FACE)
-			_draw_face(game.faces[card], rect.get_center(), minf(rect.size.x, rect.size.y) * 0.3)
+			draw_rect(rect, CARD_FACE)
+			_draw_face(game.faces[card], rect.get_center(), minf(rect.size.x, rect.size.y) * 0.3,
+					game.matched[card])
 		else:
 			draw_rect(rect, CARD_BACK)
-			draw_rect(rect.grow(-2), GOLD.darkened(0.45), false, 1.0)
-		var border := Color(0, 0, 0, 0.6)
+			draw_rect(rect.grow(-2), Tokens.SYS_ACCENT_DIM, false, 1.0)
+		var border := SIM_EDGE
 		if game.missed() and game.turned.has(card):
 			border = MISS_COLOR
 		elif game.matched[card] and _flash > 0.0:
 			border = _flash_color
 		draw_rect(rect, border, false, 1.0)
 		if card == game.cursor and not game.peeking():
-			draw_rect(rect.grow(1), Color.WHITE, false, 1.0)
+			draw_rect(rect.grow(1), SIM_TEXT, false, 1.0)
 	if game.peeking():
 		var text := "Memorize! %d" % ceili(game.peek_left())
 		var at := Vector2(0, size.y / 2 + 3)
-		draw_rect(Rect2(0, size.y / 2 - 7, size.x, 13), Color(0.06, 0.06, 0.1, 0.85))
-		draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 9, 3, Color(0, 0, 0, 0.85))
+		draw_rect(Rect2(0, size.y / 2 - 7, size.x, 13), Color(SIM_FIELD, 0.9))
+		draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 9, 3, Color(SIM_FIELD, 0.85))
 		draw_string(font, at, text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 9, GOLD)
 
 
 ## Draws one of the eight card faces: a different colored shape each, so
 ## pairs can be told apart by shape as well as color.
-func _draw_face(face: int, center: Vector2, radius: float) -> void:
+func _draw_face(face: int, center: Vector2, radius: float, matched := false) -> void:
 	var color: Color = FACE_COLORS[face]
+	if matched:
+		color = color.darkened(0.5)
 	match face:
 		0:
 			draw_circle(center, radius, color)

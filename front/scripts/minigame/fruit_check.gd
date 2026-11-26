@@ -9,12 +9,14 @@ extends ArcadeCheck
 ##
 ## Swipe across the fruit: drag with the mouse or a finger.
 
+## Fruit are targets: rings of the simulation's amber and grey over a dark
+## fill, each kind its own shade, and a sliced half shows its dark inside.
 const FRUIT_COLORS: Array[Color] = [
-	Color(0.3, 0.7, 0.3), Color(1, 0.6, 0.15), Color(0.9, 0.22, 0.25), Color(0.98, 0.88, 0.3),
+	SIM_TARGET, SIM_TEXT, Color(0.86, 0.62, 0.36), SIM_EDGE,
 ]
-const FLESH_COLORS: Array[Color] = [
-	Color(0.95, 0.3, 0.35), Color(1, 0.75, 0.4), Color(1, 0.93, 0.8), Color(1, 0.98, 0.7),
-]
+## A fruit's fill, and its inside once sliced.
+const FRUIT_FILL := SIM_SOLID
+const FLESH_COLOR := SIM_FIELD
 ## How long a swipe's trail lasts, in seconds.
 const TRAIL_SECONDS := 0.15
 ## How long a finished wave shows before practice throws the next.
@@ -117,9 +119,9 @@ func _draw() -> void:
 	for i in range(1, _trail.size()):
 		var fade := 1.0 - _trail[i].z / TRAIL_SECONDS
 		draw_line(Vector2(_trail[i - 1].x, _trail[i - 1].y), Vector2(_trail[i].x, _trail[i].y),
-				Color(1, 1, 1, fade), 1.0 + fade * 1.5)
+				Color(SIM_PLAYER, fade), 1.0 + fade * 1.5)
 	draw_string(Fonts.MONO, Vector2(4, 9), "%d/%d" % [game.sliced, game.fruit_per_wave],
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 7, Color(1, 1, 1, 0.8))
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 7, SIM_TEXT)
 	if game.bombed:
 		draw_centered("Boom!", FIELD / 2, 12, MISS_COLOR)
 
@@ -128,8 +130,9 @@ func _draw() -> void:
 func _draw_fruit(item: FruitGame.Thrown) -> void:
 	var skin := FRUIT_COLORS[item.kind]
 	if not item.sliced:
-		draw_circle(item.position, item.radius, skin)
-		draw_circle(item.position + Vector2(-2, -2), item.radius * 0.3, skin.lightened(0.35))
+		draw_circle(item.position, item.radius, FRUIT_FILL)
+		draw_arc(item.position, item.radius, 0, TAU, 20, skin, 1.0)
+		draw_arc(item.position, item.radius * 0.5, -PI * 0.9, -PI * 0.4, 6, skin, 0.6)
 		return
 	var apart := Vector2(item.since_sliced * 20, item.since_sliced * 6)
 	for side in [-1, 1]:
@@ -138,20 +141,18 @@ func _draw_fruit(item: FruitGame.Thrown) -> void:
 		var half := PackedVector2Array([center])
 		for i in 9:
 			half.append(center + Vector2.from_angle(start + PI * i / 8) * item.radius)
-		draw_colored_polygon(half, skin)
-		var flesh := PackedVector2Array([center])
-		for i in 9:
-			flesh.append(center + Vector2.from_angle(start + PI * i / 8) * item.radius * 0.75)
-		draw_colored_polygon(flesh, FLESH_COLORS[item.kind])
+		draw_colored_polygon(half, FLESH_COLOR)
+		half.append(center)
+		draw_polyline(half, skin, 0.8)
 
 
-## A bomb: black, with a lit fuse.
+## A bomb: dark, ringed in the danger color, with a lit fuse.
 func _draw_bomb(item: FruitGame.Thrown) -> void:
 	if item.sliced:
-		draw_circle(item.position, item.radius + item.since_sliced * 30, Color(1, 0.6, 0.2, maxf(0.8 - item.since_sliced, 0.0)))
+		draw_circle(item.position, item.radius + item.since_sliced * 30, Color(SIM_DANGER, maxf(0.8 - item.since_sliced, 0.0)))
 		return
-	draw_circle(item.position, item.radius, Color(0.12, 0.12, 0.14))
+	draw_circle(item.position, item.radius, SIM_FIELD)
 	draw_arc(item.position, item.radius, 0, TAU, 16, MISS_COLOR, 0.8)
 	var fuse := item.position + Vector2.from_angle(-PI / 3 + sin(item.spin) * 0.3) * (item.radius + 2.5)
-	draw_line(item.position + Vector2(1.5, -item.radius + 0.5), fuse, Color(0.8, 0.7, 0.5), 0.8)
-	draw_circle(fuse, 1.2 + absf(sin(item.spin * 3)) * 0.6, GOLD)
+	draw_line(item.position + Vector2(1.5, -item.radius + 0.5), fuse, SIM_EDGE, 0.8)
+	draw_circle(fuse, 1.2 + absf(sin(item.spin * 3)) * 0.6, SIM_DANGER)

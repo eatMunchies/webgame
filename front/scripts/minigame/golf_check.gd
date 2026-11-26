@@ -11,12 +11,13 @@ extends ArcadeCheck
 ## straight up. A tap on the left or right half of the course flaps that
 ## way.
 
-const GRASS := Color(0.27, 0.6, 0.27)
-const DIRT := Color(0.36, 0.26, 0.17)
-const FLAG := Color(0.92, 0.3, 0.3)
-## Floating blocks, with a lighter top edge to show where the ball can land.
-const STONE := Color(0.45, 0.47, 0.55)
-const STONE_TOP := Color(0.7, 0.72, 0.8)
+## The ground and its top edge, the flag, and floating blocks with a
+## lighter top edge to show where the ball can land.
+const GRASS := SIM_EDGE
+const DIRT := SIM_SOLID
+const FLAG := SIM_TARGET
+const STONE := SIM_SOLID
+const STONE_TOP := SIM_EDGE
 ## How long a holed ball shows before practice tees up the next hole.
 const NEXT_HOLE_SECONDS := 1.0
 
@@ -114,22 +115,23 @@ func _draw() -> void:
 	draw_polyline(hills.slice(1, -1), GRASS, 2.0)
 	for block in game.blocks:
 		draw_rect(block, STONE)
+		draw_rect(block, SIM_EDGE, false, 0.4)
 		draw_rect(Rect2(block.position, Vector2(block.size.x, 1)), STONE_TOP)
 	# The cup, then the flag above it.
 	var green := game.ground[game.cup_x - 1]
-	draw_rect(Rect2(game.cup_x, green, GolfGame.CUP_WIDTH, GolfGame.CUP_DEPTH), Color(0.05, 0.05, 0.05))
+	draw_rect(Rect2(game.cup_x, green, GolfGame.CUP_WIDTH, GolfGame.CUP_DEPTH), SIM_FIELD)
 	var pole_x := game.cup_x + GolfGame.CUP_WIDTH / 2.0
-	draw_line(Vector2(pole_x, green), Vector2(pole_x, green - 16), Color.WHITE, 0.8)
+	draw_line(Vector2(pole_x, green), Vector2(pole_x, green - 16), SIM_TEXT, 0.8)
 	draw_colored_polygon(PackedVector2Array([
 		Vector2(pole_x, green - 16), Vector2(pole_x + 7, green - 13.5), Vector2(pole_x, green - 11),
 	]), FLAG)
-	draw_circle(game.ball, GolfGame.BALL_RADIUS, Color.WHITE)
+	draw_circle(game.ball, GolfGame.BALL_RADIUS, SIM_PLAYER)
 	# Which way a tap on each half flaps, for touch screens.
-	var arrow := Color(1, 1, 1, 0.3)
+	var arrow := SIM_FAINT
 	draw_colored_polygon(PackedVector2Array([Vector2(5, 20), Vector2(11, 16), Vector2(11, 24)]), arrow)
 	draw_colored_polygon(PackedVector2Array([Vector2(FIELD.x - 5, 20), Vector2(FIELD.x - 11, 16), Vector2(FIELD.x - 11, 24)]), arrow)
 	draw_string(Fonts.MONO, Vector2(4, 9), "Flaps %d  Par %d" % [game.flaps, tuning.par],
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 7, Color(1, 1, 1, 0.8))
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 7, SIM_TEXT)
 	if game.holed:
 		var word := "Hole in one!" if game.flaps == 1 else ("Under par!" if game.flaps < tuning.par else "In!")
 		draw_centered(word, Vector2(FIELD.x / 2, FIELD.y * 0.35), 10, GOLD)

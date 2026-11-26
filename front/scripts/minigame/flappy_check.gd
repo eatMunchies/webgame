@@ -8,9 +8,10 @@ extends ArcadeCheck
 ##
 ## Space, Up or W flaps, and so does a tap.
 
-const PIPE_COLOR := Color(0.3, 0.72, 0.32)
-const GROUND_COLOR := Color(0.55, 0.42, 0.25)
-const BIRD_COLOR := Color(1, 0.82, 0.25)
+## Pipes are solid with a lit edge; the bird is the player's cyan.
+const PIPE_COLOR := SIM_SOLID
+const GROUND_COLOR := SIM_SOLID
+const BIRD_COLOR := SIM_PLAYER
 ## How long a crash shows before a practice run starts over.
 const RESTART_SECONDS := 0.8
 
@@ -92,9 +93,9 @@ func _draw() -> void:
 		_draw_pipe(Rect2(pipe.x, game.gap_bottom(pipe), FlappyGame.PIPE_WIDTH,
 				FlappyGame.GROUND - game.gap_bottom(pipe)), true)
 	draw_rect(Rect2(0, FlappyGame.GROUND, FIELD.x, FIELD.y - FlappyGame.GROUND), GROUND_COLOR)
-	draw_rect(Rect2(0, FlappyGame.GROUND, FIELD.x, 1.5), PIPE_COLOR)
+	draw_rect(Rect2(0, FlappyGame.GROUND, FIELD.x, 1.0), SIM_EDGE)
 	_draw_bird(Vector2(FlappyGame.BIRD_X, game.bird_y))
-	draw_centered(str(game.passed), Vector2(FIELD.x / 2, 10), 10, Color.WHITE)
+	draw_centered(str(game.passed), Vector2(FIELD.x / 2, 10), 10, SIM_TEXT)
 
 
 ## A pipe with a lip at the end facing the gap.
@@ -102,9 +103,11 @@ func _draw_pipe(rect: Rect2, lip_on_top: bool) -> void:
 	if rect.size.y <= 0.0:
 		return
 	draw_rect(rect, PIPE_COLOR)
-	draw_rect(Rect2(rect.position.x + 2, rect.position.y, 2, rect.size.y), PIPE_COLOR.lightened(0.3))
+	draw_rect(rect, SIM_EDGE, false, 0.4)
 	var lip_y := rect.position.y if lip_on_top else rect.end.y - 4
-	draw_rect(Rect2(rect.position.x - 1.5, lip_y, rect.size.x + 3, 4), PIPE_COLOR.darkened(0.15))
+	var lip := Rect2(rect.position.x - 1.5, lip_y, rect.size.x + 3, 4)
+	draw_rect(lip, PIPE_COLOR)
+	draw_rect(lip, SIM_EDGE, false, 0.5)
 
 
 ## The bird, tipped up when rising and down when falling.
@@ -113,8 +116,7 @@ func _draw_bird(at: Vector2) -> void:
 	var color := MISS_COLOR if game.crashed else BIRD_COLOR
 	draw_set_transform(field_corner() + at * field_scale(), tilt, Vector2.ONE * field_scale())
 	draw_circle(Vector2.ZERO, FlappyGame.BIRD_RADIUS, color)
-	draw_circle(Vector2(-1, 0.8), 1.6, color.lightened(0.35))
-	draw_circle(Vector2(1.4, -1.2), 1.0, Color.WHITE)
-	draw_circle(Vector2(1.7, -1.2), 0.5, Color.BLACK)
-	draw_colored_polygon(PackedVector2Array([Vector2(3, -0.6), Vector2(5.5, 0.4), Vector2(3, 1.2)]), Color(0.95, 0.5, 0.15))
+	draw_circle(Vector2(-1, 0.8), 1.6, color.darkened(0.35))
+	draw_circle(Vector2(1.5, -1.2), 0.7, SIM_FIELD)
+	draw_colored_polygon(PackedVector2Array([Vector2(3, -0.6), Vector2(5.5, 0.4), Vector2(3, 1.2)]), SIM_TARGET)
 	field_transform()

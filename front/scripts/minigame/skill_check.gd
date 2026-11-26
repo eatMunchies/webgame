@@ -31,6 +31,22 @@ signal changed
 const GOLD := Tokens.SYS_ACCENT
 const MISS_COLOR := Tokens.SYS_FAULT
 
+# The simulation's palette, which every game draws with: the night's games
+# are the machine's evaluations (docs/LORE.md), so they look like its
+# simulations, dark fields and plain shapes in its grey, cyan and amber.
+## The field behind a game, and its faint grid.
+const SIM_FIELD := Tokens.SYS_BG
+const SIM_GRID := Color(Tokens.SYS_LINE, 0.55)
+## Solid things (ground, blocks, cards) and their edges.
+const SIM_SOLID := Tokens.SYS_SURFACE
+const SIM_EDGE := Tokens.SYS_DIM
+## What the player moves, what they aim for, and what to avoid.
+const SIM_PLAYER := Tokens.SYS_ACCENT
+const SIM_TARGET := Tokens.SYS_WARN
+const SIM_DANGER := Tokens.SYS_FAULT
+const SIM_TEXT := Tokens.SYS_TEXT
+const SIM_FAINT := Color(Tokens.SYS_TEXT, 0.3)
+
 ## What kind of check this is and how it's tuned. Null when the scene is run
 ## by itself, so a kind falls back on its own defaults.
 var def: SkillCheckDef

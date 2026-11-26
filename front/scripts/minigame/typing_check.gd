@@ -14,7 +14,7 @@ const FONT_SIZE := 8
 const LINE_GAP := 3
 ## How many letters past the end of a word can be typed, shown as mistakes.
 const MAX_EXTRA := 5
-const UNTYPED_COLOR := Color(1, 1, 1, 0.35)
+const UNTYPED_COLOR := SIM_FAINT
 
 var word_count := 4
 ## The words to type.
@@ -280,7 +280,7 @@ func _draw_word(canvas: CanvasItem, font: Font, i: int, at: Vector2) -> float:
 		if j >= word.length():
 			color = MISS_COLOR.darkened(0.3)
 		elif j < attempt.length():
-			color = Color.WHITE if attempt[j] == word[j] else MISS_COLOR
+			color = SIM_TEXT if attempt[j] == word[j] else MISS_COLOR
 		elif finished:
 			# Letters skipped by finishing the word early.
 			color = MISS_COLOR.darkened(0.4)
