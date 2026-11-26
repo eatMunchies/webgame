@@ -100,6 +100,12 @@ impl GameClient {
     #[signal]
     fn phase_changed();
 
+    /// Players died: at dawn (an empty array when nobody did, so the morning can say so) or by
+    /// execution. Each is a Dictionary with `lot`, `name`, `role`, `will` (possibly ""),
+    /// `causes` (an Array of phrases like "killed by the Mafia") and `executed`.
+    #[signal]
+    fn deaths_announced(deaths: VarArray);
+
     /// A line of text for the game log, and what kind of line it is, so the log can color it:
     /// `chat` (what players said), `whisper` (whispers, and the notice that someone whispered),
     /// `game` (your role, night results, deaths, votes and other
@@ -507,7 +513,9 @@ impl GameClient {
     /// The phase in parts, for the HUD's clock: `title` ("Day 2", "Night 1", "Lobby" or "Game
     /// over"), `stage` (like "Voting (2 trials left)" or "Defense: Bram", "" when there is
     /// none), `seconds_left` (whole seconds, rounded up, or -1 when the phase has no end),
-    /// `night`, and `voting` (whether the day's vote is open).
+    /// `night`, `voting` (whether the day's vote is open), `kind` (the day stage in one word:
+    /// "morning", "discussion", "voting", "defense", "judgement", "last_words" or "execution";
+    /// "" otherwise) and `accused` (the lot of the player on trial or being executed, or -1).
     #[func]
     fn phase_info(&self) -> VarDictionary {
         let name = |slot: &PlayerSlot| self.plain_name(*slot);
@@ -516,6 +524,7 @@ impl GameClient {
             GamePhase::GameOver => ("Game over".to_string(), String::new()),
             GamePhase::Day { day, stage } => {
                 let stage = match stage {
+                    DayStage::Morning => "Morning".to_string(),
                     DayStage::Discussion => "Discussion".to_string(),
                     DayStage::Voting { trials_left: 1 } => "Voting (last trial)".to_string(),
                     DayStage::Voting { trials_left } => {
@@ -524,6 +533,7 @@ impl GameClient {
                     DayStage::Defense { accused } => format!("Defense: {}", name(accused)),
                     DayStage::Judgement { accused } => format!("Judgement: {}", name(accused)),
                     DayStage::LastWords { accused } => format!("Last words: {}", name(accused)),
+                    DayStage::Execution { accused } => format!("Execution: {}", name(accused)),
                 };
                 (format!("Day {day}"), stage)
             }
@@ -546,7 +556,21 @@ impl GameClient {
         } else {
             -1
         };
+        let (kind, accused) = match &self.state.phase {
+            GamePhase::Day { stage, .. } => match stage {
+                DayStage::Morning => ("morning", None),
+                DayStage::Discussion => ("discussion", None),
+                DayStage::Voting { .. } => ("voting", None),
+                DayStage::Defense { accused } => ("defense", Some(*accused)),
+                DayStage::Judgement { accused } => ("judgement", Some(*accused)),
+                DayStage::LastWords { accused } => ("last_words", Some(*accused)),
+                DayStage::Execution { accused } => ("execution", Some(*accused)),
+            },
+            _ => ("", None),
+        };
         vdict! {
+            "kind" => kind,
+            "accused" => accused.map_or(-1, |slot| i64::from(slot.0)),
             "title" => &text(title),
             "stage" => &text(stage),
             "seconds_left" => seconds_left,
@@ -807,6 +831,10 @@ impl GameClient {
             },
             _ => -1,
         };
+        let deaths = match &message {
+            ServerMessage::Deaths(reports) => Some(self.death_list(reports)),
+            _ => None,
+        };
         let before = self.state.phase.clone();
         let lines = self.state.apply(message);
         if welcome {
@@ -826,6 +854,9 @@ impl GameClient {
         if phase || before != self.state.phase {
             self.signals().phase_changed().emit();
         }
+        if let Some(deaths) = deaths {
+            self.signals().deaths_announced().emit(&deaths);
+        }
         if minigame || before != self.state.phase {
             self.signals().minigame_changed().emit();
         }
@@ -834,6 +865,33 @@ impl GameClient {
 
     /// A player's name alone, without the number `State::name` adds, for labels that have
     /// little room.
+    /// The deaths in a Deaths message, as `deaths_announced` hands them to the client.
+    fn death_list(&self, reports: &[webgame_protocol::DeathReport]) -> VarArray {
+        let mut out = VarArray::new();
+        for report in reports {
+            let causes: VarArray = report
+                .causes
+                .iter()
+                .map(|c| GString::from(webgame_client::cause(*c)).to_variant())
+                .collect();
+            let executed = report
+                .causes
+                .contains(&webgame_protocol::DeathCause::Lynched);
+            out.push(
+                &vdict! {
+                    "lot" => i64::from(report.slot.0),
+                    "name" => &text(self.plain_name(report.slot)),
+                    "role" => &text(report.role.to_string()),
+                    "will" => &text(report.will.clone()),
+                    "causes" => &causes,
+                    "executed" => executed,
+                }
+                .to_variant(),
+            );
+        }
+        out
+    }
+
     fn plain_name(&self, slot: PlayerSlot) -> String {
         let from_game = self.state.players.iter().find(|p| p.slot == slot);
         let from_lobby = || {

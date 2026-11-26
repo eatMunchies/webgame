@@ -730,6 +730,17 @@ impl Game {
             GamePhase::Day { day: 0, .. } => self.start_night(1, at, out),
             GamePhase::Day {
                 day,
+                stage: DayStage::Morning,
+            } => self.set_phase(
+                GamePhase::Day {
+                    day,
+                    stage: DayStage::Discussion,
+                },
+                at + timers.discussion,
+                out,
+            ),
+            GamePhase::Day {
+                day,
                 stage: DayStage::Discussion,
             } => {
                 self.trials_left = TRIALS_PER_DAY;
@@ -774,7 +785,22 @@ impl Game {
                 day,
                 stage: DayStage::LastWords { accused },
             } => {
+                // The death is announced as the execution starts, so clients can show it and
+                // then the funeral; whether the game is over waits until they have.
                 self.lynch(accused, out);
+                self.set_phase(
+                    GamePhase::Day {
+                        day,
+                        stage: DayStage::Execution { accused },
+                    },
+                    at + timers.execution + timers.funeral,
+                    out,
+                );
+            }
+            GamePhase::Day {
+                day,
+                stage: DayStage::Execution { .. },
+            } => {
                 if !self.finish_if_over(out) {
                     self.start_night(day + 1, at, out);
                 }
@@ -1330,12 +1356,13 @@ impl Game {
         }
         self.after_deaths(&outcome.remembered, &died, out);
         if !self.finish_if_over(out) {
+            // A funeral for each death, then discussion.
             self.set_phase(
                 GamePhase::Day {
                     day: night,
-                    stage: DayStage::Discussion,
+                    stage: DayStage::Morning,
                 },
-                at + self.timers.discussion,
+                at + self.timers.morning + self.timers.funeral * died.len() as u64,
                 out,
             );
         }

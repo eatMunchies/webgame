@@ -121,6 +121,7 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | Minigame panel | system | `scenes/main/minigame_overlay.tscn` | The night's skill checks and fights (below) |
 | SimBackdrop | system | `scripts/ui/kit/sim_backdrop.gd` | The machine's menus' background: a faint grid on near-black |
 | Notice | system | `scripts/ui/kit/notice.gd` | The machine speaking about itself: a glass pane at the top of the town, `say(lines)` / `clear()` |
+| Herald | in-world | `scripts/hud/herald.gd` | Salem telling a morning's deaths and an execution: a Sheet at the top of the town with a Title and lines that fade in one at a time (Body for the causes, Dim for the role, Heading for "Rest in peace."), and the last will on a torn Document under it. 170 units wide at most, narrower in the middle column of a wide screen; never takes input |
 
 More components (modal, card, sheet tab) arrive with the screens that use them; each gets a row here.
 
@@ -183,7 +184,8 @@ A Modal in the middle, 200 units wide at most, on a torn Document: a WaxSeal in 
 - **A sheet** is a panel that slides over the town on a phone: only the chat.
 - **A notice** is the machine speaking about itself (reconnecting, connection lost, loading). It never blocks input.
 - **No confirmation dialogs.** People are talking; a destructive action (Leave) asks again inline if it must.
-- **Stacking**: town < HUD < sheet < minigame < notice < card < text box.
+- **A herald's banner** is Salem announcing something to everyone at once (a death, an execution), timed by the server, over the top of the town. It never takes input and goes away by itself.
+- **Stacking**: town < HUD < sheet < herald < minigame < notice < card < text box.
 
 ## Display cases
 

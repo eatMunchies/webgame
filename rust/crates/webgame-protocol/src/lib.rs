@@ -38,7 +38,7 @@ pub use world::{
 
 /// Bumped whenever a message changes shape. The server refuses a client whose version differs,
 /// since postcard can't tell an old message from a garbled one.
-pub const PROTOCOL_VERSION: u32 = 7;
+pub const PROTOCOL_VERSION: u32 = 8;
 
 /// A game can't start with fewer players than this.
 pub const MIN_PLAYERS: usize = 4;

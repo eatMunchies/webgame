@@ -10,6 +10,9 @@ const WALK_FPS := 8.0
 
 var facing := Character.Facing.DOWN
 var walk_time := 0.0
+## While true the player can't walk: through a ceremony, and while on trial
+## (the town walks them to the guillotine; see town.gd).
+var frozen := false
 
 
 func _physics_process(delta: float) -> void:
@@ -19,7 +22,7 @@ func _physics_process(delta: float) -> void:
 	if focus is LineEdit or focus is TextEdit:
 		input = Vector2.ZERO
 	# Nor should playing a night minigame.
-	if Session.in_minigame():
+	if Session.in_minigame() or frozen:
 		input = Vector2.ZERO
 	velocity = input * SPEED
 	move_and_slide()

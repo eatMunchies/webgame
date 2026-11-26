@@ -83,6 +83,12 @@ var _buttons_row: HBoxContainer
 var _paper_candle := -1.0
 ## The machine's notice at the top of the town: resyncing after a drop.
 var notice := Notice.new()
+## The town's herald, telling the morning's deaths and executions at the top
+## of the town (see Funerals).
+var herald := Herald.new()
+## Whether a ceremony (a morning's funerals or an execution) is showing, when
+## the phone's chat sheet steps aside so the town can be seen.
+var _ceremony := false
 var role_card: RoleCard
 ## The tall screen's tab on the chat sheet's top edge.
 var chat_tab := Button.new()
@@ -116,6 +122,7 @@ func _ready() -> void:
 	_add_buttons()
 	_add_chat_tab()
 	_add_notice()
+	_add_herald()
 	will_button.pressed.connect(_open_will)
 	roster.whisper_requested.connect(_whisper)
 	chat_panel.line_added.connect(_on_chat_line_added)
@@ -147,6 +154,23 @@ func _apply_paper() -> void:
 
 ## The notice hangs from the top middle of the town's part, over the town
 ## (and on a tall screen under the faded clock).
+func _add_herald() -> void:
+	world_space.add_child(herald)
+	herald.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE,
+			Tokens.SPACE_MD)
+	herald.grow_horizontal = Control.GROW_DIRECTION_BOTH
+
+
+## Puts the phone's chat sheet away while a ceremony shows, so the town and
+## the herald can be seen, and brings back the player's choice after.
+func set_ceremony(on: bool) -> void:
+	if on == _ceremony:
+		return
+	_ceremony = on
+	if shell.vertical:
+		_slide_sheet(0.0 if on else (1.0 if _sheet_wanted else 0.0))
+
+
 func _add_notice() -> void:
 	world_space.add_child(notice)
 	notice.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE,
@@ -377,8 +401,9 @@ func _on_minigame_changed() -> void:
 			# The chat opens above the game, so the night before is in view.
 			_slide_sheet(1.0)
 		elif not in_minigame and _in_minigame:
-			# The player's own choice comes back after the minigame.
-			_slide_sheet(1.0 if _sheet_wanted else 0.0)
+			# The player's own choice comes back after the minigame, unless a
+			# ceremony (the morning that follows the night) has the town.
+			_slide_sheet(1.0 if _sheet_wanted and not _ceremony else 0.0)
 	_in_minigame = in_minigame
 	_keyboard_was = keyboard
 	_update_side()

@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://djqxu8ogsmfsv" path="res://scripts/town.gd" id="1_script"]
 [ext_resource type="Script" path="res://scripts/cul_de_sac.gd" id="2_ground"]
 [ext_resource type="PackedScene" path="res://scenes/main/player.tscn" id="3_player"]
-[ext_resource type="Texture2D" path="res://assets/sprites/props/podium.png" id="5_podium"]
+[ext_resource type="Script" path="res://scripts/guillotine.gd" id="5_guillotine"]
 
 [sub_resource type="WorldBoundaryShape2D" id="Boundary_top"]
 normal = Vector2(0, 1)
@@ -16,7 +16,7 @@ normal = Vector2(1, 0)
 [sub_resource type="WorldBoundaryShape2D" id="Boundary_right"]
 normal = Vector2(-1, 0)
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_podium"]
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_guillotine"]
 size = Vector2(40, 10)
 
 [node name="Town" type="Node2D" unique_id=1412731115]
@@ -45,17 +45,13 @@ shape = SubResource("Boundary_right")
 [node name="World" type="Node2D" parent="." unique_id=647481292]
 y_sort_enabled = true
 
-[node name="Podium" type="StaticBody2D" parent="World"]
+[node name="Guillotine" type="StaticBody2D" parent="World"]
 position = Vector2(228, 196)
+script = ExtResource("5_guillotine")
 
-[node name="Sprite2D" type="Sprite2D" parent="World/Podium"]
-texture = ExtResource("5_podium")
-centered = false
-offset = Vector2(-24, -46)
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="World/Podium"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/Guillotine"]
 position = Vector2(0, -6)
-shape = SubResource("RectangleShape2D_podium")
+shape = SubResource("RectangleShape2D_guillotine")
 
 [node name="Houses" type="Node2D" parent="World"]
 unique_name_in_owner = true

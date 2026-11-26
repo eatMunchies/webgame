@@ -16,6 +16,7 @@ extends SceneTree
 ## - EVERY: seconds between frames, 4 by default.
 ## - SCENE: the scene to start in, the start screen by default.
 ## - TOUCH=1: act as a touch screen (TextPrompt.touch), as a phone would.
+## - CLOSE_CARD=1: close the role card whenever it opens, as a player would.
 ##
 ## Gotchas: this script is compiled before the game's autoloads exist, so it
 ## reaches Session as root.get_node("Session") and loads other scripts by
@@ -43,8 +44,18 @@ func _initialize() -> void:
 	change_scene_to_file(scene if scene != "" else "res://scenes/main/lobby.tscn")
 
 
+func _close_cards(node: Node) -> void:
+	var script: Script = node.get_script()
+	if script != null and script.resource_path.ends_with("role_card.gd") and node.visible:
+		node.close()
+	for child in node.get_children():
+		_close_cards(child)
+
+
 func _process(delta: float) -> bool:
 	_t += delta
+	if OS.get_environment("CLOSE_CARD") == "1":
+		_close_cards(root)
 	if _t >= _next:
 		var session := root.get_node_or_null("Session")
 		var phase: String = str(session.client.phase_label()) if session and session.client else ""

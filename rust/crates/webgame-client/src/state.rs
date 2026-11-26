@@ -185,6 +185,7 @@ impl State {
             }
             GamePhase::Day { day, stage } => {
                 let stage = match stage {
+                    DayStage::Morning => "Morning".to_string(),
                     DayStage::Discussion => "Discussion".to_string(),
                     DayStage::Voting { trials_left } => {
                         format!("Voting, {trials_left} trials left")
@@ -195,6 +196,9 @@ impl State {
                     }
                     DayStage::LastWords { accused } => {
                         format!("Last words of {}", self.name(*accused))
+                    }
+                    DayStage::Execution { accused } => {
+                        format!("Execution of {}", self.name(*accused))
                     }
                 };
                 format!("Day {day} {stage}")
@@ -586,6 +590,7 @@ impl State {
             GamePhase::Day { stage, .. } => stage,
         };
         match stage {
+            DayStage::Morning => "Morning. The town gathers for the night's dead.".into(),
             DayStage::Discussion => "A new day. Talk it over.".into(),
             DayStage::Voting { .. } if self.app => "Voting is open.".into(),
             DayStage::Voting { .. } => "Voting is open. Vote someone up with /vote N.".into(),
@@ -607,6 +612,9 @@ impl State {
                     "{} has been convicted. Any last words?",
                     self.name(*accused)
                 )
+            }
+            DayStage::Execution { accused } => {
+                format!("{} is led to the guillotine.", self.name(*accused))
             }
         }
     }
@@ -860,7 +868,8 @@ impl State {
     }
 }
 
-fn cause(cause: DeathCause) -> &'static str {
+/// How a cause of death reads in a sentence, like "killed by the Mafia".
+pub fn cause(cause: DeathCause) -> &'static str {
     match cause {
         DeathCause::Lynched => "lynched by the town",
         DeathCause::Mafia => "killed by the Mafia",

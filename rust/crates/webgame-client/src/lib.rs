@@ -11,4 +11,4 @@ mod state;
 
 pub use actions::Action;
 pub use commands::{Command, HELP, chat_channel, parse};
-pub use state::{Choices, CurrentMinigame, State};
+pub use state::{Choices, CurrentMinigame, State, cause};

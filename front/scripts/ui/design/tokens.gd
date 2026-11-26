@@ -135,6 +135,8 @@ const DUR_GLITCH := 0.25
 # --- Stacking (z_index) -----------------------------------------------------
 
 const Z_SHEET := 10
+## The herald's banner at a morning's funerals and an execution, over the chat sheet.
+const Z_HERALD := 20
 const Z_NOTICE := 80
 const Z_CARD := 90
 const Z_PROMPT := 100
