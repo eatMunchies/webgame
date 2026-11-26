@@ -241,7 +241,7 @@ func _draw() -> void:
 
 ## Draws the words on `canvas`, laid out to fit `area`.
 func draw_words_on(canvas: CanvasItem, area: Vector2) -> void:
-	var font := ThemeDB.fallback_font
+	var font := Fonts.MONO
 	var space_width := font.get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
 	var line_height := font.get_height(FONT_SIZE) + LINE_GAP
 	# Lay the words out in lines that fit, each line centered.

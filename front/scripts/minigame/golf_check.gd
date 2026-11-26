@@ -128,7 +128,7 @@ func _draw() -> void:
 	var arrow := Color(1, 1, 1, 0.3)
 	draw_colored_polygon(PackedVector2Array([Vector2(5, 20), Vector2(11, 16), Vector2(11, 24)]), arrow)
 	draw_colored_polygon(PackedVector2Array([Vector2(FIELD.x - 5, 20), Vector2(FIELD.x - 11, 16), Vector2(FIELD.x - 11, 24)]), arrow)
-	draw_string(ThemeDB.fallback_font, Vector2(4, 9), "Flaps %d  Par %d" % [game.flaps, tuning.par],
+	draw_string(Fonts.MONO, Vector2(4, 9), "Flaps %d  Par %d" % [game.flaps, tuning.par],
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 7, Color(1, 1, 1, 0.8))
 	if game.holed:
 		var word := "Hole in one!" if game.flaps == 1 else ("Under par!" if game.flaps < tuning.par else "In!")

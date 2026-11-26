@@ -28,8 +28,8 @@ signal reported(chance: float, done: bool)
 ## Something title(), hint(), status() or practice_status() returns changed.
 signal changed
 
-const GOLD := Color(1, 0.8, 0.3)
-const MISS_COLOR := Color(0.92, 0.38, 0.38)
+const GOLD := Tokens.SYS_ACCENT
+const MISS_COLOR := Tokens.SYS_FAULT
 
 ## What kind of check this is and how it's tuned. Null when the scene is run
 ## by itself, so a kind falls back on its own defaults.

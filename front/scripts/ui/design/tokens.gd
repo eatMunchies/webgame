@@ -58,7 +58,7 @@ const LOG_SAID := Palette.SYS_TEXT
 const LOG_WHISPER := Palette.SYS_CYAN
 ## Game news (deaths, votes, results): the log's one warm color, so the
 ## news stands out from talk.
-const LOG_GAME := Palette.GOLD_GLOW
+const LOG_GAME := SYS_WARN
 ## The machine's own lines (the connection, errors, help).
 const LOG_MACHINE := Palette.SYS_DIM
 ## How much of the town shows through the log's glass.
@@ -84,6 +84,8 @@ const SYS_DIM := Palette.SYS_DIM
 const SYS_ACCENT := Palette.SYS_CYAN
 const SYS_ACCENT_DIM := Palette.SYS_CYAN_DIM
 const SYS_FAULT := Palette.SYS_FAULT
+## The machine's one warm color: game news in the log, a grab in a fight.
+const SYS_WARN := Palette.GOLD_GLOW
 const SYS_SCRIM := Color(0, 0, 0, 0.6)
 
 # --- Type scale (HUD units) -------------------------------------------------

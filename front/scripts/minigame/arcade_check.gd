@@ -48,7 +48,7 @@ func to_field(point: Vector2) -> Vector2:
 ## Draws text centered on `center`, in field units, outlined so it reads
 ## over anything.
 func draw_centered(text: String, center: Vector2, font_size: int, color: Color) -> void:
-	var font := ThemeDB.fallback_font
+	var font := Fonts.MONO
 	var at := Vector2(center.x - 200, center.y + font.get_ascent(font_size) / 2 - 1)
 	draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_CENTER, 400, font_size, 2, Color(0, 0, 0, 0.8))
 	draw_string(font, at, text, HORIZONTAL_ALIGNMENT_CENTER, 400, font_size, color)

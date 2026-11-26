@@ -118,7 +118,7 @@ func _draw() -> void:
 		var fade := 1.0 - _trail[i].z / TRAIL_SECONDS
 		draw_line(Vector2(_trail[i - 1].x, _trail[i - 1].y), Vector2(_trail[i].x, _trail[i].y),
 				Color(1, 1, 1, fade), 1.0 + fade * 1.5)
-	draw_string(ThemeDB.fallback_font, Vector2(4, 9), "%d/%d" % [game.sliced, game.fruit_per_wave],
+	draw_string(Fonts.MONO, Vector2(4, 9), "%d/%d" % [game.sliced, game.fruit_per_wave],
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 7, Color(1, 1, 1, 0.8))
 	if game.bombed:
 		draw_centered("Boom!", FIELD / 2, 12, MISS_COLOR)

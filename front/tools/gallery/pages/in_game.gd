@@ -10,7 +10,7 @@ var _variant := ""
 
 
 func _init() -> void:
-	variants = ["lobby_host_4", "lobby_full_15", "day_voting", "day_trial", "night_choosing", "spectating", "reconnecting", "role_card"]
+	variants = ["lobby_host_4", "lobby_full_15", "day_voting", "day_trial", "night_choosing", "spectating", "reconnecting", "role_card", "night_minigame"]
 	# Past the candle's fade in (town.gd DAY_FADE_SECONDS).
 	settle_frames = 120
 

@@ -129,7 +129,7 @@ func test_a_wheel_check_reports_each_press_then_waits_for_the_server() -> void:
 	press(true)
 	assert_array(reported).has_size(5)
 	overlay.show_minigame({"kind": "skill_check", "ends_in_ms": 4000, "result": "failed"})
-	assert_str(overlay.result_label.text).contains("Failed").contains("3/5")
+	assert_str(overlay.result_label.text).contains("failed").contains("3/5")
 	assert_bool(overlay.check.practice).is_true()
 	press(true)
 	assert_array(reported).has_size(5)
@@ -169,7 +169,7 @@ func test_any_skill_check_scene_reports_through_the_overlay() -> void:
 	overlay.show_minigame({"kind": "skill_check", "ends_in_ms": 5000})
 	assert_object(overlay.check.get_parent()).is_same(overlay.canvas)
 	assert_object(overlay.check.def).is_same(def)
-	assert_str(overlay.title.text).is_equal("Fake check")
+	assert_str(overlay.title.text).is_equal("fake check")
 	overlay.check.report(1.5)
 	overlay.check.report(0.7, true)
 	overlay.check.report(0.1, true)
@@ -295,7 +295,7 @@ func test_card_memory_is_played_by_keys_and_taps_and_reports_nothing() -> void:
 
 func test_card_memory_shows_just_its_name() -> void:
 	start_card_memory()
-	assert_str(overlay.title.text).is_equal("Card Memory")
+	assert_str(overlay.title.text).is_equal("card memory")
 	assert_bool(overlay.time_left.visible).is_false()
 	assert_str(overlay.result_label.text).is_empty()
 
@@ -338,7 +338,7 @@ func test_the_practice_after_a_fight_is_a_different_game() -> void:
 
 func test_fights_send_moves_until_decided() -> void:
 	overlay.show_minigame({"kind": "fight", "attacking": true, "ends_in_ms": 8000})
-	assert_str(overlay.title.text).is_equal("Fight")
+	assert_str(overlay.title.text).is_equal("confrontation")
 	# A fight runs until a knockout, so it shows no clock.
 	assert_bool(overlay.time_left.visible).is_false()
 	key(KEY_J)

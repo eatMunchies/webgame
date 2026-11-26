@@ -57,7 +57,8 @@ Every text ink keeps a contrast of at least 4.5 on day and night paper (`tests/d
 | `SYS_TEXT` / `SYS_DIM` | Text, notes | `#d7e3e6` / `#7f9399` |
 | `SYS_ACCENT` | The one accent: headings, focus, primary | cyan `#46e0e0` |
 | `LOG_*` | The chat's lines: said, whisper, game news, the machine's own | text, cyan, amber `#e8c060` (the log's one warm color), dim |
-| `SYS_FAULT` | A miss or failure, if used at all | `#e0466a` (to decide at the minigame review) |
+| `SYS_FAULT` | A miss, a failure, the opponent in a fight | `#e0466a` |
+| `SYS_WARN` | The one warm color: game news in the log, a grab in a fight | amber `#e8c060` |
 
 ### Seats
 
@@ -117,6 +118,7 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | TextPrompt | both | `scripts/ui/text_prompt.gd` | The text box (below) |
 | RoleCard | in-world | `scripts/hud/role_card.gd` | Your role on a card (below) |
 | WaxSeal | in-world | `scripts/ui/kit/wax_seal.gd` | A round wax seal pressed with a letter: the role card's faction mark |
+| Minigame panel | system | `scenes/main/minigame_overlay.tscn` | The night's skill checks and fights (below) |
 | Notice | system | `scripts/ui/kit/notice.gd` | The machine speaking about itself: a glass pane at the top of the town, `say(lines)` / `clear()` |
 
 More components (modal, card, sheet tab) arrive with the screens that use them; each gets a row here.
@@ -143,6 +145,14 @@ More components (modal, card, sheet tab) arrive with the screens that use them; 
 - Lines by kind (`Tokens.LOG_*`), at the small mono size (Plex runs large): said in light grey after the speaker's SeatBadge (7 units, the line's number dropped since the badge has it), whispers in cyan, game news in amber, the machine's own lines dim after `> `. Errors keep their `!`. Amber is the log's one color beyond the machine's cyan, so news stands out from talk.
 - The box is the glass's boxed field; Send is the envelope icon (dim, cyan on hover), not a primary button, since Start game is the screen's primary action.
 - The Last will and role buttons under the roster are stamped paper buttons with the woodcut will and role icons.
+
+### The minigame panel
+
+- The machine's glass (`MinigameOverlay` is a `SystemPanel`), glitching in when something that counts starts. The game's name in the cyan heading, lower case; the time left in mono.
+- The countdown before a skill check or fight reads `> evaluation` or `> confrontation`, the game's name dim under it, then a big mono 3, 2, 1.
+- Results in the machine's voice: "evaluation passed", "evaluation failed. your action won't work tonight.", "confrontation won", "confrontation lost".
+- Fights: you in cyan, the masked opponent in `SYS_FAULT`; a strike in light grey, a grab in amber (`SYS_WARN`), a guard in light grey; empty pips and bars faint. Buttons are the machine's.
+- Every game's text is Plex Mono. A hit is cyan and a miss `SYS_FAULT` across the skill checks (`SkillCheck.GOLD` / `MISS_COLOR`).
 
 ### Night
 

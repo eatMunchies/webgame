@@ -107,7 +107,7 @@ func card_at(point: Vector2) -> int:
 
 
 func _draw() -> void:
-	var font := ThemeDB.fallback_font
+	var font := Fonts.MONO
 	for card in MemoryGame.CARDS:
 		var rect := card_rect(card)
 		if game.face_up(card):

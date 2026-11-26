@@ -53,3 +53,10 @@ func glitch_in() -> void:
 	var tween := create_tween()
 	tween.tween_method(func(v: float) -> void: _material.set_shader_parameter("glitch", v),
 			1.0, 0.0, Tokens.DUR_GLITCH)
+
+
+func _notification(what: int) -> void:
+	# The glass joins the panel in _ready; a panel freed without ever being
+	# in the tree must free it itself.
+	if what == NOTIFICATION_PREDELETE and _glass.get_parent() == null:
+		_glass.free()
