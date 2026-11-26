@@ -121,7 +121,7 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | Minigame panel | system | `scenes/main/minigame_overlay.tscn` | The night's skill checks and fights (below) |
 | SimBackdrop | system | `scripts/ui/kit/sim_backdrop.gd` | The machine's menus' background: a faint grid on near-black |
 | Notice | system | `scripts/ui/kit/notice.gd` | The machine speaking about itself: a glass pane at the top of the town, `say(lines)` / `clear()` |
-| Herald | in-world | `scripts/hud/herald.gd` | Salem telling a morning's deaths and an execution: a Sheet at the top of the town with a Title (after the player's SeatBadge, when it's about one) and lines that fade in one at a time (Body for the causes, Dim for the role, Heading for "Rest in peace."), and the last will on a torn Document under it. 170 units wide at most, narrower in the middle column of a wide screen; never takes input |
+| Herald | in-world | `scripts/hud/herald.gd` | Salem telling a morning's deaths and an execution: a Sheet at the top of the town with a Title (with the player's SeatBadge right before their name, kept on the same line, when it's about one) and lines that fade in one at a time (Body for the causes, Dim for the role, Heading for "Rest in peace."), and the last will on a torn Document under it. 170 units wide at most, narrower in the middle column of a wide screen, and centered across the town's part of the screen; never takes input |
 
 More components (modal, card, sheet tab) arrive with the screens that use them; each gets a row here.
 

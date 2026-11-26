@@ -156,9 +156,7 @@ func _apply_paper() -> void:
 ## (and on a tall screen under the faded clock).
 func _add_herald() -> void:
 	world_space.add_child(herald)
-	herald.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE,
-			Tokens.SPACE_MD)
-	herald.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	herald.place(Tokens.SPACE_MD)
 
 
 ## Puts the phone's chat sheet away while a ceremony shows, so the town and

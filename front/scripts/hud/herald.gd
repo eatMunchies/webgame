@@ -9,8 +9,9 @@ extends VBoxContainer
 ## Salem speaking, so it's parchment (DESIGN.md); it never takes input.
 ##
 ## announce() starts a new piece of news, add_line() adds to it, show_will()
-## and hide_will() handle the will, and clear() puts it all away. A title
-## about a player starts with their SeatBadge, as in the roster and chat.
+## and hide_will() handle the will, and clear() puts it all away. In a
+## title about a player their SeatBadge sits right before their name, as in
+## the roster and chat. place() puts it at the top of its parent, centered.
 
 ## The banner's widest, in units.
 const WIDTH := 170.0
@@ -37,6 +38,7 @@ func _ready() -> void:
 	for panel: ParchmentPanel in [_news, _will]:
 		panel.paper_theme = true
 		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_news.seed = 3.0
 	_will.tier = ParchmentPanel.Tier.DOCUMENT
 	_will.seed = 7.0
@@ -74,19 +76,25 @@ func _fit() -> void:
 	_will_text.custom_minimum_size.x = room - 2 * Tokens.SPACE_MD
 	for line: Control in _lines.get_children():
 		line.custom_minimum_size.x = room - 2 * Tokens.SPACE_SM
-	size.x = room
 
 
-## Starts a new piece of news under `title`, replacing what was said. With
-## `lot`, the title is about that player and starts with their seat badge.
-func announce(title: String, lot := -1) -> void:
+## Spans the top of the parent, `margin` in from its edges; the banner and
+## will are centered in that, whatever width they fit to.
+func place(margin: float) -> void:
+	set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE, Control.PRESET_MODE_MINSIZE, int(margin))
+
+
+## Starts a new piece of news under `title`, replacing what was said. For
+## news about a player, `title` has a %s where `name` goes, and their seat
+## badge (from `lot`) goes right before it: "The town executes %s".
+func announce(title: String, lot := -1, name := "") -> void:
 	for child in _lines.get_children():
 		child.queue_free()
 	_will.visible = false
 	if lot < 0:
 		add_line(title, "Title")
 	else:
-		_add_badged_title(title, lot)
+		_add_badged_title(title, lot, name)
 	if not visible:
 		visible = true
 		modulate.a = 0.0
@@ -107,9 +115,9 @@ func add_line(text: String, style := "Body") -> void:
 	create_tween().tween_property(label, "modulate:a", 1.0, LINE_SECONDS)
 
 
-## A Title line with a seat badge before it: rich text, so the badge sits
-## in the line and a long name still wraps and stays centered.
-func _add_badged_title(title: String, lot: int) -> void:
+## A Title line with a seat badge before the name: rich text, so the badge
+## sits in the line and a long name still wraps and stays centered.
+func _add_badged_title(title: String, lot: int, name: String) -> void:
 	var line := RichTextLabel.new()
 	line.fit_content = true
 	line.scroll_active = false
@@ -119,11 +127,14 @@ func _add_badged_title(title: String, lot: int) -> void:
 	line.add_theme_font_override("normal_font", _news.get_theme_font("font", "Title"))
 	line.add_theme_font_size_override("normal_font_size", _news.get_theme_font_size("font_size", "Title"))
 	line.add_theme_color_override("default_color", _news.get_theme_color("font_color", "Title"))
-	line.set_meta("said", "%d %s" % [lot + 1, title])
+	line.set_meta("said", title % ("%d %s" % [lot + 1, name]))
+	var at := title.find("%s")
 	line.push_paragraph(HORIZONTAL_ALIGNMENT_CENTER)
+	line.add_text(title.left(at))
 	var badge := SeatBadge.texture(lot + 1, BADGE_HEIGHT)
 	line.add_image(badge, badge.get_width(), badge.get_height(), Color.WHITE, INLINE_ALIGNMENT_CENTER)
-	line.add_text(" " + title)
+	# A no-break space, so the badge never ends a line apart from the name.
+	line.add_text("\u00a0" + name + title.substr(at + 2))
 	line.pop()
 	line.modulate.a = 0.0
 	_lines.add_child(line)

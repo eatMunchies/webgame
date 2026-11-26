@@ -87,7 +87,7 @@ func _play(kind: String, deaths: Array, seconds: float) -> void:
 	if kind == "execution" and not deaths.is_empty():
 		var condemned: Dictionary = deaths[0]
 		town.look_at_spot(town.execution_view(), GLIDE_SECONDS)
-		herald.announce("The town executes %s" % condemned["name"], condemned["lot"])
+		herald.announce("The town executes %s", condemned["lot"], condemned["name"])
 		if not await _wait(GLIDE_SECONDS + BEFORE_BLADE_SECONDS, run):
 			return
 		town.execute(condemned["lot"])
@@ -121,7 +121,7 @@ func _funeral(death: Dictionary, seconds: float, run: int) -> bool:
 		return false
 	town.reveal_body(lot)
 	var executed: bool = death["executed"]
-	herald.announce(("%s was executed" if executed else "%s was found dead") % death["name"], lot)
+	herald.announce("%s was executed" if executed else "%s was found dead", lot, death["name"])
 	var rest := seconds - GLIDE_SECONDS
 	if not executed:
 		var causes := ", ".join(PackedStringArray(death["causes"]))
