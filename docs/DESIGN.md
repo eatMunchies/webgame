@@ -109,8 +109,10 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | Icons | both | `Icons.get_icon(name)` | White woodcut icons tinted to the layer |
 | SeatBadge | both | `scripts/ui/kit/seat_badge.gd` | A player's number on their seat's dye, numeral centered by the font's measurements; faded for the dead; a pill for two digits |
 | Roster | in-world | `scenes/hud/roster.tscn` | Every player and what you can do to each (below) |
+| Clock | in-world | `scripts/hud/phase_clock.gd` | The day or night, time and stage, and the town's code with Copy and Leave (below) |
+| Notice | system | `scripts/ui/kit/notice.gd` | The machine speaking about itself: a glass pane at the top of the town, `say(lines)` / `clear()` |
 
-More components (modal, card, sheet tab, notice) arrive with the screens that use them; each gets a row here.
+More components (modal, card, sheet tab) arrive with the screens that use them; each gets a row here.
 
 ### The roster
 
@@ -119,6 +121,17 @@ More components (modal, card, sheet tab, notice) arrive with the screens that us
 - **Role-neutral labels.** Only actions everyone has say what they are (Vote, Guilty, Innocent, Abstain, Cancel, Unvote). A role's own action reads **Choose** (aimed at a player) or **Use** (alone), and the prompt says "Night" (or "Day" for the Jailer's pick), so an onlooker learns nothing.
 - Verdicts carry meaning in ink color: Guilty wax, Innocent verdigris.
 - The dead: ash, struck through, faded badge, revealed role as the note.
+
+### The clock
+
+- A Sheet at the top of the Info column (a wide screen) or across the top (a phone). A sun or moon in secondary ink, the title in IM Fell, the time in Atkinson bold on the right, wax red for the last five seconds; the stage under it in secondary ink.
+- Under a rule, the town's code: "Town" in small caps, the code in bold, a copy icon (the code reads "Copied" for a moment, inline, no toast) and a quiet Leave.
+- At night only the choosing stage and its timer show (timing never leaks).
+- Reconnecting: Salem doesn't notice. The sheet fades to 45% and its time stops; the machine's Notice says "desync detected, resyncing".
+
+### Night
+
+`town.gd` turns on `Tokens.use_night` at nightfall, so every parchment panel turns candlelit, and fades in a candle vignette over the town (`shaders/candle_vignette.gdshader`, colors `Tokens.NIGHT_CANDLE` and `NIGHT_DARK`): a warm pool of light centered on the part of the screen the town shows through, dark toward the edges. It is alpha-blended, not multiplied, and its uniforms are all set from code: the Compatibility renderer the web build uses doesn't draw `blend_mul`.
 
 ## Modals and dialogs
 
