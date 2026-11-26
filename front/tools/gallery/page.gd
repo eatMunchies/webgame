@@ -12,8 +12,11 @@ extends RefCounted
 
 ## "world" for HUD units, "menu" for 1280x720.
 var layer := "world"
-## Rendered once per variant (like ["day", "night"]); empty for once.
+## Rendered once per variant (like ["day", "night"]); empty for once. The
+## variant "night" also turns on candlelight (Tokens.use_night).
 var variants: Array[String] = []
+## Frames to let the page lay itself out (and tweens run) before capture.
+var settle_frames := 6
 
 
 func id() -> String:
@@ -21,6 +24,16 @@ func id() -> String:
 
 
 func build(_stage: Control, _variant: String) -> void:
+	pass
+
+
+## Runs once the page has settled, just before it's captured.
+func after_settle(_stage: Control) -> void:
+	pass
+
+
+## Runs after the page's nodes are gone, to put anything shared back.
+func teardown(_stage: Control) -> void:
 	pass
 
 

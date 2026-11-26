@@ -332,6 +332,32 @@ impl GameClient {
         GString::new()
     }
 
+    /// Puts the client in a canned game state, for the style gallery: a lobby, a day, a night,
+    /// as player 1 (or a late spectator) would see it, built by running the real game rules
+    /// (see fixtures.rs). Anything the client knew before is dropped first; `reset` only does
+    /// that. Returns "" or what went wrong.
+    #[func]
+    fn load_fixture(&mut self, name: GString) -> GString {
+        self.disconnect_from_server();
+        self.state = Self::app_state();
+        let name = name.to_string();
+        if name != "reset" {
+            match crate::fixtures::build(&name, unix_ms()) {
+                Ok(messages) => {
+                    for message in messages {
+                        self.receive(message);
+                    }
+                }
+                Err(err) => return text(err),
+            }
+        }
+        self.signals().members_changed().emit();
+        self.signals().phase_changed().emit();
+        self.signals().actions_changed().emit();
+        self.signals().minigame_changed().emit();
+        GString::new()
+    }
+
     /// Whether this player can whisper to the player on `lot` now: both alive, by day, and
     /// neither of them on trial.
     #[func]

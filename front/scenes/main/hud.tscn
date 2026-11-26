@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/hud/hud.gd" id="1_hud"]
-[ext_resource type="Script" path="res://scripts/hud/roster.gd" id="2_roster"]
+[ext_resource type="PackedScene" path="res://scenes/hud/roster.tscn" id="2_roster"]
 [ext_resource type="Script" path="res://scripts/hud/phase_clock.gd" id="3_clock"]
 [ext_resource type="Script" path="res://scripts/hud/chat_panel.gd" id="5_chat"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ui/will.png" id="6_will"]
@@ -143,61 +143,17 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 2
 
-[node name="Roster" type="PanelContainer" parent="Shell/Side"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-mouse_filter = 2
-script = ExtResource("2_roster")
-
-[node name="Rows" type="VBoxContainer" parent="Shell/Side/Roster"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 2
-
-[node name="Prompt" type="Label" parent="Shell/Side/Roster/Rows"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-theme_type_variation = &"HudTitle"
-autowrap_mode = 3
-
-[node name="ChoiceRow" type="HFlowContainer" parent="Shell/Side/Roster/Rows"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-theme_override_constants/h_separation = 2
-theme_override_constants/v_separation = 2
-
-[node name="StartButton" type="Button" parent="Shell/Side/Roster/Rows"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-focus_mode = 0
-theme_override_font_sizes/font_size = 7
-text = "Start game"
-
-[node name="Heading" type="Label" parent="Shell/Side/Roster/Rows"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HudHeading"
-text = "Players"
-clip_text = true
-text_overrun_behavior = 3
-
-[node name="RosterScroll" type="ScrollContainer" parent="Shell/Side/Roster/Rows"]
+[node name="Roster" parent="Shell/Side" instance=ExtResource("2_roster")]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-horizontal_scroll_mode = 0
 
-[node name="PlayerRows" type="VBoxContainer" parent="Shell/Side/Roster/Rows/RosterScroll"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 2
-theme_override_constants/separation = 3
+
+
+
+
+
+
 
 [node name="WillButton" type="Button" parent="Shell/Side"]
 unique_name_in_owner = true

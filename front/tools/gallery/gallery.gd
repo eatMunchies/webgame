@@ -22,9 +22,9 @@ const PAGES := [
 	preload("res://tools/gallery/pages/icons.gd"),
 	preload("res://tools/gallery/pages/buttons.gd"),
 	preload("res://tools/gallery/pages/fields.gd"),
+	preload("res://tools/gallery/pages/roster.gd"),
+	preload("res://tools/gallery/pages/in_game.gd"),
 ]
-## Frames to let a page lay itself out before it's captured.
-const SETTLE_FRAMES := 6
 
 var _out := ""
 var _only: PackedStringArray = []
@@ -65,11 +65,18 @@ func _render(page: GalleryPage, variant: String) -> void:
 	stage.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(stage)
 	page.build(stage, variant)
-	for i in SETTLE_FRAMES:
+	for i in page.settle_frames:
+		await get_tree().process_frame
+	page.after_settle(stage)
+	for i in 3:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var name := page.id() if variant == "" else "%s_%s" % [page.id(), variant]
 	get_viewport().get_texture().get_image().save_png("%s/%s.png" % [_out, name])
+	# The page's nodes go first: a town still listening would leave for the
+	# start screen when the page puts the session back.
 	stage.queue_free()
+	await get_tree().process_frame
+	page.teardown(self)
 	await get_tree().process_frame
 	Tokens.use_night(false)

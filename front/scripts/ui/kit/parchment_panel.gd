@@ -9,9 +9,10 @@ extends PanelContainer
 ##   torn edge and darker margins, like a page.
 ##
 ## It follows Tokens.candle, so it turns candlelit at night by itself. Its
-## padding comes from the theme's PanelContainer box; its fill is the
-## shader's. The material shades only the panel's own drawing: children
-## (text above all) draw plainly.
+## padding is the design system's (Tokens.SPACE_SM at the sides, a step less
+## top and bottom, a step more on a Document); its fill is the shader's. The
+## material shades only the panel's own drawing: children (text above all)
+## draw plainly.
 
 enum Tier { SHEET, DOCUMENT }
 
@@ -37,11 +38,13 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	# Keep the theme's padding, but draw no box of its own under the paper.
-	var box := get_theme_stylebox("panel")
+	# Padding only: the paper is the shader's, not a box's.
 	var margins := StyleBoxEmpty.new()
-	for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		margins.set_content_margin(side, box.get_content_margin(side) if box else 0.0)
+	var side_pad := Tokens.SPACE_SM if tier == Tier.SHEET else Tokens.SPACE_MD
+	margins.content_margin_left = side_pad
+	margins.content_margin_right = side_pad
+	margins.content_margin_top = side_pad - 1
+	margins.content_margin_bottom = side_pad - 1
 	add_theme_stylebox_override("panel", margins)
 	resized.connect(_apply)
 	_apply()

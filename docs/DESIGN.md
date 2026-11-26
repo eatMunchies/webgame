@@ -107,8 +107,18 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | Text field | both | theme `LineEdit` / `TextEdit` | A ruled line on parchment; a boxed field on glass; thick caret |
 | ParchmentPanel / SystemPanel | each | `scripts/ui/kit/` | Every panel |
 | Icons | both | `Icons.get_icon(name)` | White woodcut icons tinted to the layer |
+| SeatBadge | both | `scripts/ui/kit/seat_badge.gd` | A player's number on their seat's dye, numeral centered by the font's measurements; faded for the dead; a pill for two digits |
+| Roster | in-world | `scenes/hud/roster.tscn` | Every player and what you can do to each (below) |
 
-More components (seat badge, chip, modal, card, sheet tab, notice) arrive with the screens that use them; each gets a row here.
+More components (modal, card, sheet tab, notice) arrive with the screens that use them; each gets a row here.
+
+### The roster
+
+- A Sheet. The prompt is a Title saying what to do now in Salem's words ("The Town Votes", "Choose tonight", "Judge the Accused"); the votes a trial needs follow in wax caption.
+- Rows are at least `TOUCH_MIN` (14 units) tall; badge, name (your own in woad, bold), a caption note, then buttons: stamped buttons for actions, the whisper icon at 13 units.
+- **Role-neutral labels.** Only actions everyone has say what they are (Vote, Guilty, Innocent, Abstain, Cancel, Unvote). A role's own action reads **Choose** (aimed at a player) or **Use** (alone), and the prompt says "Choose tonight", so an onlooker learns nothing.
+- Verdicts carry meaning in ink color: Guilty wax, Innocent verdigris.
+- The dead: ash, struck through, faded badge, revealed role as the note.
 
 ## Modals and dialogs
 
