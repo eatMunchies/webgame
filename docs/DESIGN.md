@@ -154,6 +154,10 @@ More components (modal, card, sheet tab) arrive with the screens that use them; 
 - Fights: you in cyan, the masked opponent in `SYS_FAULT`; a strike in light grey, a grab in amber (`SYS_WARN`), a guard in light grey; empty pips and bars faint. Buttons are the machine's.
 - Every game is drawn as the machine's simulation, from `SkillCheck`'s `SIM_*` palette: a dark field with a faint grid and a thin edge (`ArcadeCheck.fit_field`), solid things (ground, pipes, blocks, cards) in the glass's surface color with grey edges, what the player moves in cyan (`SIM_PLAYER`), what they aim for in amber (`SIM_TARGET`: the flag, fruit), danger in `SIM_FAULT` (bombs, red suits), text in Plex Mono. A hit is cyan and a miss `SYS_FAULT`. Card Memory's faces differ by shape first, then by one of four colors.
 
+### The start screen
+
+The machine's screen, over the plaza where the simulation loads (the phase-in into the town is unchanged). A SystemPanel with TABLE OF SALEM (Title) and "> simulation: salem, 1692" (Accent); the subject's name; [host] (SysPrimary) or [key] [join]; "practice evaluations" (quiet) for the minigame tester; a status line, dim while connecting and `SYS_FAULT` when refused. Fields type at the mono body size (typing happens in the text box, on glass here). The hint over the house is cyan mono bold with a dark outline.
+
 ### Night
 
 `town.gd` turns on `Tokens.use_night` at nightfall, so every parchment panel turns candlelit, and fades in a candle vignette over the town (`shaders/candle_vignette.gdshader`, colors `Tokens.NIGHT_CANDLE` and `NIGHT_DARK`): a warm pool of light centered on the part of the screen the town shows through, dark toward the edges. It is alpha-blended, not multiplied, and its uniforms are all set from code: the Compatibility renderer the web build uses doesn't draw `blend_mul`.

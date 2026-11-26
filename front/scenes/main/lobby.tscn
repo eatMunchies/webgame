@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scripts/plaza_floor.gd" id="2_floor"]
 [ext_resource type="PackedScene" path="res://scenes/main/house.tscn" id="3_house"]
 [ext_resource type="PackedScene" path="res://scenes/main/player.tscn" id="4_player"]
+[ext_resource type="Script" path="res://scripts/ui/kit/system_panel.gd" id="5_glass"]
 
 [node name="Lobby" type="Node2D"]
 script = ExtResource("1_script")
@@ -69,6 +70,7 @@ visibility_mode = 1
 unique_name_in_owner = true
 custom_minimum_size = Vector2(104, 0)
 layout_mode = 2
+script = ExtResource("5_glass")
 
 [node name="Column" type="VBoxContainer" parent="UI/Shell/Panel"]
 layout_mode = 2
@@ -77,14 +79,20 @@ alignment = 1
 
 [node name="Title" type="Label" parent="UI/Shell/Panel/Column"]
 layout_mode = 2
-theme_type_variation = &"HudTitle"
-text = "Table of Salem"
+theme_type_variation = &"Title"
+text = "TABLE OF SALEM"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="UI/Shell/Panel/Column"]
+layout_mode = 2
+theme_type_variation = &"Accent"
+text = "> simulation: salem, 1692"
 horizontal_alignment = 1
 
 [node name="NameInput" type="LineEdit" parent="UI/Shell/Panel/Column"]
 unique_name_in_owner = true
 layout_mode = 2
-placeholder_text = "Your name"
+placeholder_text = "subject name"
 alignment = 1
 max_length = 16
 
@@ -95,18 +103,19 @@ theme_override_constants/separation = 3
 [node name="CreateButton" type="Button" parent="UI/Shell/Panel/Column/JoinRow"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Create lobby"
+theme_type_variation = &"SysPrimary"
+text = "host"
 
 [node name="OrLabel" type="Label" parent="UI/Shell/Panel/Column/JoinRow"]
 layout_mode = 2
-theme_type_variation = &"HudDim"
+theme_type_variation = &"Dim"
 text = "or"
 
 [node name="CodeInput" type="LineEdit" parent="UI/Shell/Panel/Column/JoinRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "Lobby code"
+placeholder_text = "key"
 alignment = 1
 max_length = 8
 
@@ -114,16 +123,17 @@ max_length = 8
 unique_name_in_owner = true
 layout_mode = 2
 disabled = true
-text = "Join"
+text = "join"
 
 [node name="MinigamesButton" type="Button" parent="UI/Shell/Panel/Column"]
 layout_mode = 2
-text = "Minigames"
+theme_type_variation = &"QuietButton"
+text = "practice evaluations"
 
 [node name="StatusLabel" type="Label" parent="UI/Shell/Panel/Column"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
+theme_type_variation = &"Caption"
 horizontal_alignment = 1
 autowrap_mode = 3
 
