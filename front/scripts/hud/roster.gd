@@ -6,7 +6,8 @@ extends ParchmentPanel
 ## tall one (see hud.gd). docs/DESIGN.md has the rules it follows.
 ##
 ## From the top:
-## - the prompt, saying what to do now as a title ("The Town Votes"), with
+## - the prompt, saying what to do now as a title ("The Town Votes", "Night
+##   Action"), with
 ##   how many votes put someone on trial in wax; hidden when there's nothing
 ##   to do;
 ## - the buttons that stand alone (Guilty / Innocent / Abstain in a trial,
@@ -21,9 +22,10 @@ extends ParchmentPanel
 ##   through, their badge faded.
 ##
 ## Nothing here gives your role away to someone looking at your screen: your
-## role isn't written, and the buttons for your night ability or the
-## Jailer's choice say "Choose" or "Use" instead of the ability's name (the
-## role card says what it does).
+## role isn't written, the prompt for your night ability or the Jailer's
+## choice is just "Night Action" or "Day Action", and their buttons say
+## "Choose" or "Use" instead of the ability's name (the role card says what
+## it does). Votes are a ballot-box icon.
 ##
 ## Action buttons come from client.actions() and submit the same command
 ## typing would, so the server's answer shows in the chat log either way. The
@@ -171,7 +173,7 @@ func _update_prompt(model: Dictionary) -> void:
 			if action["label"] == "Vote":
 				text = "The Town Votes"
 			else:
-				text = "Choose tonight" if model["night"] else "Choose someone"
+				text = "Night Action" if model["night"] else "Day Action"
 			break
 	if text == "" and model["judging"]:
 		text = "Judge the Accused"
@@ -271,7 +273,21 @@ func _row(member: Dictionary, model: Dictionary, aimed: Array) -> HBoxContainer:
 func _action_button(action: Dictionary) -> Button:
 	var label: String = action["label"]
 	var button := Button.new()
-	button.text = label if label in PUBLIC_ACTIONS else (CHOOSE if action["lot"] >= 0 else USE)
+	if label == "Vote" and action["lot"] >= 0:
+		# The ballot box, ink on paper; parchment on ink once it's your vote.
+		button.icon = Icons.get_icon(&"vote")
+		button.expand_icon = true
+		button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		button.tooltip_text = "Vote"
+		button.custom_minimum_size.x = ROW_HEIGHT + Tokens.SPACE_SM
+		button.add_theme_constant_override("icon_max_width", int(ROW_ICON))
+		for state in ["icon_normal_color", "icon_hover_color", "icon_focus_color"]:
+			button.add_theme_color_override(state, Tokens.INK)
+		for state in ["icon_pressed_color", "icon_hover_pressed_color"]:
+			button.add_theme_color_override(state, Tokens.INK_ON_DARK)
+		button.add_theme_color_override("icon_hover_color", Tokens.WAX)
+	else:
+		button.text = label if label in PUBLIC_ACTIONS else (CHOOSE if action["lot"] >= 0 else USE)
 	# Buttons never take keyboard focus, so arrow keys keep walking.
 	button.focus_mode = Control.FOCUS_NONE
 	button.custom_minimum_size.y = ROW_HEIGHT

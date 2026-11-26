@@ -100,7 +100,7 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | Component | Layer | Where it lives | Use |
 |---|---|---|---|
 | Button (stamped) | in-world | theme `Button` | Any choice; the current choice is filled ink |
-| WaxButton | in-world | theme variation | The one primary action on a screen (Start game, Send, Join) |
+| WaxButton | in-world | theme variation | The one primary action on a screen (Start game, Send, Join): a wax seal, no outline, a darker lip, IM Fell small caps |
 | QuietButton | both | theme variation | Secondary actions as text (Cancel, Copy) |
 | IconButton | both | theme variation + `Icons` | Will, role card, chat tab; an icon, maybe a word |
 | SysPrimary | system | theme variation | The machine's primary action |
@@ -114,9 +114,9 @@ More components (modal, card, sheet tab, notice) arrive with the screens that us
 
 ### The roster
 
-- A Sheet. The prompt is a Title saying what to do now in Salem's words ("The Town Votes", "Choose tonight", "Judge the Accused"); the votes a trial needs follow in wax caption.
-- Rows are at least `TOUCH_MIN` (14 units) tall; badge, name (your own in woad, bold), a caption note, then buttons: stamped buttons for actions, the whisper icon at 13 units.
-- **Role-neutral labels.** Only actions everyone has say what they are (Vote, Guilty, Innocent, Abstain, Cancel, Unvote). A role's own action reads **Choose** (aimed at a player) or **Use** (alone), and the prompt says "Choose tonight", so an onlooker learns nothing.
+- A Sheet. The prompt is a Title saying what to do now in Salem's words ("The Town Votes", "Night Action", "Judge the Accused"); the votes a trial needs follow in wax, close under it.
+- Rows are at least `TOUCH_MIN` (14 units) tall; badge, name (your own in woad, bold), a caption note, then buttons: a stamped ballot-box icon to vote, stamped buttons for other actions, the whisper icon at 13 units.
+- **Role-neutral labels.** Only actions everyone has say what they are (Vote, Guilty, Innocent, Abstain, Cancel, Unvote). A role's own action reads **Choose** (aimed at a player) or **Use** (alone), and the prompt says "Night Action" (or "Day Action" for the Jailer's pick), so an onlooker learns nothing.
 - Verdicts carry meaning in ink color: Guilty wax, Innocent verdigris.
 - The dead: ash, struck through, faded badge, revealed role as the note.
 
