@@ -9,12 +9,15 @@ extends VBoxContainer
 ## Salem speaking, so it's parchment (DESIGN.md); it never takes input.
 ##
 ## announce() starts a new piece of news, add_line() adds to it, show_will()
-## and hide_will() handle the will, and clear() puts it all away.
+## and hide_will() handle the will, and clear() puts it all away. A title
+## about a player starts with their SeatBadge, as in the roster and chat.
 
 ## The banner's widest, in units.
 const WIDTH := 170.0
 ## How long a line takes to come in.
 const LINE_SECONDS := 0.25
+## The seat badge before a title's name, in units.
+const BADGE_HEIGHT := 9.0
 
 var _news := ParchmentPanel.new()
 var _lines := VBoxContainer.new()
@@ -69,17 +72,21 @@ func _fit() -> void:
 	for panel: ParchmentPanel in [_news, _will]:
 		panel.custom_minimum_size.x = room
 	_will_text.custom_minimum_size.x = room - 2 * Tokens.SPACE_MD
-	for label: Label in _lines.get_children():
-		label.custom_minimum_size.x = room - 2 * Tokens.SPACE_SM
+	for line: Control in _lines.get_children():
+		line.custom_minimum_size.x = room - 2 * Tokens.SPACE_SM
 	size.x = room
 
 
-## Starts a new piece of news under `title`, replacing what was said.
-func announce(title: String) -> void:
+## Starts a new piece of news under `title`, replacing what was said. With
+## `lot`, the title is about that player and starts with their seat badge.
+func announce(title: String, lot := -1) -> void:
 	for child in _lines.get_children():
 		child.queue_free()
 	_will.visible = false
-	add_line(title, "Title")
+	if lot < 0:
+		add_line(title, "Title")
+	else:
+		_add_badged_title(title, lot)
 	if not visible:
 		visible = true
 		modulate.a = 0.0
@@ -98,6 +105,29 @@ func add_line(text: String, style := "Body") -> void:
 	label.modulate.a = 0.0
 	_lines.add_child(label)
 	create_tween().tween_property(label, "modulate:a", 1.0, LINE_SECONDS)
+
+
+## A Title line with a seat badge before it: rich text, so the badge sits
+## in the line and a long name still wraps and stays centered.
+func _add_badged_title(title: String, lot: int) -> void:
+	var line := RichTextLabel.new()
+	line.fit_content = true
+	line.scroll_active = false
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.custom_minimum_size.x = _news.custom_minimum_size.x - 2 * Tokens.SPACE_SM
+	line.add_theme_font_override("normal_font", _news.get_theme_font("font", "Title"))
+	line.add_theme_font_size_override("normal_font_size", _news.get_theme_font_size("font_size", "Title"))
+	line.add_theme_color_override("default_color", _news.get_theme_color("font_color", "Title"))
+	line.set_meta("said", "%d %s" % [lot + 1, title])
+	line.push_paragraph(HORIZONTAL_ALIGNMENT_CENTER)
+	var badge := SeatBadge.texture(lot + 1, BADGE_HEIGHT)
+	line.add_image(badge, badge.get_width(), badge.get_height(), Color.WHITE, INLINE_ALIGNMENT_CENTER)
+	line.add_text(" " + title)
+	line.pop()
+	line.modulate.a = 0.0
+	_lines.add_child(line)
+	create_tween().tween_property(line, "modulate:a", 1.0, LINE_SECONDS)
 
 
 ## Shows a will under the news; an empty one says none was found.
@@ -121,9 +151,9 @@ func clear() -> void:
 ## The lines said so far, for tests.
 func said() -> PackedStringArray:
 	var out := PackedStringArray()
-	for label: Label in _lines.get_children():
-		if not label.is_queued_for_deletion():
-			out.append(label.text)
+	for line: Control in _lines.get_children():
+		if not line.is_queued_for_deletion():
+			out.append(line.get_meta("said") if line.has_meta("said") else (line as Label).text)
 	return out
 
 

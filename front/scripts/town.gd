@@ -56,8 +56,15 @@ const ENTRANCE := Vector2(CulDeSac.CENTER.x, CulDeSac.SIZE.y - 20)
 const GUILLOTINE_OFFSET := Vector2(0, 8)
 ## How long the accused takes to be walked to the guillotine.
 const TO_TRIAL_SECONDS := 1.2
-## The condemned falls when the blade does, then fades.
+## At an execution the head comes off as the blade lands and rolls to the
+## ground in front (HEAD_ROLL, from the feet, in the character's pixels),
+## then the body falls, and a moment later both fade.
+const BLADE_LANDS_SECONDS := 0.2
+const HEAD_ROLL := Vector2(13, 6)
+const HEAD_ROLL_SECONDS := 0.6
+const HEAD_HOP := 10.0
 const FALL_SECONDS := 0.35
+const FADE_AFTER_SECONDS := 1.0
 const FADE_SECONDS := 0.8
 ## The day stages when someone stands at the guillotine.
 const TRIAL_KINDS: Array[String] = ["defense", "judgement", "last_words", "execution"]
@@ -137,6 +144,8 @@ var _unburied: Array[int] = []
 ## The lot of the player being executed, kept in view (not yet a ghost)
 ## until the blade falls, or -1.
 var _condemned := -1
+## Executed players, whose bodies lie with their heads beside them.
+var _beheaded: Array[int] = []
 ## Whether this player is held at the guillotine.
 var _on_trial := false
 var _funerals: Funerals
@@ -412,6 +421,8 @@ func _sync_corpses() -> void:
 		for resident in Session.players:
 			if not resident.alive:
 				dead.append(resident.lot)
+	if dead.is_empty():
+		_beheaded.clear()
 	for lot in _corpses.keys():
 		if lot not in dead:
 			_corpses[lot].queue_free()
@@ -426,7 +437,7 @@ func _sync_corpses() -> void:
 			corpse.position = body_spot(resident.lot)
 			world.add_child(corpse)
 			_corpses[resident.lot] = corpse
-		corpse.show_look(resident.appearance)
+		corpse.show_look(resident.appearance, resident.lot in _beheaded)
 		corpse.visible = resident.lot not in _unburied
 
 
@@ -489,8 +500,9 @@ func look_back(seconds: float) -> void:
 	_focus_tween.tween_property(self, "_focus_weight", 0.0, seconds)
 
 
-## The blade falls on the condemned on `lot`: they fall over and fade, and
-## from then on are a ghost like any other dead player.
+## The blade falls on the condemned on `lot`: their head comes off and
+## rolls to the ground, their body falls, both fade, and from then on they
+## are a ghost like any other dead player.
 func execute(lot: int) -> void:
 	guillotine.drop()
 	var character: Character = player.character
@@ -499,11 +511,31 @@ func execute(lot: int) -> void:
 		if remote == null:
 			return
 		character = remote.character
+	await get_tree().create_timer(BLADE_LANDS_SECONDS).timeout
+	if not is_instance_valid(character):
+		return
+	# The head goes beside the character, not in it, so the body can fall
+	# without taking it along.
+	var head := character.behead()
+	head.scale = character.scale
+	head.position = character.position + head.position * character.scale
+	character.get_parent().add_child(head)
+	var start := head.position
+	var land := character.position + HEAD_ROLL * character.scale
+	var roll := create_tween().set_parallel()
+	roll.tween_method(func(t: float) -> void:
+		head.position = start.lerp(land, t) + Vector2(0, -HEAD_HOP * sin(t * PI) * (1.0 - t)),
+		0.0, 1.0, HEAD_ROLL_SECONDS)
+	roll.tween_property(head, "rotation", TAU, HEAD_ROLL_SECONDS)
 	var tween := create_tween()
 	tween.tween_property(character, "rotation", PI / 2, FALL_SECONDS) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.tween_interval(FADE_AFTER_SECONDS)
 	tween.tween_property(character, "modulate:a", 0.0, FADE_SECONDS)
+	tween.parallel().tween_property(head, "modulate:a", 0.0, FADE_SECONDS)
 	tween.tween_callback(func() -> void:
+		head.queue_free()
+		character.mend()
 		character.rotation = 0.0
 		character.modulate.a = 1.0
 		_condemned = -1
@@ -514,6 +546,8 @@ func _on_session_deaths_announced(deaths: Array) -> void:
 	for death: Dictionary in deaths:
 		if death["executed"]:
 			_condemned = death["lot"]
+			if death["lot"] not in _beheaded:
+				_beheaded.append(death["lot"])
 	_sync_remote_players()
 
 

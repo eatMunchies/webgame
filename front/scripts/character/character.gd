@@ -13,6 +13,9 @@ const HFRAMES := 4
 const VFRAMES := 4
 ## Where the pet stands relative to the player's feet.
 const PET_OFFSET := Vector2(-22, 0)
+## The first row of each body type's frame below the head: where the
+## guillotine parts them (see behead()).
+const NECK := {"regular": 16, "chibi": 23, "lanky": 11}
 
 @export var appearance: CharacterAppearance:
 	set(value):
@@ -52,6 +55,36 @@ func show_frame(column: int, facing: Facing) -> void:
 	_facing = facing
 	_sprite.frame_coords = Vector2i(column, facing)
 	_pet.frame_coords = Vector2i(column, facing)
+
+
+## Parts the drawing at the neck, as the guillotine does: this keeps the
+## body (in the frame it shows now), and the head comes back as a new
+## sprite, not yet in the tree, for the caller to place and move. Its
+## position is where the head was, from the character's feet. mend() puts
+## the drawing back together.
+func behead() -> Sprite2D:
+	var neck: int = NECK.get(appearance.body_type, NECK["regular"])
+	var frame := Vector2(_column, _facing) * FRAME_SIZE
+	var head := Sprite2D.new()
+	head.texture = _sprite.texture
+	head.region_enabled = true
+	head.region_rect = Rect2(frame, Vector2(FRAME_SIZE, neck))
+	head.position = Vector2(0, -FRAME_SIZE + neck / 2.0)
+	_sprite.hframes = 1
+	_sprite.vframes = 1
+	_sprite.region_enabled = true
+	_sprite.region_rect = Rect2(frame + Vector2(0, neck), Vector2(FRAME_SIZE, FRAME_SIZE - neck))
+	_sprite.position.y = -(FRAME_SIZE - neck) / 2.0
+	return head
+
+
+## Undoes behead() on the body; the head sprite is the caller's to free.
+func mend() -> void:
+	_sprite.region_enabled = false
+	_sprite.hframes = HFRAMES
+	_sprite.vframes = VFRAMES
+	_sprite.position.y = -FRAME_SIZE / 2.0
+	show_frame(_column, _facing)
 
 
 func _make_sprite() -> Sprite2D:

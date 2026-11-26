@@ -87,7 +87,7 @@ func _play(kind: String, deaths: Array, seconds: float) -> void:
 	if kind == "execution" and not deaths.is_empty():
 		var condemned: Dictionary = deaths[0]
 		town.look_at_spot(town.execution_view(), GLIDE_SECONDS)
-		herald.announce("The town executes %s" % _named(condemned))
+		herald.announce("The town executes %s" % condemned["name"], condemned["lot"])
 		if not await _wait(GLIDE_SECONDS + BEFORE_BLADE_SECONDS, run):
 			return
 		town.execute(condemned["lot"])
@@ -121,7 +121,7 @@ func _funeral(death: Dictionary, seconds: float, run: int) -> bool:
 		return false
 	town.reveal_body(lot)
 	var executed: bool = death["executed"]
-	herald.announce(("%s was executed" if executed else "%s was found dead") % _named(death))
+	herald.announce(("%s was executed" if executed else "%s was found dead") % death["name"], lot)
 	var rest := seconds - GLIDE_SECONDS
 	if not executed:
 		var causes := ", ".join(PackedStringArray(death["causes"]))
@@ -146,11 +146,6 @@ func _finish() -> void:
 	herald.clear()
 	town.look_back(GLIDE_SECONDS)
 	town.reveal_all_bodies()
-
-
-## "3 Ada": a player's number and name, as the town labels them.
-static func _named(death: Dictionary) -> String:
-	return "%d %s" % [int(death["lot"]) + 1, death["name"]]
 
 
 ## Waits, and says whether the ceremony is still the one that's playing.

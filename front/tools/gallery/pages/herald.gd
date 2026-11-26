@@ -22,13 +22,13 @@ func build(stage: Control, variant: String) -> void:
 	herald.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	match variant:
 		"death":
-			herald.announce("2 Cleo was found dead")
+			herald.announce("Cleo was found dead", 1)
 			herald.add_line("Killed by the Mafia, stabbed by a Serial Killer.")
 			herald.add_line("They were the Doctor.", "Dim")
 			herald.show_will("N1: healed 4 Dax.\nN2: healed myself. Someone visited me, I think 6 Finn is lying about being the Sheriff.")
 			herald.add_line("Rest in peace.", "Heading")
 		"execution":
-			herald.announce("5 Bartholomew Wigglesworth was executed")
+			herald.announce("Bartholomew Wigglesworth was executed", 11)
 			herald.add_line("They were the Mafioso.", "Dim")
 			herald.show_will("")
 		"quiet":
