@@ -244,10 +244,13 @@ func _row(member: Dictionary, model: Dictionary, aimed: Array) -> HBoxContainer:
 		note.text = "away"
 	elif not model["in_game"] and member["is_host"]:
 		note.text = "host"
-	# Between games, who has ticked the briefing's ready box, in verdigris.
-	if not model["in_game"] and member["ready"]:
-		note.text = "ready" if note.text == "" else note.text + " · ready"
-		note.add_theme_color_override("font_color", Tokens.SAFE)
+	# Between games, everyone's readiness (the briefing's box): "ready" in
+	# verdigris, "not ready" in the note's faint ink.
+	if not model["in_game"] and member["role"] == "":
+		var status := "ready" if member["ready"] else "not ready"
+		note.text = status if note.text == "" else note.text + " · " + status
+		if member["ready"]:
+			note.add_theme_color_override("font_color", Tokens.SAFE)
 	note.visible = note.text != ""
 	row.add_child(note)
 
