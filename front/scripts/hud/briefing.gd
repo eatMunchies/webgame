@@ -18,41 +18,42 @@ extends Modal
 ## The card's width, in units.
 const WIDTH := 210.0
 ## The most of the screen's height the topics take before they scroll.
-const SCROLL_SHARE := 0.58
+const SCROLL_SHARE := 0.66
 ## The close icon and the icons in the icon list, in units.
 const CLOSE_ICON := 9
 const LIST_ICON := 9
 const READY_TEXT := "I understand and am ready to participate"
 
-## The topics, in order: a heading and its paragraphs.
+## The topics, in order: a heading and its points. Kept to one short line
+## each, key word first, so the whole briefing scans in 10 to 15 seconds.
 const TOPICS: Array[Dictionary] = [
-	{"heading": "intro: an expanded mafia experience", "text": [
-		"Table of Salem is Mafia for one table. Everyone plays face to face and talks out loud; your phone is your assistant.",
-		"Each of you is secretly given a role. Work out who is who from what people say, what your role learns at night, and who dies. Keep your own role to yourself: nothing on your screen shows it unless you open your role card.",
+	{"heading": "intro: an expanded mafia experience", "points": [
+		"Mafia for one table: talk out loud.",
+		"Your role is secret. Keep it that way.",
 	]},
-	{"heading": "the factions", "text": [
-		"Town: most of the table. Investigators, protectors and the odd vigilante. Town wins when every Mafia member and neutral killer is dead.",
-		"Mafia: a few who know each other, talk in secret at night and kill one person a night. The Mafia wins once it's as big as everyone else.",
-		"Neutral: their own goals. A Serial Killer or Arsonist wants to be the last one standing, a Jester wants to be executed, an Executioner wants their target executed, a Survivor just wants to live.",
+	{"heading": "the factions", "points": [
+		"Town: find and execute the Mafia.",
+		"Mafia: kill nightly, outnumber Town.",
+		"Neutral: each has their own goal.",
 	]},
-	{"heading": "the game flow and minigames", "text": [
-		"Day 0 is a short hello. Then nights and days take turns.",
-		"Night: pick your action from the roster (Choose, or Use). Then every living player plays minigames. If you act, you play an evaluation, and your action only works if you play it well. An attack is a confrontation between attacker and victim. Everyone plays something every night, so nobody can tell who acted.",
-		"Morning: the town gathers at each body, reads their role and their last will.",
-		"Day: talk it over, then vote. Enough votes send someone to the guillotine to defend themselves; the town judges them guilty or innocent. Guilty means execution.",
+	{"heading": "game flow and minigames", "points": [
+		"Night: act, then play minigames.",
+		"Minigames: do well or your act fails.",
+		"Morning: see who died, role and will.",
+		"Day: talk, vote, judge at the guillotine.",
 	]},
 ]
 
 ## The icons explained in the last topic: icon name and what it means.
 const ICON_MEANINGS: Array[Array] = [
-	[&"briefing", "This briefing, and the box to say you're ready."],
-	[&"role", "Your role card. Only you should look at it."],
-	[&"will", "Your last will: notes the town reads when you die."],
-	[&"vote", "Vote a player up for trial, while voting."],
-	[&"whisper", "Whisper to a player, by day. Everyone sees that you whispered, only they see what."],
-	[&"host", "The host, who starts the game."],
-	[&"copy", "Copy the town's code to share it."],
-	[&"leave", "Leave the town."],
+	[&"briefing", "This briefing; ready up"],
+	[&"role", "Your role (keep it private)"],
+	[&"will", "Your last will"],
+	[&"vote", "Vote for a trial"],
+	[&"whisper", "Whisper to a player"],
+	[&"host", "The host"],
+	[&"copy", "Copy the town code"],
+	[&"leave", "Leave the town"],
 ]
 
 ## Lobby codes the briefing has opened by itself for.
@@ -98,15 +99,17 @@ func _ready() -> void:
 
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	rows.add_child(_scroll)
+	# Each topic is a heading with its points close under it, and the topics
+	# stand apart, so the eye can run down the headings.
 	var topics := VBoxContainer.new()
-	topics.add_theme_constant_override("separation", Tokens.SPACE_SM)
+	topics.add_theme_constant_override("separation", Tokens.SPACE_LG)
 	topics.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.add_child(topics)
 	for topic: Dictionary in TOPICS:
-		_add_label(topics, "> " + topic["heading"], "Heading")
-		for paragraph: String in topic["text"]:
-			_add_label(topics, paragraph, "Body")
-	_add_label(topics, "> icon meanings", "Heading")
+		var section := _section(topics, topic["heading"])
+		for point: String in topic["points"]:
+			_add_label(section, "- " + point, "Body")
+	var icons := _section(topics, "icon meanings")
 	for meaning: Array in ICON_MEANINGS:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", Tokens.SPACE_SM)
@@ -126,7 +129,7 @@ func _ready() -> void:
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		label.set_meta("beside_icon", true)
 		row.add_child(label)
-		topics.add_child(row)
+		icons.add_child(row)
 
 	_ready_box.text = READY_TEXT
 	_ready_box.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -185,6 +188,16 @@ func _place() -> void:
 	# The panel grew to fit the wider labels Modal gave it first; take it
 	# back to its width now they're narrower.
 	panel.size = Vector2(panel.custom_minimum_size.x, 0)
+
+
+## A topic: its "> heading", and a column for its points, returned.
+func _section(parent: Control, heading: String) -> VBoxContainer:
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", Tokens.SPACE_HAIR)
+	section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(section)
+	_add_label(section, "> " + heading, "Heading")
+	return section
 
 
 func _add_label(parent: Control, text: String, variation: String) -> void:

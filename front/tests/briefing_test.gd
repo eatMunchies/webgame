@@ -28,7 +28,7 @@ func briefing() -> Briefing:
 func test_the_topics_come_in_order() -> void:
 	var headings: Array = Briefing.TOPICS.map(func(topic: Dictionary) -> String: return topic["heading"])
 	assert_array(headings).contains_exactly(
-		["intro: an expanded mafia experience", "the factions", "the game flow and minigames"])
+		["intro: an expanded mafia experience", "the factions", "game flow and minigames"])
 	var icons: Array = Briefing.ICON_MEANINGS.map(func(meaning: Array) -> StringName: return meaning[0])
 	assert_array(icons).contains([&"briefing", &"will", &"role"])
 
