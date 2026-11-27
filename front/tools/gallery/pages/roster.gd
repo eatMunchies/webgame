@@ -11,7 +11,7 @@ const FIXTURES := preload("res://tools/gallery/fixtures.gd")
 
 
 func _init() -> void:
-	variants = ["lobby", "voting", "trial", "night", "crowd"]
+	variants = ["lobby", "lobby_ready", "voting", "trial", "night", "crowd"]
 
 
 func build(stage: Control, variant: String) -> void:

@@ -270,6 +270,7 @@ func _refresh_players() -> void:
 		player.alive = member["alive"]
 		player.connected = member["connected"]
 		player.is_host = member["is_host"]
+		player.ready = member["ready"]
 		# Layers the player didn't pick are random, seeded from the lobby
 		# code and user id so every client in the lobby builds the same house.
 		player.house = HouseAppearance.random(hash("%s/%s" % [code, player.user_id]))

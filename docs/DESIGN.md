@@ -117,6 +117,7 @@ Night (`Tokens.use_night(true)`) turns parchment candlelit: warmer, darker at th
 | Modal | both | `scripts/ui/kit/modal.gd` | The base of the text box and the card: a dimmed backdrop and one panel (a parchment Document, or glass with `system`), upper middle or middle; Escape or a tap outside closes it, after a 400 ms grace for a phone's echo of the opening tap |
 | TextPrompt | both | `scripts/ui/text_prompt.gd` | The text box (below) |
 | RoleCard | in-world | `scripts/hud/role_card.gd` | Your role on a card (below) |
+| Briefing | system | `scripts/hud/briefing.gd` | How to play and the ready box, on glass (below) |
 | WaxSeal | in-world | `scripts/ui/kit/wax_seal.gd` | A round wax seal pressed with a letter: the role card's faction mark |
 | Minigame panel | system | `scenes/main/minigame_overlay.tscn` | The night's skill checks and fights (below) |
 | SimBackdrop | system | `scripts/ui/kit/sim_backdrop.gd` | The machine's menus' background: a faint grid on near-black |
@@ -171,6 +172,10 @@ The machine's menus, laid out in 1280x720 units (`UiTheme.system(4)`). Behind th
 ### The text box
 
 A Modal in the upper middle (clear of a phone's keyboard), 220 units wide at most: the title in IM Fell, the paper's ruled field (wax when focused, a thick wax caret that doesn't blink), then Paste (a quiet button with the paste icon, when asked for), Cancel (quiet) and the confirm as a wax seal ("Send", "Save", "Join"). On the machine's screens the same on glass, with a cyan primary.
+
+### The briefing
+
+A Modal on the machine's glass, 210 units wide at most: "> briefing" (Title) and the close icon, then the topics in a scroll (58% of the screen's height): each a cyan Heading ("> intro: an expanded mafia experience", "> the factions", "> the game flow and minigames", "> icon meanings") over Body text, the icons listed with their meanings. Under the scroll, always in view between games, the ready CheckBox: "I understand and am ready to participate". Its button under the roster is the stamped paper button with the briefing icon (a question mark whose dot is a check mark) and a wax dot while you aren't ready. Readiness on the roster is the note "ready" in verdigris (`SAFE`).
 
 ### The role card
 

@@ -59,6 +59,8 @@ const MINIGAME_SHARE := 0.5
 const RECONNECTING_LINES: PackedStringArray = ["desync detected, resyncing", "hold on, getting you back in"]
 ## The will and role buttons' icons, in units.
 const ROW_ICON := 11
+## The radius of the dot on the briefing button, in units.
+const BRIEFING_DOT := 2.0
 const WILL_TITLE := "Last will"
 const WILL_PLACEHOLDER := "Everyone reads this when you die. N1: checked 3, not suspicious"
 
@@ -90,6 +92,11 @@ var herald := Herald.new()
 ## the phone's chat sheet steps aside so the town can be seen.
 var _ceremony := false
 var role_card: RoleCard
+## The briefing: how to play, and the box to ready up (see Briefing).
+var briefing: Briefing
+var briefing_button := Button.new()
+## The dot on the briefing button while this player hasn't readied up.
+var _briefing_dot := Control.new()
 ## The tall screen's tab on the chat sheet's top edge.
 var chat_tab := Button.new()
 var role_button := Button.new()
@@ -118,6 +125,7 @@ func _ready() -> void:
 	theme = UiTheme.paper()
 	prompt = TextPrompt.create(self)
 	role_card = RoleCard.create(self)
+	briefing = Briefing.create(self)
 	chat_panel.prompt = prompt
 	_add_buttons()
 	_add_chat_tab()
@@ -132,11 +140,14 @@ func _ready() -> void:
 	Session.lobby_changed.connect(_update_will_button)
 	Session.phase_changed.connect(_update_will_button)
 	Session.lobby_changed.connect(_show_role_at_start)
+	Session.lobby_changed.connect(_update_briefing)
+	Session.phase_changed.connect(_update_briefing)
 	Session.phase_changed.connect(_show_role_at_start)
 	Session.minigame_changed.connect(_on_minigame_changed)
 	Session.keyboard_minigame_changed.connect(_on_minigame_changed)
 	_update_will_button()
 	_apply_layout()
+	_update_briefing()
 
 
 func _process(_delta: float) -> void:
@@ -327,8 +338,20 @@ func _add_buttons() -> void:
 	role_button.focus_mode = Control.FOCUS_NONE
 	role_button.pressed.connect(role_card.open)
 	row.add_child(role_button)
+	briefing_button.icon = Icons.get_icon("briefing")
+	briefing_button.tooltip_text = "Briefing and ready up"
+	briefing_button.focus_mode = Control.FOCUS_NONE
+	briefing_button.pressed.connect(briefing.open)
+	row.add_child(briefing_button)
+	# A wax dot in the corner while this player still has to ready up.
+	_briefing_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_briefing_dot.draw.connect(func() -> void:
+		var corner := Vector2(_briefing_dot.size.x - BRIEFING_DOT - 1, BRIEFING_DOT + 1)
+		_briefing_dot.draw_circle(corner, BRIEFING_DOT, Tokens.WAX))
+	briefing_button.add_child(_briefing_dot)
+	_briefing_dot.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# Stamped paper buttons with woodcut icons, in ink (paper when pressed).
-	for button: Button in [will_button, role_button]:
+	for button: Button in [will_button, role_button, briefing_button]:
 		button.custom_minimum_size = Vector2(Tokens.TOUCH_MIN + Tokens.SPACE_SM, Tokens.TOUCH_MIN)
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.add_theme_constant_override("icon_max_width", ROW_ICON)
@@ -337,6 +360,17 @@ func _add_buttons() -> void:
 		for state in ["icon_pressed_color", "icon_hover_pressed_color"]:
 			button.add_theme_color_override(state, Tokens.INK_ON_DARK)
 	_apply_paper()
+
+
+## The briefing opens by itself on joining a lobby, and its button shows a
+## dot while this player hasn't readied up.
+func _update_briefing() -> void:
+	_briefing_dot.visible = Briefing.waiting_on_me()
+	briefing_button.visible = Session.in_lobby()
+	if Session.in_game() and briefing.visible:
+		# The role card comes up as the game starts.
+		briefing.close()
+	briefing.open_on_joining()
 
 
 ## Shows the role card when a game starts (or when joining one in progress).

@@ -116,6 +116,7 @@ static func collect() -> Dictionary:
 		"needed": Session.client.votes_needed(),
 		"host_can_start": Session.is_host and not Session.in_game(),
 		"player_count": Session.players.size(),
+		"ready_count": Session.players.filter(func(p: LobbyPlayer) -> bool: return p.ready).size(),
 		"members": members,
 		"actions": Session.client.actions(),
 	}
@@ -188,9 +189,15 @@ func _update_choices(actions: Array, model: Dictionary) -> void:
 			choice_row.add_child(button)
 	choice_row.visible = choice_row.get_child_count() > 0
 	var count: int = model["player_count"]
+	var ready: int = model["ready_count"]
 	start_button.visible = model["host_can_start"]
-	start_button.disabled = count < 4
-	start_button.text = "Start game" if count >= 4 else "Start game · needs 4"
+	start_button.disabled = count < 4 or ready < count
+	if count < 4:
+		start_button.text = "Start game · needs 4"
+	elif ready < count:
+		start_button.text = "Start game · %d of %d ready" % [ready, count]
+	else:
+		start_button.text = "Start game"
 
 
 ## One player's row: badge, name, a note, and their buttons.
@@ -237,6 +244,10 @@ func _row(member: Dictionary, model: Dictionary, aimed: Array) -> HBoxContainer:
 		note.text = "away"
 	elif not model["in_game"] and member["is_host"]:
 		note.text = "host"
+	# Between games, who has ticked the briefing's ready box, in verdigris.
+	if not model["in_game"] and member["ready"]:
+		note.text = "ready" if note.text == "" else note.text + " · ready"
+		note.add_theme_color_override("font_color", Tokens.SAFE)
 	note.visible = note.text != ""
 	row.add_child(note)
 
