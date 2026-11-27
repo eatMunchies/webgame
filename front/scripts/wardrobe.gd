@@ -311,6 +311,14 @@ func _tile_row(separation: int) -> Array[Control]:
 	return [scroll, row]
 
 
+## Lets a tile or swatch pass touches on to the scrolling row and tab it sits
+## in. A button stops them by default, so a swipe that starts on a tile (which
+## on a phone's row is nearly every swipe) would never scroll; the scroll
+## cancels the tile's press instead once the finger moves past the deadzone.
+static func _pass_touches(button: Control) -> void:
+	button.mouse_filter = Control.MOUSE_FILTER_PASS
+
+
 ## How big a tile or swatch is on this window: bigger on a portrait one.
 func _tile_size(size: Vector2) -> Vector2:
 	return size * PORTRAIT_TILE_SCALE if _portrait else size
@@ -359,6 +367,7 @@ func _tile_section(picker: String, heading: String, values: Array) -> Control:
 		elif value == "":
 			tile.text = "None"
 		tile.pressed.connect(_choose.bind(picker, value))
+		_pass_touches(tile)
 		grid.add_child(tile)
 		_tiles[picker][value] = tile
 	return section
@@ -387,6 +396,7 @@ func _skin_section() -> Control:
 		swatch.add_theme_stylebox_override("hover_pressed", _swatch_box(color, Tokens.SYS_ACCENT, 4))
 		swatch.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		swatch.pressed.connect(_set_skin.bind(color))
+		_pass_touches(swatch)
 		row.add_child(swatch)
 		_swatches.append(swatch)
 	_custom_skin = ColorPickerButton.new()
@@ -396,6 +406,7 @@ func _skin_section() -> Control:
 	for preset in SKIN_PRESETS:
 		_custom_skin.get_picker().add_preset(preset)
 	_custom_skin.color_changed.connect(_set_skin)
+	_pass_touches(_custom_skin)
 	row.add_child(_custom_skin)
 	return section
 
