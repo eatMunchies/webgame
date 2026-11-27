@@ -17,7 +17,8 @@ pub const RANKED: [RoleSlot; MAX_PLAYERS] = [
     RoleSlot::Category(RoleCategory::TownSupport),
     RoleSlot::Category(RoleCategory::TownInvestigative),
     RoleSlot::Exact(Role::Godfather),
-    RoleSlot::Exact(Role::Jailer),
+    // The Jailer's slot while the Jailer is out of play (see `Role::in_play`).
+    RoleSlot::Faction(Faction::Town),
     RoleSlot::Category(RoleCategory::TownKilling),
     RoleSlot::Faction(Faction::Mafia),
     RoleSlot::Category(RoleCategory::NeutralKilling),
@@ -47,7 +48,7 @@ pub fn roll_roles(list: &[RoleSlot], rng: &mut impl Rng) -> Vec<Role> {
         let taken: Vec<Role> = rolled.iter().flatten().copied().collect();
         let options: Vec<Role> = Role::ALL
             .into_iter()
-            .filter(|role| list[i].allows(*role))
+            .filter(|role| role.in_play() && list[i].allows(*role))
             .filter(|role| !(role.unique() && taken.contains(role)))
             .collect();
         // Every slot used by RANKED has non-unique roles left, so this only falls back for an
@@ -93,6 +94,7 @@ mod tests {
                 let roles = roll_roles(&role_list(players), &mut rng);
                 assert_eq!(roles.len(), players);
                 assert!(roles.contains(&Role::Mafioso));
+                assert!(roles.iter().all(|r| r.in_play()), "{roles:?}");
                 for role in Role::ALL.into_iter().filter(|r| r.unique()) {
                     assert!(roles.iter().filter(|r| **r == role).count() <= 1);
                 }
