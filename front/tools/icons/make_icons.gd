@@ -37,17 +37,17 @@ const ICONS := {
 	# The briefing and ready up: a question mark at the back on the left, and a
 	# check mark in front on the right, its dip right of center, its short
 	# arm rising shallow to the left across the question's stem and its long arm
-	# at 45 degrees, with a gap cut around it. Drawn 14x14 so it keeps a pixel
+	# rising to the height of the question's curve, with a gap cut around it. Drawn 14x14 so it keeps a pixel
 	# of space all around once centered.
 	"briefing": [
 		"..#####.......",
 		".##...##......",
 		"##.....##.....",
-		"##.....##.....",
-		"......##......",
-		".....##.....##",
-		"....##.....##.",
-		".##.......##..",
+		"##.....##...##",
+		"......##...##.",
+		".....##....##.",
+		"....##....##..",
+		".##......##...",
 		".####....##...",
 		"...####.##....",
 		".....####.....",
