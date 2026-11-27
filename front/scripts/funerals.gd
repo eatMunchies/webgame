@@ -7,7 +7,7 @@ extends Node
 ## The server announces deaths just before the stage starts
 ## (Session.deaths_announced), and the stage's length allows a funeral for
 ## each one. At a funeral the camera glides to the dead player's house,
-## their body appears lying in front of it, and the herald says who died
+## their body appears lying on the road in front of it, and the herald says who died
 ## and how, what their role was, reads their last will and says "Rest in
 ## peace." A morning with nobody dead just says so. At an execution the
 ## camera first goes to the guillotine, the blade falls on the condemned,

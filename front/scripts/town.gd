@@ -441,9 +441,9 @@ func _sync_corpses() -> void:
 		corpse.visible = resident.lot not in _unburied
 
 
-## Where a player's body lies: in front of their house.
+## Where a player's body lies: on the road in front of their house.
 func body_spot(lot: int) -> Vector2:
-	return CulDeSac.lot_position(lot, Session.MAX_PLAYERS) + Corpse.OFFSET
+	return CulDeSac.road_spot(lot, Session.MAX_PLAYERS)
 
 
 ## Where the accused stands, in front of the guillotine.
