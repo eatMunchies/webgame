@@ -27,6 +27,10 @@ var placed := false
 ## True while they're dead and the one watching is alive, during a game:
 ## the living can't see the dead.
 var ghost_hidden := false
+## Where they're held, while on trial at the guillotine, or null. Their own
+## client walks them there too; this keeps one that doesn't (a terminal
+## player) in place, and ignores reports until they're let go.
+var pinned: Variant = null
 
 
 func _ready() -> void:
@@ -49,6 +53,10 @@ func show_player(player: LobbyPlayer, viewer_sees_dead := true) -> void:
 ## Moves toward a reported position. The first report places the character
 ## there directly and shows it.
 func move_to(new_position: Vector2, new_facing: Character.Facing, is_walking: bool) -> void:
+	if pinned != null:
+		new_position = pinned
+		new_facing = Character.Facing.DOWN
+		is_walking = false
 	target_position = new_position
 	facing = new_facing
 	walking = is_walking

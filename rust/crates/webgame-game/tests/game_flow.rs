@@ -14,10 +14,12 @@ use webgame_protocol::{
 /// Every phase lasts one second, except action rounds, which leave time for a knockout.
 const PHASE: u64 = 1_000;
 const ACTION_ROUND: u64 = 8_000;
+const FUNERAL: u64 = 2_000;
 
 fn timers() -> Timers {
     Timers {
         action_round: ACTION_ROUND,
+        funeral: FUNERAL,
         ..Timers::uniform(PHASE)
     }
 }
@@ -219,6 +221,14 @@ fn phases_go_day_zero_then_night_one_then_day_one() {
         table.game.phase(),
         &GamePhase::Day {
             day: 1,
+            stage: DayStage::Morning
+        }
+    );
+    table.next_phase();
+    assert_eq!(
+        table.game.phase(),
+        &GamePhase::Day {
+            day: 1,
             stage: DayStage::Discussion
         }
     );
@@ -347,11 +357,58 @@ fn a_guilty_verdict_lynches_reveals_the_will_and_ends_the_day() {
     assert_eq!(deaths[0].role, Role::Mafioso);
     assert_eq!(deaths[0].will, "I was framed");
     assert_eq!(deaths[0].causes, vec![DeathCause::Lynched]);
+    // The execution plays out before the game ends.
+    assert!(matches!(
+        table.game.phase(),
+        GamePhase::Day {
+            stage: DayStage::Execution { accused },
+            ..
+        } if *accused == slot(0)
+    ));
+    assert!(table.game.result().is_none());
+    table.next_phase();
     // The only Mafia member is gone, so the Town (and the Survivor) win.
     let result = table.game.result().expect("game over");
     assert_eq!(result.outcome, Outcome::Town);
     assert!(result.winners.contains(&slot(4)));
     assert!(!result.winners.contains(&slot(0)));
+}
+
+#[test]
+fn a_morning_holds_a_funeral_for_each_death_in_silence() {
+    let mut table = Table::new(&[
+        Role::Mafioso,
+        Role::Sheriff,
+        Role::Lookout,
+        Role::Investigator,
+        Role::Tracker,
+    ]);
+    table.until_night();
+    table.act(0, GameAction::Night(Some(NightAction::Target(slot(1)))));
+    table.succeed_tonight();
+    assert!(!table.game.player(slot(1)).unwrap().alive);
+    assert_eq!(
+        table.game.phase(),
+        &GamePhase::Day {
+            day: 1,
+            stage: DayStage::Morning
+        }
+    );
+    // The bare morning, and one funeral.
+    assert_eq!(table.game.deadline(), Some(table.now + PHASE + FUNERAL));
+    assert_eq!(
+        table.say(2, ChatChannel::General, "who did it"),
+        Err(ErrorCode::NotAllowedNow)
+    );
+    table.next_phase();
+    assert_eq!(
+        table.game.phase(),
+        &GamePhase::Day {
+            day: 1,
+            stage: DayStage::Discussion
+        }
+    );
+    table.say(2, ChatChannel::General, "who did it").unwrap();
 }
 
 #[test]
@@ -373,7 +430,8 @@ fn a_lynched_jester_wins_and_haunts_a_guilty_voter() {
     table.act(5, GameAction::Judgement(Verdict::Guilty));
     table.next_phase(); // -> last words
     table.log.clear();
-    table.next_phase(); // -> lynch, night 2
+    table.next_phase(); // -> lynch, execution
+    table.next_phase(); // -> night 2
     assert_eq!(table.game.phase(), &night(2, NightStage::Choosing));
     assert!(table.game.player(slot(4)).unwrap().won);
     assert!(

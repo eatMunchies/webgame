@@ -79,6 +79,12 @@ pub struct Timers {
     pub defense: u64,
     pub judgement: u64,
     pub last_words: u64,
+    /// A morning with nobody to bury: long enough to see the town wake up.
+    pub morning: u64,
+    /// Added to a morning, and to an execution, for each funeral it holds.
+    pub funeral: u64,
+    /// The execution itself, before the executed player's funeral.
+    pub execution: u64,
     /// The start of the night, while players pick their actions.
     pub choosing: u64,
     pub roleblock: u64,
@@ -99,6 +105,9 @@ impl Timers {
         defense: 20_000,
         judgement: 20_000,
         last_words: 7_000,
+        morning: 4_000,
+        funeral: 9_000,
+        execution: 4_000,
         // A night is about 49 seconds: 12 choosing, 8 for roleblocks, 10 for each of the two
         // action rounds, and the 3 second countdown before each of those three stages.
         choosing: 12_000,
@@ -116,6 +125,9 @@ impl Timers {
         defense: 10_000,
         judgement: 10_000,
         last_words: 5_000,
+        morning: 3_000,
+        funeral: 7_000,
+        execution: 3_000,
         choosing: 15_000,
         roleblock: 8_000,
         action_round: 10_000,
@@ -131,6 +143,9 @@ impl Timers {
             defense: ms,
             judgement: ms,
             last_words: ms,
+            morning: ms,
+            funeral: 0,
+            execution: ms,
             choosing: ms,
             roleblock: ms,
             action_round: ms,

@@ -60,12 +60,14 @@ pub struct ChatContext {
 
 /// Whether `from` may whisper to `to` in this phase: by day, to someone else, and never to or
 /// from the accused while they're on trial (defending, being judged, or saying last words).
-/// Whether either of them is alive is checked separately.
+/// Nobody whispers during a morning's funerals or an execution. Whether either of them is alive
+/// is checked separately.
 pub fn whisper_allowed(phase: &GamePhase, from: PlayerSlot, to: PlayerSlot) -> bool {
     let GamePhase::Day { stage, .. } = phase else {
         return false;
     };
     let on_trial = match stage {
+        DayStage::Morning | DayStage::Execution { .. } => return false,
         DayStage::Defense { accused }
         | DayStage::Judgement { accused }
         | DayStage::LastWords { accused } => Some(*accused),
@@ -90,6 +92,8 @@ impl ChatContext {
                             DayStage::Defense { accused } | DayStage::LastWords { accused } => {
                                 *accused == self.slot
                             }
+                            // The town is quiet for funerals and executions.
+                            DayStage::Morning | DayStage::Execution { .. } => false,
                             _ => true,
                         }
                 }

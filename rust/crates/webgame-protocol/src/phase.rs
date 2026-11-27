@@ -19,16 +19,34 @@ pub enum GamePhase {
     GameOver,
 }
 
-/// The parts of a day. Discussion leads to Voting. When enough votes land on one player they go
-/// on trial: Defense, then Judgement. A guilty verdict leads to LastWords and the lynch, which
-/// ends the day. Otherwise voting resumes, up to [`crate::TRIALS_PER_DAY`] trials.
+/// The parts of a day. Every day after a night opens with Morning, while clients show what the
+/// night did (a funeral for each death), then Discussion leads to Voting. When enough votes land
+/// on one player they go on trial: Defense, then Judgement. A guilty verdict leads to LastWords
+/// and then Execution, which ends the day. Otherwise voting resumes, up to
+/// [`crate::TRIALS_PER_DAY`] trials.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DayStage {
+    /// The start of a day after a night: the night's deaths have been announced, and clients
+    /// hold a funeral for each one. Its length grows with the number of deaths.
+    Morning,
     Discussion,
-    Voting { trials_left: u8 },
-    Defense { accused: PlayerSlot },
-    Judgement { accused: PlayerSlot },
-    LastWords { accused: PlayerSlot },
+    Voting {
+        trials_left: u8,
+    },
+    Defense {
+        accused: PlayerSlot,
+    },
+    Judgement {
+        accused: PlayerSlot,
+    },
+    LastWords {
+        accused: PlayerSlot,
+    },
+    /// The convicted player is executed; their death was announced as this began, and clients
+    /// show the execution and then their funeral. Night follows.
+    Execution {
+        accused: PlayerSlot,
+    },
 }
 
 /// The parts of a night, always in this order and always the same length, so their timing gives

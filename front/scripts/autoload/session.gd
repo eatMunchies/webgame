@@ -16,6 +16,10 @@ extends Node
 signal lobby_changed
 ## The game moved to a new phase.
 signal phase_changed
+## Players died, at dawn (an empty array when nobody did) or by execution:
+## each a Dictionary with `lot`, `name`, `role`, `will`, `causes` (phrases
+## like "killed by the Mafia") and `executed`. See Funerals.
+signal deaths_announced(deaths: Array)
 ## A request was refused or the server couldn't be reached. `message` is
 ## written for the player.
 signal request_failed(message: String)
@@ -115,6 +119,7 @@ func _ready() -> void:
 	add_child(client)
 	client.members_changed.connect(_refresh_players)
 	client.phase_changed.connect(phase_changed.emit)
+	client.deaths_announced.connect(deaths_announced.emit)
 	client.log_line.connect(_add_log_line)
 	client.server_error.connect(_on_server_error)
 	client.disconnected.connect(_on_disconnected)

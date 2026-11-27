@@ -3,7 +3,7 @@ extends Sprite2D
 
 ## The town's ground: grass, a loop of road around a small park, and a road
 ## coming in from the bottom edge. The park is grass with a paved plaza in the
-## middle for the podium and a footpath out to the road on each side. The image
+## middle for the guillotine and a footpath out to the road on each side. The image
 ## is painted in code from the sizes below, and lot_position() places the
 ## houses around the loop from the same numbers, so changing a size keeps the
 ## road and the houses lined up.
@@ -66,6 +66,15 @@ func _ready() -> void:
 ## entrance, so lot 0 is just left of the road in and the last lot is just
 ## right of it. They're spaced evenly along the ring (as LOT_SPACING measures
 ## it), with one extra space left empty where the road comes in.
+## The middle of the road loop straight out from a lot, toward the park:
+## where that lot's owner lies when they die.
+static func road_spot(lot: int, lot_count: int) -> Vector2:
+	var yard := lot_position(lot, lot_count) - LOT_GROUND_OFFSET
+	var toward := ((yard - CENTER) / LOT_RADII).normalized()
+	var middle := (ROAD_RADII + ISLAND_RADII + Vector2(CURB, CURB)) / 2.0
+	return (CENTER + toward * middle).round()
+
+
 static func lot_position(lot: int, lot_count: int) -> Vector2:
 	# Walk around the ring in small steps, measuring as we go, and stop once
 	# we've covered this lot's share of the distance.
