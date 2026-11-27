@@ -36,24 +36,23 @@ const ICONS := {
 	],
 	# The briefing and ready up: a question mark at the back with a check mark
 	# in front of it, a gap cut around the check, and the question's dot
-	# showing just under the check's point.
+	# showing just under the check's point. Drawn 14x14 so it keeps a pixel
+	# of space all around once centered.
 	"briefing": [
-		".....#####......",
-		"....##...##.....",
-		"...##.....##....",
-		"...##.....##....",
-		"..........##....",
-		".........##...##",
-		"........##...##.",
-		".......##...##..",
-		".......##..##...",
-		"....##....##....",
-		".....##..##.....",
-		"......####......",
-		".......##.......",
-		"................",
-		".......##.......",
-		".......##.......",
+		"....#####.....",
+		"...##...##....",
+		"..##.....##...",
+		"..##.....##...",
+		"........##....",
+		".......##..##.",
+		"......##..##..",
+		"...##....##...",
+		"....##..##....",
+		".....####.....",
+		"......##......",
+		"..............",
+		"......##......",
+		"......##......",
 	],
 	# Your role: an identity paper with a portrait and lines.
 	"role": [
