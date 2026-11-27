@@ -12,6 +12,7 @@ const DIR := "res://assets/sprites/ui/icons/%s.png"
 const NAMES: Array[StringName] = [
 	&"will", &"role", &"whisper", &"vote", &"chat", &"dead", &"day", &"night",
 	&"time", &"host", &"customize", &"paste", &"copy", &"leave", &"close", &"send",
+	&"briefing",
 ]
 
 

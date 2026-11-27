@@ -35,6 +35,9 @@ pub enum ClientMessage {
     Move(Movement),
     /// How this player's character looks. Sent after joining a lobby.
     SetAppearance(Appearance),
+    /// Between games: whether this player has read the briefing and is ready to play. The host
+    /// can only start once everyone is; it resets when a game starts.
+    SetReady(bool),
 }
 
 /// Things a player does in a running game, other than chatting.
@@ -170,6 +173,8 @@ pub enum ErrorCode {
     TooLong,
     /// Someone with that name is already connected to the lobby.
     NameTaken,
+    /// The host tried to start before everyone was ready.
+    NotEveryoneReady,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -190,6 +195,8 @@ pub struct LobbyMember {
     pub connected: bool,
     /// How the player's character looks, once their client has said.
     pub appearance: Option<Appearance>,
+    /// Whether they're ready for the next game. Always false during a game.
+    pub ready: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

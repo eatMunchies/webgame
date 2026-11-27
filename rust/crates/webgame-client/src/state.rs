@@ -219,6 +219,9 @@ impl State {
                 if member.user_id == lobby.host {
                     line.push_str(" host");
                 }
+                if member.ready {
+                    line.push_str(" ready");
+                }
                 if !member.connected {
                     line.push_str(" (disconnected)");
                 }
@@ -332,6 +335,27 @@ impl State {
                 } else {
                     Vec::new()
                 };
+                // Who readied up or took it back, by name, between games.
+                let readiness: Vec<String> = match &self.lobby {
+                    Some(before) if !first && !info.in_game => info
+                        .members
+                        .iter()
+                        .filter(|m| {
+                            before
+                                .members
+                                .iter()
+                                .any(|b| b.user_id == m.user_id && b.ready != m.ready)
+                        })
+                        .map(|m| {
+                            if m.ready {
+                                format!("{} is ready.", m.name)
+                            } else {
+                                format!("{} isn't ready.", m.name)
+                            }
+                        })
+                        .collect(),
+                    _ => Vec::new(),
+                };
                 let now = info.members.len();
                 let ended = self.phase == GamePhase::GameOver && !info.in_game;
                 self.positions
@@ -344,18 +368,18 @@ impl State {
                     let code = &self.lobby.as_ref().unwrap().code;
                     vec![format!("In lobby {code}.")]
                 } else if self.app {
-                    arrivals
+                    arrivals.into_iter().chain(readiness).collect()
                 } else if first || ended {
                     let code = &self.lobby.as_ref().unwrap().code;
                     let mut lines = vec![format!(
-                        "In lobby {code}. Share the code; the host types /start with 4 or more players."
+                        "In lobby {code}. Share the code; type /ready when you're ready, and the host types /start once 4 or more players all are."
                     )];
                     lines.push(self.players_text());
                     lines
                 } else if joined != now {
                     vec![self.players_text()]
                 } else {
-                    Vec::new()
+                    readiness
                 }
             }
             ServerMessage::LeftLobby => {

@@ -12,7 +12,7 @@ const NAMES := ["Ada", "Bram", "Cleo", "Dax", "Eve", "Finn", "Gus", "Hepzibah Go
 static func member(n: int, options := {}) -> Dictionary:
 	var entry := {
 		"number": n, "name": NAMES[n - 1], "alive": true, "is_me": n == 1, "role": "",
-		"votes": 0, "connected": true, "is_host": n == 1, "can_whisper": false,
+		"votes": 0, "connected": true, "is_host": n == 1, "can_whisper": false, "ready": false,
 	}
 	entry.merge(options, true)
 	return entry
@@ -25,15 +25,23 @@ static func action(label: String, lot: int, selected := false) -> Dictionary:
 static func roster(state: String) -> Dictionary:
 	var base := {
 		"in_game": true, "night": false, "voting": false, "judging": false, "needed": 0,
-		"host_can_start": false, "player_count": 6, "members": [], "actions": [],
+		"host_can_start": false, "player_count": 6, "ready_count": 0, "members": [], "actions": [],
 	}
 	match state:
 		"lobby":
 			base["in_game"] = false
 			base["host_can_start"] = true
 			base["player_count"] = 4
+			base["ready_count"] = 2
 			for n in range(1, 5):
-				base["members"].append(member(n, {"connected": n != 3}))
+				base["members"].append(member(n, {"connected": n != 3, "ready": n <= 2}))
+		"lobby_ready":
+			base["in_game"] = false
+			base["host_can_start"] = true
+			base["player_count"] = 4
+			base["ready_count"] = 4
+			for n in range(1, 5):
+				base["members"].append(member(n, {"ready": true}))
 		"voting":
 			base["voting"] = true
 			base["needed"] = 4

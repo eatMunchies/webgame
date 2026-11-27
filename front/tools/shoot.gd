@@ -16,7 +16,9 @@ extends SceneTree
 ## - EVERY: seconds between frames, 4 by default.
 ## - SCENE: the scene to start in, the start screen by default.
 ## - TOUCH=1: act as a touch screen (TextPrompt.touch), as a phone would.
-## - CLOSE_CARD=1: close the role card whenever it opens, as a player would.
+## - CLOSE_CARD=1: close the role card and the briefing whenever they open,
+##   as a player would.
+## - READY=1: tick the briefing's ready box whenever in a lobby between games.
 ##
 ## Gotchas: this script is compiled before the game's autoloads exist, so it
 ## reaches Session as root.get_node("Session") and loads other scripts by
@@ -29,6 +31,8 @@ var _secs := 60.0
 var _every := 4.0
 var _t := 0.0
 var _next := 0.0
+## When READY=1 last asked to ready up.
+var _ready_sent := -10.0
 
 
 func _initialize() -> void:
@@ -46,7 +50,8 @@ func _initialize() -> void:
 
 func _close_cards(node: Node) -> void:
 	var script: Script = node.get_script()
-	if script != null and script.resource_path.ends_with("role_card.gd") and node.visible:
+	if script != null and node.visible and (script.resource_path.ends_with("role_card.gd")
+			or script.resource_path.ends_with("briefing.gd")):
 		node.close()
 	for child in node.get_children():
 		_close_cards(child)
@@ -56,6 +61,12 @@ func _process(delta: float) -> bool:
 	_t += delta
 	if OS.get_environment("CLOSE_CARD") == "1":
 		_close_cards(root)
+	if OS.get_environment("READY") == "1":
+		var session := root.get_node_or_null("Session")
+		if session and session.me != null and not session.me.ready and not session.in_game() \
+				and _t >= _ready_sent + 1.0:
+			_ready_sent = _t
+			session.client.set_ready(true)
 	if _t >= _next:
 		var session := root.get_node_or_null("Session")
 		var phase: String = str(session.client.phase_label()) if session and session.client else ""

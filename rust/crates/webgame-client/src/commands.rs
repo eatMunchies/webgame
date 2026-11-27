@@ -26,7 +26,7 @@ pub enum Command {
 }
 
 pub const HELP: &str = "\
-Lobby:   /create   /join CODE   /leave   /start (host)   /players
+Lobby:   /create   /join CODE   /leave   /ready   /unready   /start (host)   /players
 Chat:    type a line to talk (town square by day; jail, Mafia or dead chat by night)
          /w N text        whisper to player N during the day
 Day:     /vote N   /unvote   /guilty   /inno   /abstain
@@ -61,6 +61,8 @@ pub fn parse(line: &str, state: &State) -> Result<Command, String> {
             .map_err(|err| err.to_string()),
         "leave" => Ok(Command::Send(ClientMessage::LeaveLobby)),
         "start" => Ok(Command::Send(ClientMessage::StartGame)),
+        "ready" => Ok(Command::Send(ClientMessage::SetReady(true))),
+        "unready" => Ok(Command::Send(ClientMessage::SetReady(false))),
         "w" | "whisper" => {
             let (who, text) = args.split_once(' ').ok_or("Usage: /w N text")?;
             Ok(Command::Send(ClientMessage::Chat {

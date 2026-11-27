@@ -290,6 +290,13 @@ impl GameClient {
         )));
     }
 
+    /// Says whether this player is ready for the next game (the briefing's box). The host can
+    /// start once everyone is.
+    #[func]
+    fn set_ready(&mut self, ready: bool) {
+        self.send(ClientMessage::SetReady(ready));
+    }
+
     /// The player's last will as they last set it.
     #[func]
     fn last_will(&self) -> GString {
@@ -458,7 +465,8 @@ impl GameClient {
     /// Everyone in the lobby, one Dictionary each, in lot order:
     /// `lot` (int, from 0), `number` (int, the number players type, from 1), `name`,
     /// `user_id` (String, stable for a username), `connected`, `alive` (always true outside a
-    /// game), `is_host`, `is_me`, `role` (their role once it is public, when they die or the
+    /// game), `is_host`, `is_me`, `ready` (they've ticked the briefing's box for the next
+    /// game; always false during one), `role` (their role once it is public, when they die or the
     /// game ends, else ""), `votes` (votes on them during voting, else 0), and `appearance`: a
     /// Dictionary with the fields of a
     /// `CharacterAppearance` plus `house` (picked house layers to styles), or null until their
@@ -488,6 +496,7 @@ impl GameClient {
                 "alive" => alive,
                 "is_host" => member.user_id == lobby.host,
                 "is_me" => Some(member.user_id) == self.state.user_id,
+                "ready" => member.ready,
                 "role" => &self
                     .state
                     .revealed

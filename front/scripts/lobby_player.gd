@@ -20,3 +20,5 @@ var alive := true
 ## False while their connection is down. Their seat waits for them.
 var connected := true
 var is_host := false
+## Whether they've ticked the briefing's ready box for the next game.
+var ready := false

@@ -188,6 +188,20 @@ async fn play(mut client: Client) -> (Client, GameOverInfo) {
     }
 }
 
+/// Everyone ticks the briefing's ready box, and waits until the host sees them all ready.
+async fn ready_up(clients: &mut [Client]) {
+    for client in clients.iter_mut() {
+        client.send(ClientMessage::SetReady(true)).await;
+    }
+    let count = clients.len();
+    clients[0]
+        .wait(|m| {
+            matches!(m, ServerMessage::Lobby(info)
+                if info.members.len() == count && info.members.iter().all(|m| m.ready))
+        })
+        .await;
+}
+
 #[tokio::test]
 async fn four_players_play_a_whole_game() {
     let (addr, db, path) = start_server(Timers::uniform(300), 42).await;
@@ -195,6 +209,9 @@ async fn four_players_play_a_whole_game() {
 
     clients[1].send(ClientMessage::StartGame).await;
     assert_eq!(clients[1].error().await, ErrorCode::NotHost);
+    clients[0].send(ClientMessage::StartGame).await;
+    assert_eq!(clients[0].error().await, ErrorCode::NotEveryoneReady);
+    ready_up(&mut clients).await;
     clients[0].send(ClientMessage::StartGame).await;
 
     // Day 0: a whisper from Ada to Bram. Everyone hears that it happened; only they see it.
@@ -266,7 +283,16 @@ async fn four_players_play_a_whole_game() {
 async fn a_player_who_reconnects_gets_their_seat_back() {
     let (addr, _db, path) = start_server(Timers::uniform(60_000), 7).await;
     let (mut clients, code) = lobby_of_four(addr).await;
+    ready_up(&mut clients).await;
     clients[0].send(ClientMessage::StartGame).await;
+    // Starting clears everyone's ready, for the next game.
+    let ServerMessage::Lobby(running) = clients[2]
+        .wait(|m| matches!(m, ServerMessage::Lobby(info) if info.in_game))
+        .await
+    else {
+        unreachable!()
+    };
+    assert!(running.members.iter().all(|m| !m.ready));
     let ServerMessage::GameStarted(before) = clients[2]
         .wait(|m| matches!(m, ServerMessage::GameStarted(_)))
         .await

@@ -70,6 +70,8 @@ struct Member {
     /// Where their character last was in the town, for players who join later. Movement is
     /// only relayed, never written to the database.
     movement: Option<Movement>,
+    /// Whether they've said they're ready for the next game.
+    ready: bool,
 }
 
 /// A game and the bookkeeping for its database record.
@@ -110,6 +112,7 @@ impl Lobby {
                 dropped_at: None,
                 appearance: None,
                 movement: None,
+                ready: false,
             }],
             running: None,
             db,
@@ -236,6 +239,7 @@ impl Lobby {
             dropped_at: None,
             appearance: None,
             movement: None,
+            ready: false,
         });
         self.members.sort_by_key(|m| m.slot);
         // Joining a game in progress seats them as a spectator: dead, watching with the dead.
@@ -361,6 +365,7 @@ impl Lobby {
             ClientMessage::Game(action) => self.game_input(slot, Input::Action(action)),
             ClientMessage::Move(movement) => self.moved(slot, movement),
             ClientMessage::SetAppearance(appearance) => self.set_appearance(slot, appearance),
+            ClientMessage::SetReady(ready) => self.set_ready(slot, ready),
             ClientMessage::Hello { .. }
             | ClientMessage::CreateLobby
             | ClientMessage::JoinLobby { .. }
@@ -407,6 +412,21 @@ impl Lobby {
         Ok(())
     }
 
+    fn set_ready(&mut self, slot: PlayerSlot, ready: bool) -> Result<(), ServerError> {
+        if self.in_game() {
+            return Err(ServerError::new(
+                ErrorCode::NotAllowedNow,
+                "You can ready up once the game is over.",
+            ));
+        }
+        let member = self.member_mut(slot);
+        if member.ready != ready {
+            member.ready = ready;
+            self.broadcast_lobby();
+        }
+        Ok(())
+    }
+
     /// Tells a player who just joined or reconnected where everyone else's character is.
     fn send_positions(&self, slot: PlayerSlot) {
         for other in self.members.iter().filter(|m| m.slot != slot) {
@@ -448,6 +468,16 @@ impl Lobby {
                 format!("A game needs at least {MIN_PLAYERS} players."),
             ));
         }
+        let ready = self.members.iter().filter(|m| m.ready).count();
+        if ready < self.members.len() {
+            return Err(ServerError::new(
+                ErrorCode::NotEveryoneReady,
+                format!(
+                    "Everyone has to be ready first: {ready} of {} are.",
+                    self.members.len()
+                ),
+            ));
+        }
         let seats: Vec<Seat> = self
             .members
             .iter()
@@ -469,6 +499,10 @@ impl Lobby {
             .collect();
         self.db.game_started(id, &self.code, seed, &players);
         self.running = Some(Running { game, id, seq: 0 });
+        // Everyone readies up again before the next game.
+        for member in &mut self.members {
+            member.ready = false;
+        }
         self.broadcast_lobby();
         self.dispatch(out);
         Ok(())
@@ -527,6 +561,7 @@ impl Lobby {
                     slot: m.slot,
                     connected: m.connection.is_some(),
                     appearance: m.appearance.clone(),
+                    ready: m.ready,
                 })
                 .collect(),
             in_game: self.in_game(),

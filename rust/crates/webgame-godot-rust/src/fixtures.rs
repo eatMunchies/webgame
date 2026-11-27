@@ -133,6 +133,7 @@ fn members(names: &[&str]) -> Vec<LobbyMember> {
             slot: PlayerSlot(i as u8),
             connected: true,
             appearance: None,
+            ready: false,
         })
         .collect()
 }

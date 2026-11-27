@@ -168,6 +168,13 @@ static func _build_system(u: float) -> Theme:
 	theme.set_icon("checked", "CheckBox", _check_icon(box_px, true))
 	theme.set_icon("unchecked_disabled", "CheckBox", _check_icon(box_px, false))
 	theme.set_icon("checked_disabled", "CheckBox", _check_icon(box_px, true))
+	# CheckBox makes room for the largest of all its icons, the radio ones
+	# included, so those get the same small box; left to the default theme's
+	# bigger ones they'd push the text away from the box.
+	for radio in ["radio_unchecked", "radio_unchecked_disabled"]:
+		theme.set_icon(radio, "CheckBox", _check_icon(box_px, false))
+	for radio in ["radio_checked", "radio_checked_disabled"]:
+		theme.set_icon(radio, "CheckBox", _check_icon(box_px, true))
 	theme.set_constant("h_separation", "CheckBox", _px(Tokens.SPACE_XS, u))
 	for state in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
 		theme.set_stylebox(state, "CheckBox", _box(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0, 0, Tokens.SPACE_XS, u))
