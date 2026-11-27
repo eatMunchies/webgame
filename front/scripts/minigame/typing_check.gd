@@ -15,6 +15,8 @@ const LINE_GAP := 3
 ## How many letters past the end of a word can be typed, shown as mistakes.
 const MAX_EXTRA := 5
 const UNTYPED_COLOR := SIM_FAINT
+## Shown under the words on a touch screen until the first letter is typed.
+const TAP_TO_TYPE := "tap here to type"
 
 var word_count := 4
 ## The words to type.
@@ -131,7 +133,10 @@ func _process(_delta: float) -> void:
 ## and every change typed into it comes here as keys would. The HUD moves the
 ## minigame to the top of a tall screen meanwhile (Session.keyboard_minigame),
 ## above the keyboard. A tap on the test brings the keyboard back if it was
-## put away.
+## put away. An iPhone won't open the keyboard for a box that takes focus on
+## its own, only during a tap (the web page's head_include script focuses
+## Godot's text box again as the finger lifts), so until the first letter
+## the test says to tap it.
 func _notification(what: int) -> void:
 	if not TextPrompt.touch:
 		return
@@ -180,7 +185,11 @@ func _sync_keys(text: String) -> void:
 
 func _gui_input(event: InputEvent) -> void:
 	if _keys != null and is_tap(event):
+		# Taking focus again asks for the keyboard again, even when Godot's
+		# box still has focus but the phone put its keyboard away.
+		_keys.release_focus()
 		_keys.grab_focus()
+		accept_event()
 
 
 ## Takes what the invisible box holds: the word being typed, and a space
@@ -237,6 +246,11 @@ func _attempt(i: int) -> String:
 
 func _draw() -> void:
 	draw_words_on(self, size)
+	if TextPrompt.touch and typed.is_empty() and current == "":
+		var font := Fonts.MONO
+		var y := size.y - LINE_GAP - font.get_descent(FONT_SIZE)
+		draw_string(font, Vector2(0, y), TAP_TO_TYPE, HORIZONTAL_ALIGNMENT_CENTER, size.x,
+				FONT_SIZE, UNTYPED_COLOR)
 
 
 ## Draws the words on `canvas`, laid out to fit `area`.
