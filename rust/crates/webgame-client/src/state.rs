@@ -427,7 +427,11 @@ impl State {
                     .iter()
                     .find(|v| Some(v.voter) == self.me)
                     .map(|v| v.target);
-                let line = self.votes(&votes, needed);
+                let tally = self.votes(&votes, needed);
+                let line = match self.vote_change(&votes) {
+                    Some(change) => format!("{change} {tally}"),
+                    None => tally,
+                };
                 self.votes = votes;
                 self.votes_needed = needed;
                 vec![line]
@@ -697,6 +701,28 @@ impl State {
         lines
     }
 
+    /// Who just voted for whom, when `votes` differs from the last tally by one player's vote,
+    /// as it does after each vote or unvote. A bigger difference (a new round of voting, or
+    /// catching up after a reconnect) isn't one player's doing, so it gets no line.
+    fn vote_change(&self, votes: &[VoteEntry]) -> Option<String> {
+        let target =
+            |list: &[VoteEntry], voter| list.iter().find(|v| v.voter == voter).map(|v| v.target);
+        let mut voters: Vec<PlayerSlot> = self.votes.iter().chain(votes).map(|v| v.voter).collect();
+        voters.sort();
+        voters.dedup();
+        let mut changed = voters
+            .into_iter()
+            .filter(|&voter| target(&self.votes, voter) != target(votes, voter));
+        let voter = changed.next()?;
+        if changed.next().is_some() {
+            return None;
+        }
+        Some(match target(votes, voter) {
+            Some(target) => format!("{} voted for {}.", self.name(voter), self.name(target)),
+            None => format!("{} took back their vote.", self.name(voter)),
+        })
+    }
+
     fn votes(&self, votes: &[VoteEntry], needed: u8) -> String {
         let mut tally: Vec<(PlayerSlot, usize)> = Vec::new();
         for vote in votes {
@@ -918,10 +944,12 @@ mod tests {
             voter: PlayerSlot(voter),
             target: PlayerSlot(target),
         };
-        state.apply(ServerMessage::Votes {
+        let lines = state.apply(ServerMessage::Votes {
             votes: vec![vote(0, 2), vote(1, 2), vote(3, 1)],
             needed: 3,
         });
+        // A whole new list is a catch-up, not one player's vote, so nobody is named.
+        assert!(lines.iter().all(|line| !line.contains("voted for")));
         let tally = state.vote_tally();
         assert_eq!(tally[&PlayerSlot(2)], 2);
         assert_eq!(tally[&PlayerSlot(1)], 1);
@@ -931,6 +959,32 @@ mod tests {
             accused: PlayerSlot(2),
         }));
         assert!(state.vote_tally().is_empty());
+    }
+
+    #[test]
+    fn the_chat_says_who_voted_for_whom() {
+        let mut state = game();
+        state.apply(day(DayStage::Voting { trials_left: 3 }));
+        let vote = |voter, target| VoteEntry {
+            voter: PlayerSlot(voter),
+            target: PlayerSlot(target),
+        };
+        let mut votes = |votes| {
+            state
+                .apply(ServerMessage::Votes { votes, needed: 3 })
+                .join("\n")
+        };
+        let line = votes(vec![vote(0, 2)]);
+        assert!(
+            line.starts_with("P1 (1) voted for P3 (3). Votes:"),
+            "{line}"
+        );
+        let line = votes(vec![vote(0, 2), vote(1, 2)]);
+        assert!(line.starts_with("P2 (2) voted for P3 (3)."), "{line}");
+        let line = votes(vec![vote(0, 1), vote(1, 2)]);
+        assert!(line.starts_with("P1 (1) voted for P2 (2)."), "{line}");
+        let line = votes(vec![vote(0, 1)]);
+        assert!(line.starts_with("P2 (2) took back their vote."), "{line}");
     }
 
     #[test]

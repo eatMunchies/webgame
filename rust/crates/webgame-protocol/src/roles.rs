@@ -233,6 +233,12 @@ impl Role {
         self.category().faction()
     }
 
+    /// Whether games can roll this role. The Jailer is taken out for now: its code stays, but no
+    /// role list deals it.
+    pub fn in_play(self) -> bool {
+        self != Role::Jailer
+    }
+
     /// Unique roles appear at most once in a game.
     pub fn unique(self) -> bool {
         matches!(
